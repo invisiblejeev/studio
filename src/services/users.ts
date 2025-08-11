@@ -1,6 +1,6 @@
 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, or } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 export interface UserProfile {
   uid: string;
@@ -15,7 +15,6 @@ export interface UserProfile {
 }
 
 export async function isIdentifierTaken(field: 'username' | 'email', value: string): Promise<boolean> {
-  // Ensure value is a non-empty string before querying
   if (!value) {
     return false;
   }
@@ -24,7 +23,8 @@ export async function isIdentifierTaken(field: 'username' | 'email', value: stri
   return !querySnapshot.empty;
 }
 
-export async function createUserProfile(uid: string, data: {firstName: string, lastName: string, username: string, email: string}) {
+
+export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid'>) {
     const userProfileData = {
         uid,
         ...data,

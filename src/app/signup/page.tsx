@@ -32,6 +32,7 @@ export default function SignupPage() {
 
   const handleSignUp = async () => {
     setIsLoading(true);
+
     if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password) {
         toast({
             title: "Missing fields",
@@ -41,51 +42,52 @@ export default function SignupPage() {
         setIsLoading(false);
         return;
     }
-    
+
     try {
-      const usernameTaken = await isIdentifierTaken('username', formData.username);
-      if (usernameTaken) {
+        const usernameTaken = await isIdentifierTaken('username', formData.username);
+        if (usernameTaken) {
+            toast({
+                title: "Username Taken",
+                description: "This username is already in use. Please choose another one.",
+                variant: "destructive",
+            });
+            setIsLoading(false);
+            return;
+        }
+
+        const emailTaken = await isIdentifierTaken('email', formData.email);
+        if (emailTaken) {
+            toast({
+                title: "Email In Use",
+                description: "This email is already registered. Please log in.",
+                variant: "destructive",
+            });
+            setIsLoading(false);
+            return;
+        }
+
+        const userCredential = await signUp(formData.email, formData.password);
+        const user = userCredential.user;
+
+        const profileData = {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            username: formData.username,
+            email: formData.email,
+        };
+
+        await createUserProfile(user.uid, profileData);
+
         toast({
-          title: "Username already taken",
-          description: "Please choose a different username.",
-          variant: "destructive",
+            title: "Signup Successful!",
+            description: "Your account has been created.",
         });
-        setIsLoading(false);
-        return;
-      }
-
-      const emailTaken = await isIdentifierTaken('email', formData.email);
-      if (emailTaken) {
-        toast({
-          title: "Email already in use",
-          description: "This email is already associated with an account. Please log in or use a different email.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      const user = await signUp(formData.email, formData.password);
-      
-      const profileData = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        username: formData.username,
-        email: formData.email,
-      };
-
-      await createUserProfile(user.uid, profileData);
-
-      toast({
-        title: "Signup Successful!",
-        description: "You have successfully created an account.",
-      });
-      router.push('/chat');
+        router.push('/chat');
 
     } catch (error: any) {
        toast({
         title: "Signup Failed",
-        description: error.message || "Could not create an account. The email might be invalid or the password too weak.",
+        description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
