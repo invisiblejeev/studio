@@ -7,8 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Paperclip, SendHorizonal, ArrowLeft } from "lucide-react"
 import { useParams, useRouter } from 'next/navigation';
-import Link from "next/link";
-import { use, useState } from "react";
+import { useState } from "react";
 
 const users: Record<string, { name: string; avatar: string }> = {
     user1: { name: 'Rohan', avatar: 'https://placehold.co/40x40.png' },
@@ -18,7 +17,7 @@ const users: Record<string, { name: string; avatar: string }> = {
 
 export default function PersonalChatPage() {
   const params = useParams();
-  const userId = use(params ? Promise.resolve(params.userId) : Promise.resolve(null)) as keyof typeof users | null;
+  const userId = params.userId as keyof typeof users | null;
   const router = useRouter();
   
   const otherUser = userId ? users[userId] : { name: 'Unknown User', avatar: 'https://placehold.co/40x40.png' };

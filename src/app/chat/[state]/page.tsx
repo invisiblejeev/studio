@@ -9,12 +9,12 @@ import { allStates } from "@/lib/states";
 import { Paperclip, SendHorizonal } from "lucide-react"
 import { useParams } from 'next/navigation';
 import Link from "next/link";
-import { use, useState } from "react";
+import { useState } from "react";
 
 
 export default function ChatPage() {
   const params = useParams();
-  const state = use(params ? Promise.resolve(params.state) : Promise.resolve('')) as string;
+  const state = params.state as string;
 
   const [messages, setMessages] = useState([
     { id: 1, user: { id: 'user1', name: 'Rohan', avatar: 'https://placehold.co/40x40.png' }, text: 'Anyone looking for a frontend developer role? My company is hiring.', time: '2:30 PM' },
