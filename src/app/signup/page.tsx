@@ -67,7 +67,7 @@ export default function SignupPage() {
         }
 
         const userCredential = await signUp(formData.email, formData.password);
-        const user = userCredential.user;
+        const user = userCredential;
 
         const profileData = {
             firstName: formData.firstName,
