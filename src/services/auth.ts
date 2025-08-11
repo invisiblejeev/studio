@@ -7,7 +7,8 @@ import {
     signOut, 
     onAuthStateChanged,
     sendPasswordResetEmail,
-    User
+    User,
+    deleteUser
 } from 'firebase/auth';
 
 export const signUp = async (email: string, password: string): Promise<User> => {
@@ -39,4 +40,13 @@ export const getCurrentUser = (): Promise<User | null> => {
 
 export const sendPasswordReset = async (email: string): Promise<void> => {
     await sendPasswordResetEmail(auth, email);
+};
+
+export const deleteCurrentUser = async (): Promise<void> => {
+    const user = auth.currentUser;
+    if (user) {
+        await deleteUser(user);
+    } else {
+        throw new Error("No user is currently signed in.");
+    }
 };

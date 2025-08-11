@@ -1,6 +1,6 @@
 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 export interface UserProfile {
   uid: string;
@@ -53,4 +53,9 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
     updatedData.email = data.email.toLowerCase();
   }
   await updateDoc(userRef, updatedData);
+}
+
+export async function deleteUserProfile(uid: string): Promise<void> {
+    const userRef = doc(db, 'users', uid);
+    await deleteDoc(userRef);
 }

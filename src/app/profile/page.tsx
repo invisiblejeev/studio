@@ -12,8 +12,8 @@ import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, P
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { getCurrentUser, logOut } from "@/services/auth";
-import { getUserProfile, updateUserProfile, isIdentifierTaken, UserProfile } from "@/services/users";
+import { getCurrentUser, logOut, deleteCurrentUser } from "@/services/auth";
+import { getUserProfile, updateUserProfile, isIdentifierTaken, UserProfile, deleteUserProfile } from "@/services/users";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
 
@@ -132,14 +132,26 @@ export default function ProfilePage() {
   }
   
   const handleDeleteAccount = async () => {
-      // Placeholder for delete logic
-      console.log("Deleting account for user:", profile?.uid);
-      toast({
-          title: "Account Deleted",
-          description: "Your account has been successfully deleted.",
-      });
-      setIsDeleteDialogOpen(false);
-      await logOut();
+      if (!profile) return;
+      
+      try {
+        await deleteCurrentUser();
+        await deleteUserProfile(profile.uid);
+
+        toast({
+            title: "Account Deleted",
+            description: "Your account has been successfully and permanently deleted.",
+        });
+        setIsDeleteDialogOpen(false);
+        await logOut(); // This will handle redirecting the user
+      } catch (error: any) {
+          console.error("Error deleting account: ", error);
+          toast({
+              title: "Deletion Failed",
+              description: "Could not delete account. You may need to sign in again for this operation. " + error.message,
+              variant: "destructive",
+          })
+      }
   }
 
   if (!profile) {
@@ -205,7 +217,7 @@ export default function ProfilePage() {
             <ProfileInfoItem icon={User} label="First Name" value={profile.firstName} isEditing={isEditing} onValueChange={handleProfileChange('firstName')} />
             <ProfileInfoItem icon={User} label="Last Name" value={profile.lastName} isEditing={isEditing} onValueChange={handleProfileChange('lastName')} />
             <ProfileInfoItem icon={User} label="Username" value={profile.username} isEditing={isEditing} onValueChange={handleProfileChange('username')} />
-            <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={isEditing} onValue-change={handleProfileChange('email')} />
+            <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={isEditing} onValueChange={handleProfileChange('email')} />
             <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone || ''} isEditing={isEditing} onValueChange={handleProfileChange('phone')} />
             <ProfileInfoItem icon={MapPin} label="State" value={profile.state || ''} isEditing={isEditing} onValueChange={handleProfileChange('state')} />
             <ProfileInfoItem icon={Globe} label="City" value={profile.city || ''} isEditing={isEditing} onValueChange={handleProfileChange('city')} />
@@ -247,5 +259,3 @@ export default function ProfilePage() {
     </div>
   )
 }
-
-    
