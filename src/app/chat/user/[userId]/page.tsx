@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Paperclip, SendHorizonal, ArrowLeft } from "lucide-react"
 import { useParams, useRouter } from 'next/navigation';
 import Link from "next/link";
+import { use } from "react";
 
 const users = {
     user1: { name: 'Rohan', avatar: 'https://placehold.co/40x40.png' },
@@ -17,10 +18,15 @@ const users = {
 
 export default function PersonalChatPage() {
   const params = useParams();
-  const userId = params.userId as keyof typeof users;
+  const userId = params ? (params.userId as keyof typeof users) : null;
   const router = useRouter();
   
-  const otherUser = users[userId] || { name: 'Unknown User', avatar: 'https://placehold.co/40x40.png' };
+  const otherUser = userId ? users[userId] : { name: 'Unknown User', avatar: 'https://placehold.co/40x40.png' };
+
+  if (!userId) {
+    // Optionally handle the case where userId is not available yet
+    return null; // or a loading spinner
+  }
 
   const messages = [
     { id: 1, user: { name: otherUser.name, avatar: otherUser.avatar }, text: 'Anyone looking for a frontend developer role? My company is hiring.', time: '2:30 PM' },
