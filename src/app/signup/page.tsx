@@ -113,7 +113,7 @@ export default function SignupPage() {
             phone: formData.phone,
             state: formData.state,
             city: formData.city,
-            avatar: `https://i.pravatar.cc/150?u=${formData.username}`
+            avatar: `https://placehold.co/100x100.png`
         };
 
         await createUserProfile(user.uid, profileData);
