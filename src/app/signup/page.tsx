@@ -39,7 +39,8 @@ export default function SignupPage() {
         return;
     }
     
-    if (await isIdentifierTaken('username', formData.username)) {
+    const usernameTaken = await isIdentifierTaken('username', formData.username);
+    if (usernameTaken) {
       toast({
         title: "Username already taken",
         description: "Please choose a different username.",
@@ -47,7 +48,9 @@ export default function SignupPage() {
       });
       return;
     }
-    if (await isIdentifierTaken('email', formData.email)) {
+
+    const emailTaken = await isIdentifierTaken('email', formData.email);
+    if (emailTaken) {
       toast({
         title: "Email already in use",
         description: "This email is already associated with an account. Please log in or use a different email.",
@@ -59,7 +62,6 @@ export default function SignupPage() {
     try {
       const user = await signUp(formData.email, formData.password);
       if (user) {
-        // Do not pass password to createUserProfile
         await createUserProfile(user.uid, {
           firstName: formData.firstName,
           lastName: formData.lastName,
