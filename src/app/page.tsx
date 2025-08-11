@@ -64,9 +64,23 @@ export default function LoginPage() {
           setIsLoading(false);
       }
     } catch (error: any) {
+      let errorMessage = "An unexpected error occurred. Please try again.";
+      switch (error.code) {
+          case 'auth/user-not-found':
+              errorMessage = "No user found with this email address.";
+              break;
+          case 'auth/wrong-password':
+              errorMessage = "Incorrect password. Please try again.";
+              break;
+          case 'auth/invalid-credential':
+               errorMessage = "Invalid credentials. Please check your email and password.";
+               break;
+          default:
+              console.error("Login error:", error);
+      }
       toast({
         title: "Login Failed",
-        description: "Invalid email or password. Please try again.",
+        description: errorMessage,
         variant: "destructive"
       });
        setIsLoading(false);
