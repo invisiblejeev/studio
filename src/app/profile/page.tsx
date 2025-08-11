@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { allStates } from "@/lib/states";
 import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil, X, Save } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -18,9 +20,22 @@ const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange }:
         <div className="flex-1">
             <Label htmlFor={label} className="text-xs text-muted-foreground">{label}</Label>
             {isEditing ? (
-                <Input id={label} value={value} onChange={(e) => onValueChange(e.target.value)} className="h-9 mt-1" />
+                 label === "State" ? (
+                    <Select value={value} onValueChange={onValueChange}>
+                        <SelectTrigger id={label} className="h-9 mt-1">
+                            <SelectValue placeholder="Select State" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {allStates.map(s => (
+                                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                 ) : (
+                    <Input id={label} value={value} onChange={(e) => onValueChange(e.target.value)} className="h-9 mt-1" />
+                 )
             ) : (
-                <p className="font-medium pt-1">{value}</p>
+                <p className="font-medium pt-1">{label === "State" ? allStates.find(s => s.value === value)?.label || value : value}</p>
             )}
         </div>
     </div>
@@ -45,7 +60,7 @@ export default function ProfilePage() {
     name: "John Doe",
     email: "john.doe@email.com",
     phone: "+1 (555) 123-4567",
-    state: "California",
+    state: "california",
     city: "San Francisco"
   });
 
