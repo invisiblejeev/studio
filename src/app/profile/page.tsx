@@ -3,7 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, ChevronRight, Edit, Globe, LogOut, Mail, MapPin, Phone, Shield } from "lucide-react";
+import { Bell, ChevronRight, CreditCard, Globe, LogOut, Mail, MapPin, Phone, Shield, User } from "lucide-react";
 import Link from "next/link";
 
 const ProfileInfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: string }) => (
@@ -33,8 +33,11 @@ const SettingsItem = ({ icon: Icon, label, href, isLogout = false }: { icon: Rea
 
 export default function ProfilePage() {
   return (
-    <div className="bg-muted/20 min-h-screen">
-      <div className="text-center py-6 bg-background">
+    <div className="bg-muted/20 min-h-screen pb-24">
+      <div className="flex flex-col items-center text-center py-6 bg-background">
+          <Avatar className="h-24 w-24 mb-4 bg-primary/10">
+            <User className="w-12 h-12 text-primary" />
+          </Avatar>
           <h1 className="text-2xl font-bold">John Doe</h1>
           <p className="text-muted-foreground">Indian Community Member</p>
       </div>
@@ -43,12 +46,12 @@ export default function ProfilePage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Profile Information</CardTitle>
-            <Button variant="ghost" size="icon">
-              <Edit className="w-5 h-5" />
+            <Button variant="ghost" size="icon" className="text-primary">
+              <CreditCard className="w-5 h-5" />
             </Button>
           </CardHeader>
           <CardContent className="space-y-5">
-            <ProfileInfoItem icon={Avatar} label="Full Name" value="John Doe" />
+            <ProfileInfoItem icon={User} label="Full Name" value="John Doe" />
             <ProfileInfoItem icon={Mail} label="Email" value="john.doe@email.com" />
             <ProfileInfoItem icon={Phone} label="Phone Number" value="+1 (555) 123-4567" />
             <ProfileInfoItem icon={MapPin} label="State" value="California" />

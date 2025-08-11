@@ -23,7 +23,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-body antialiased bg-muted/20">
+      <body className="font-body antialiased">
         <AppLayout>{children}</AppLayout>
         <Toaster />
       </body>
