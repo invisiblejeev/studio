@@ -1,8 +1,4 @@
 
-
-
-
-
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
@@ -49,5 +45,12 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
   const userRef = doc(db, 'users', uid);
-  await updateDoc(userRef, data);
+  const updatedData = { ...data };
+  if (data.username) {
+    updatedData.username = data.username.toLowerCase();
+  }
+  if (data.email) {
+    updatedData.email = data.email.toLowerCase();
+  }
+  await updateDoc(userRef, updatedData);
 }
