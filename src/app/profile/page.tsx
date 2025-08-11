@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { allStates } from "@/lib/states";
 import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil, X, Save, Upload, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getCurrentUser, logOut, deleteCurrentUser } from "@/services/auth";
 import { getUserProfile, updateUserProfile, isIdentifierTaken, UserProfile, deleteUserProfile } from "@/services/users";
+import { uploadProfilePicture } from "@/services/storage";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
 
@@ -68,6 +69,9 @@ export default function ProfilePage() {
   const [initialProfile, setInitialProfile] = useState<UserProfile | null>(null);
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
 
   const { toast } = useToast();
   const router = useRouter();
@@ -181,6 +185,36 @@ export default function ProfilePage() {
           });
       }
   }
+  
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !profile) return;
+
+    setIsUploading(true);
+    try {
+        const downloadURL = await uploadProfilePicture(profile.uid, file);
+        await updateUserProfile(profile.uid, { avatar: downloadURL });
+
+        const updatedProfile = { ...profile, avatar: downloadURL };
+        setProfile(updatedProfile);
+        setInitialProfile(updatedProfile);
+
+        toast({
+            title: "Success",
+            description: "Profile picture uploaded successfully.",
+        });
+    } catch (error) {
+        console.error("Failed to upload image: ", error);
+        toast({
+            title: "Upload Failed",
+            description: "Could not upload the new profile picture.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsUploading(false);
+        setIsImageDialogOpen(false);
+    }
+  };
 
 
   if (!profile) {
@@ -214,9 +248,12 @@ export default function ProfilePage() {
                 <AvatarFallback>{profile.firstName.charAt(0)}{profile.lastName.charAt(0)}</AvatarFallback>
               </Avatar>
           </div>
-          <DialogFooter className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Button variant="outline"><Upload className="mr-2" /> Upload Photo</Button>
-            <Button variant="outline"><Pencil className="mr-2" /> Edit</Button>
+          <DialogFooter className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                <Upload className="mr-2" /> 
+                {isUploading ? 'Uploading...' : 'Upload Photo'}
+            </Button>
+            <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
             <Button variant="destructive" onClick={handleDeleteImage} disabled={!profile.avatar}><Trash2 className="mr-2" /> Delete</Button>
           </DialogFooter>
         </DialogContent>
@@ -246,7 +283,7 @@ export default function ProfilePage() {
             <ProfileInfoItem icon={User} label="First Name" value={profile.firstName} isEditing={isEditing} onValueChange={handleProfileChange('firstName')} />
             <ProfileInfoItem icon={User} label="Last Name" value={profile.lastName} isEditing={isEditing} onValueChange={handleProfileChange('lastName')} />
             <ProfileInfoItem icon={User} label="Username" value={profile.username} isEditing={isEditing} onValueChange={handleProfileChange('username')} />
-            <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={isEditing} onValueChange={handleProfileChange('email')} />
+            <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={false} onValueChange={() => {}} />
             <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone || ''} isEditing={isEditing} onValueChange={handleProfileChange('phone')} />
             <ProfileInfoItem icon={MapPin} label="State" value={profile.state || ''} isEditing={isEditing} onValueChange={handleProfileChange('state')} />
             <ProfileInfoItem icon={Globe} label="City" value={profile.city || ''} isEditing={isEditing} onValueChange={handleProfileChange('city')} />
@@ -288,5 +325,3 @@ export default function ProfilePage() {
     </div>
   )
 }
-
-    
