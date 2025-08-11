@@ -6,15 +6,16 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Paperclip, SendHorizonal, ArrowLeft } from "lucide-react"
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { getMessages, sendMessage, Message, getPersonalChatRoomId } from "@/services/chat";
 
-export default function PersonalChatPage({ params }: { params: { userId: string } }) {
-  const otherUserId = params.userId;
+export default function PersonalChatPage() {
   const router = useRouter();
+  const params = useParams();
+  const otherUserId = params.userId as string;
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
