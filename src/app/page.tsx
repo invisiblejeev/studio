@@ -23,8 +23,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const handleEmailLinkSignIn = async () => {
-      // Ensure auth is initialized and function exists
-      if (auth && isSignInWithEmailLink && isSignInWithEmailLink(auth, window.location.href)) {
+      if (isSignInWithEmailLink(window.location.href)) {
         let emailFromStore = window.localStorage.getItem('emailForSignIn');
         if (!emailFromStore) {
           // If the email is not in local storage, prompt the user for it.
@@ -68,11 +67,11 @@ export default function LoginPage() {
          checkUser();
       }
     };
-    // Wait for auth to be initialized before running the effect
-    const unsubscribe = auth.onAuthStateChanged(user => {
+    
+    // We only want to run this on the client-side after the component has mounted.
+    if (typeof window !== 'undefined') {
         handleEmailLinkSignIn();
-        unsubscribe(); // Unsubscribe to prevent multiple executions
-    });
+    }
   }, [router, toast]);
 
 
