@@ -92,9 +92,6 @@ export default function LoginPage() {
               <Button type="submit" className="w-full" onClick={handleLogin}>
                 Login
               </Button>
-            <Button variant="outline" className="w-full">
-              Login with Phone
-            </Button>
           </div>
           <div className="mt-4 text-center text-sm">
             Don't have an account?{" "}
