@@ -6,12 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast";
-import { IndianRupee, Eye, EyeOff } from "lucide-react"
+import { IndianRupee, Eye, EyeOff, CheckCircle2, XCircle, LoaderCircle } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { signUp } from "@/services/auth";
 import { isIdentifierTaken, createUserProfile } from "@/services/users";
+import { useDebounce } from "use-debounce";
 
 export default function SignupPage() {
   const { toast } = useToast();
@@ -28,9 +29,38 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const [debouncedUsername] = useDebounce(formData.username, 500);
+
+  const checkUsername = useCallback(async (username: string) => {
+    if (username.length < 3) {
+      setUsernameStatus("idle");
+      return;
+    }
+    setUsernameStatus("checking");
+    try {
+      const taken = await isIdentifierTaken('username', username);
+      setUsernameStatus(taken ? "taken" : "available");
+    } catch (error) {
+      setUsernameStatus("idle"); // Reset on error
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debouncedUsername) {
+      checkUsername(debouncedUsername);
+    } else {
+      setUsernameStatus("idle");
+    }
+  }, [debouncedUsername, checkUsername]);
+
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({...prev, [id]: value}));
+    if (id === "username") {
+      setUsernameStatus("checking");
+    }
   }
 
   const handleSignUp = async () => {
@@ -56,18 +86,17 @@ export default function SignupPage() {
         return;
     }
 
-    try {
-        const usernameTaken = await isIdentifierTaken('username', formData.username);
-        if (usernameTaken) {
-            toast({
-                title: "Username Taken",
-                description: "This username is already in use. Please choose another one.",
-                variant: "destructive",
-            });
-            setIsLoading(false);
-            return;
-        }
+    if (usernameStatus !== 'available') {
+      toast({
+        title: "Username unavailable",
+        description: "Please choose a different username.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
 
+    try {
         const emailTaken = await isIdentifierTaken('email', formData.email);
         if (emailTaken) {
             toast({
@@ -107,6 +136,19 @@ export default function SignupPage() {
       setIsLoading(false);
     }
   }
+  
+  const renderUsernameStatus = () => {
+    switch (usernameStatus) {
+      case "checking":
+        return <LoaderCircle className="h-4 w-4 animate-spin" />;
+      case "available":
+        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      case "taken":
+        return <XCircle className="h-4 w-4 text-destructive" />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
@@ -136,15 +178,21 @@ export default function SignupPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="johndoe"
-                required
-                onChange={handleChange} 
-                value={formData.username}
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="johndoe"
+                  required
+                  onChange={handleChange} 
+                  value={formData.username}
+                  disabled={isLoading}
+                  className="pr-10"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    {renderUsernameStatus()}
+                </div>
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
@@ -205,7 +253,7 @@ export default function SignupPage() {
               </div>
             </div>
             
-            <Button type="submit" className="w-full" onClick={handleSignUp} disabled={isLoading}>
+            <Button type="submit" className="w-full" onClick={handleSignUp} disabled={isLoading || usernameStatus === 'checking' || usernameStatus === 'taken'}>
               {isLoading ? 'Signing Up...' : 'Sign Up'}
             </Button>
             
@@ -221,3 +269,5 @@ export default function SignupPage() {
     </div>
   )
 }
+
+    
