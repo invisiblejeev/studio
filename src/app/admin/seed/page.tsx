@@ -60,6 +60,16 @@ const sampleUsers: Omit<UserProfile, 'uid'>[] = [
     city: "Miami",
     phone: "567-890-1234",
     avatar: "https://i.pravatar.cc/150?u=viksingh"
+  },
+  {
+    firstName: "jeevitesh",
+    lastName: "reddy",
+    username: "invisiblejeev",
+    email: "jeevitesh.reddy@example.com",
+    state: "virginia",
+    city: "Chantilly",
+    phone: "703-703-5959",
+    avatar: "https://i.pravatar.cc/150?u=invisiblejeev"
   }
 ];
 
@@ -84,7 +94,7 @@ export default function SeedDataPage() {
 
             toast({
                 title: "Database Seeded!",
-                description: "5 sample users have been added to the 'users' collection.",
+                description: `${sampleUsers.length} sample users have been added to the 'users' collection.`,
                 action: <PartyPopper className="w-5 h-5 text-green-500" />,
             });
         } catch (error) {
@@ -109,7 +119,7 @@ export default function SeedDataPage() {
                         Seed Sample Data
                     </CardTitle>
                     <CardDescription>
-                        Click the button below to add 5 sample user profiles to your Firestore database. This is useful for testing and development.
+                        Click the button below to add {sampleUsers.length} sample user profiles to your Firestore database. This is useful for testing and development.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -118,7 +128,7 @@ export default function SeedDataPage() {
                         disabled={isLoading} 
                         className="w-full"
                     >
-                        {isLoading ? "Seeding..." : "Add 5 Sample Users"}
+                        {isLoading ? "Seeding..." : `Add ${sampleUsers.length} Sample Users`}
                     </Button>
                     <p className="text-xs text-muted-foreground mt-4">
                         <strong>Note:</strong> This action will create documents in the 'users' collection. If documents with the same IDs exist, they will be overwritten.
