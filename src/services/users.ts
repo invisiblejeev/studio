@@ -19,8 +19,8 @@ export async function isUsernameTaken(username: string): Promise<boolean> {
   return !querySnapshot.empty;
 }
 
-export async function createUserProfile(user: UserProfile) {
-  await setDoc(doc(db, 'users', user.uid), user);
+export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid'>) {
+  await setDoc(doc(db, 'users', uid), { uid, ...data });
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {

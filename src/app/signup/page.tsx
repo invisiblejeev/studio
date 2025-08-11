@@ -30,6 +30,15 @@ export default function SignupPage() {
   }
 
   const handleSignUp = async () => {
+    if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password) {
+        toast({
+            title: "Missing fields",
+            description: "Please fill out all fields.",
+            variant: "destructive",
+        });
+        return;
+    }
+    
     if (await isUsernameTaken(formData.username)) {
       toast({
         title: "Username already taken",
@@ -42,8 +51,7 @@ export default function SignupPage() {
     try {
       const user = await signUp(formData.email, formData.password);
       if (user) {
-        await createUserProfile({
-          uid: user.uid,
+        await createUserProfile(user.uid, {
           firstName: formData.firstName,
           lastName: formData.lastName,
           username: formData.username,
