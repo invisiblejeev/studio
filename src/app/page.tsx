@@ -23,7 +23,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const handleEmailLinkSignIn = async () => {
-      if (isSignInWithEmailLink(window.location.href)) {
+      if (typeof window !== 'undefined' && isSignInWithEmailLink(window.location.href)) {
         let emailFromStore = window.localStorage.getItem('emailForSignIn');
         if (!emailFromStore) {
           // If the email is not in local storage, prompt the user for it.
@@ -61,7 +61,10 @@ export default function LoginPage() {
          const checkUser = async () => {
              const user = await getCurrentUser();
              if (user) {
-                 router.push('/chat');
+                 const profile = await getUserProfile(user.uid);
+                 if (profile) {
+                    router.push('/chat');
+                 }
              }
          }
          checkUser();
@@ -69,9 +72,8 @@ export default function LoginPage() {
     };
     
     // We only want to run this on the client-side after the component has mounted.
-    if (typeof window !== 'undefined') {
-        handleEmailLinkSignIn();
-    }
+    handleEmailLinkSignIn();
+    
   }, [router, toast]);
 
 

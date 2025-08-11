@@ -32,7 +32,11 @@ export default function SignupPage() {
   useEffect(() => {
     const emailFromQuery = searchParams.get('email');
     if (emailFromQuery) {
-      setFormData(prev => ({...prev, email: emailFromQuery}));
+      setFormData(prev => ({...prev, email: decodeURIComponent(emailFromQuery)}));
+    } else {
+       // If no email is in the query, the user might not have come from the magic link flow
+       // You could redirect them to login, or just let them fill the form.
+       // For now, we'll let them fill, but a real app might redirect.
     }
   }, [searchParams]);
 
