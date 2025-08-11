@@ -15,12 +15,12 @@ import { useToast } from "@/hooks/use-toast"
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [email, setEmail] = useState("user@example.com");
+  const [loginId, setLoginId] = useState("user@example.com");
   const [password, setPassword] = useState("password");
 
   const handleLogin = async () => {
     try {
-      await signIn(email, password);
+      await signIn(loginId, password);
       router.push('/chat');
     } catch (error: any) {
       toast({
@@ -42,20 +42,20 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-2xl font-bold">Indian Community Chat</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Enter your email, phone, or username to login
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="loginId">Email, Phone, or Username</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="m@example.com"
+                id="loginId"
+                type="text"
+                placeholder="Your email, phone, or username"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
               />
             </div>
             <div className="grid gap-2">
