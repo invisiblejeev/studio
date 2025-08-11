@@ -11,6 +11,11 @@ import { allStates } from "@/lib/states";
 import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil, X, Save } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+
+// Mock database of existing users
+const existingUsernames = ["janedoe", "testuser"];
+
 
 const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange }: { icon: React.ElementType, label: string, value: string, isEditing: boolean, onValueChange: (value: string) => void }) => (
     <div className="flex items-start gap-4">
@@ -56,16 +61,42 @@ const SettingsItem = ({ icon: Icon, label, href, isLogout = false }: { icon: Rea
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
-  const [profile, setProfile] = useState({
+  const [initialProfile, setInitialProfile] = useState({
+    firstName: "John",
+    lastName: "Doe",
     username: "johndoe",
     email: "john.doe@email.com",
     phone: "+1 (555) 123-4567",
     state: "california",
     city: "San Francisco"
   });
+  const [profile, setProfile] = useState(initialProfile);
+  const { toast } = useToast();
 
   const handleProfileChange = (field: keyof typeof profile) => (value: string) => {
     setProfile(prev => ({ ...prev, [field]: value }));
+  }
+
+  const handleSave = () => {
+    if (profile.username !== initialProfile.username && existingUsernames.includes(profile.username)) {
+        toast({
+            title: "Username taken",
+            description: "This username is already in use. Please choose another one.",
+            variant: "destructive"
+        });
+        return;
+    }
+    setInitialProfile(profile);
+    setIsEditing(false);
+    toast({
+        title: "Profile Saved",
+        description: "Your profile information has been updated successfully.",
+    });
+  }
+
+  const handleCancel = () => {
+    setProfile(initialProfile);
+    setIsEditing(false);
   }
 
   return (
@@ -73,10 +104,10 @@ export default function ProfilePage() {
       <div className="flex flex-col items-center text-center py-6 bg-background">
           <Avatar className="h-24 w-24 mb-4 bg-primary/10">
             <AvatarImage src="https://placehold.co/100x100.png" data-ai-hint="person avatar" />
-            <AvatarFallback>JD</AvatarFallback>
+            <AvatarFallback>{profile.firstName.charAt(0)}{profile.lastName.charAt(0)}</AvatarFallback>
           </Avatar>
-          <h1 className="text-2xl font-bold">{profile.username}</h1>
-          <p className="text-muted-foreground">Indian Community Member</p>
+          <h1 className="text-2xl font-bold">{profile.firstName} {profile.lastName}</h1>
+          <p className="text-muted-foreground">@{profile.username}</p>
       </div>
 
       <div className="space-y-6 p-4">
@@ -85,10 +116,10 @@ export default function ProfilePage() {
             <CardTitle className="text-lg">Profile Information</CardTitle>
             {isEditing ? (
               <div className="flex gap-2">
-                 <Button variant="ghost" size="icon" className="text-primary" onClick={() => setIsEditing(false)}>
+                 <Button variant="ghost" size="icon" className="text-primary" onClick={handleCancel}>
                     <X className="w-5 h-5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="text-primary" onClick={() => setIsEditing(false)}>
+                <Button variant="ghost" size="icon" className="text-primary" onClick={handleSave}>
                     <Save className="w-5 h-5" />
                 </Button>
               </div>
@@ -99,6 +130,8 @@ export default function ProfilePage() {
             )}
           </CardHeader>
           <CardContent className="space-y-5">
+            <ProfileInfoItem icon={User} label="First Name" value={profile.firstName} isEditing={isEditing} onValueChange={handleProfileChange('firstName')} />
+            <ProfileInfoItem icon={User} label="Last Name" value={profile.lastName} isEditing={isEditing} onValueChange={handleProfileChange('lastName')} />
             <ProfileInfoItem icon={User} label="Username" value={profile.username} isEditing={isEditing} onValueChange={handleProfileChange('username')} />
             <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={isEditing} onValueChange={handleProfileChange('email')} />
             <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone} isEditing={isEditing} onValueChange={handleProfileChange('phone')} />

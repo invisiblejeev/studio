@@ -1,12 +1,51 @@
 
+"use client";
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useToast } from "@/hooks/use-toast";
 import { IndianRupee } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+// Mock database of existing users
+const existingUsernames = ["johndoe", "janedoe", "testuser"];
 
 export default function SignupPage() {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    username: '',
+    email: '',
+    password: ''
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setFormData(prev => ({...prev, [id]: value}));
+  }
+
+  const handleSignUp = () => {
+    if (existingUsernames.includes(formData.username)) {
+      toast({
+        title: "Username already taken",
+        description: "Please choose a different username.",
+        variant: "destructive",
+      });
+    } else {
+       toast({
+        title: "Signup Successful!",
+        description: "You have successfully created an account.",
+      });
+      router.push('/chat');
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <Card className="mx-auto w-full max-w-sm">
@@ -23,6 +62,16 @@ export default function SignupPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input id="firstName" placeholder="John" required onChange={handleChange} value={formData.firstName} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input id="lastName" placeholder="Doe" required onChange={handleChange} value={formData.lastName} />
+              </div>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="username">Username</Label>
               <Input
@@ -30,6 +79,8 @@ export default function SignupPage() {
                 type="text"
                 placeholder="johndoe"
                 required
+                onChange={handleChange} 
+                value={formData.username}
               />
             </div>
             <div className="grid gap-2">
@@ -39,17 +90,19 @@ export default function SignupPage() {
                 type="email"
                 placeholder="m@example.com"
                 required
+                onChange={handleChange} 
+                value={formData.email}
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required />
+              <Input id="password" type="password" required onChange={handleChange} value={formData.password} />
             </div>
-            <Link href="/chat" passHref>
-              <Button type="submit" className="w-full">
-                Sign Up
-              </Button>
-            </Link>
+            
+            <Button type="submit" className="w-full" onClick={handleSignUp}>
+              Sign Up
+            </Button>
+            
           </div>
           <div className="mt-4 text-center text-sm">
             Already have an account?{" "}
