@@ -86,9 +86,13 @@ export default function LoginPage() {
         description: "Please check your inbox for instructions to reset your password.",
       });
     } catch (error: any) {
+       let errorMessage = "Could not send password reset email. Please ensure the email is correct.";
+       if(error.code === 'auth/user-not-found') {
+          errorMessage = "No user found with this email address.";
+       }
        toast({
         title: "Error",
-        description: "Could not send password reset email. Please ensure the email is correct.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
