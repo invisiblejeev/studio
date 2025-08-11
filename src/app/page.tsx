@@ -18,16 +18,26 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Start as true to check for existing session
 
   useEffect(() => {
      const checkUser = async () => {
-         const user = await getCurrentUser();
-         if (user) {
-             const profile = await getUserProfile(user.uid);
-             if (profile) {
-                router.push('/chat');
-             }
+         try {
+            const user = await getCurrentUser();
+            if (user) {
+                const profile = await getUserProfile(user.uid);
+                if (profile) {
+                   router.push('/chat');
+                } else {
+                   // User is authenticated but has no profile, might happen in edge cases
+                   // Or they should be redirected to signup completion
+                   setIsLoading(false);
+                }
+            } else {
+                setIsLoading(false);
+            }
+         } catch(e) {
+            setIsLoading(false);
          }
      }
      checkUser();
@@ -41,18 +51,37 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      await signIn(email, password);
-      router.push('/chat');
+      const user = await signIn(email, password);
+      // After successful sign-in, check for profile
+      const profile = await getUserProfile(user.uid);
+      if (profile) {
+          router.push('/chat');
+      } else {
+          // This case should ideally not happen if signup is successful
+          toast({
+            title: "Login Failed",
+            description: "User profile not found. Please sign up again.",
+            variant: "destructive"
+          });
+          setIsLoading(false);
+      }
     } catch (error: any) {
       toast({
         title: "Login Failed",
         description: "Invalid email or password. Please try again.",
         variant: "destructive"
       });
-    } finally {
       setIsLoading(false);
     }
   };
+
+  if (isLoading) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background">
+            <p>Loading...</p>
+        </div>
+      )
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
@@ -94,7 +123,7 @@ export default function LoginPage() {
               />
             </div>
             <Button type="submit" className="w-full" onClick={handleLogin} disabled={isLoading}>
-              {isLoading ? 'Logging in...' : 'Login'}
+              Login
             </Button>
           </div>
           <div className="mt-4 text-center text-sm">

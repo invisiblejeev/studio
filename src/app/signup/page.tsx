@@ -39,7 +39,7 @@ export default function SignupPage() {
   const [debouncedEmail] = useDebounce(formData.email, 500);
 
   const checkIdentifier = useCallback(async (field: 'username' | 'email', value: string, setStatus: (status: "idle" | "checking" | "available" | "taken") => void) => {
-    const V = value.trim();
+    const V = value.trim().toLowerCase();
     if (V.length < 3) {
       setStatus("idle");
       return;
