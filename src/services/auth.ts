@@ -2,31 +2,20 @@
 
 import { auth } from '@/lib/firebase';
 import { 
-    sendSignInLinkToEmail, 
-    isSignInWithEmailLink as firebaseIsSignInWithEmailLink,
-    signInWithEmailLink as firebaseSignInWithEmailLink,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
     signOut, 
     onAuthStateChanged,
-    ActionCodeSettings,
     User
 } from 'firebase/auth';
-import { createUserProfile, UserProfile } from './users';
 
-const actionCodeSettings: ActionCodeSettings = {
-  url: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:9002',
-  handleCodeInApp: true,
+export const signUp = async (email: string, password: string): Promise<User> => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    return userCredential.user;
 };
 
-export const sendSignInLink = async (email: string) => {
-    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-};
-
-export const isSignInWithEmailLink = (url: string) => {
-    return firebaseIsSignInWithEmailLink(auth, url);
-};
-
-export const signInWithEmailLink = async (email: string, url: string): Promise<User> => {
-    const userCredential = await firebaseSignInWithEmailLink(auth, email, url);
+export const signIn = async (email: string, password: string): Promise<User> => {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
     return userCredential.user;
 };
 

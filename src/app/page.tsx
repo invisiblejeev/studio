@@ -9,8 +9,7 @@ import { IndianRupee } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { auth } from "@/lib/firebase"; // Import auth directly
-import { sendSignInLink, isSignInWithEmailLink, signInWithEmailLink, getCurrentUser } from "@/services/auth"
+import { signIn, getCurrentUser } from "@/services/auth"
 import { useToast } from "@/hooks/use-toast"
 import { getUserProfile } from "@/services/users"
 
@@ -18,117 +17,42 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isLinkSent, setIsLinkSent] = useState(false);
 
   useEffect(() => {
-    const handleEmailLinkSignIn = async () => {
-      if (typeof window !== 'undefined' && isSignInWithEmailLink(window.location.href)) {
-        let emailFromStore = window.localStorage.getItem('emailForSignIn');
-        if (!emailFromStore) {
-          // If the email is not in local storage, prompt the user for it.
-          emailFromStore = window.prompt('Please provide your email for confirmation');
-          if (!emailFromStore) {
-            toast({ title: "Login Failed", description: "Email is required to complete sign-in.", variant: "destructive" });
-            return;
-          }
-        }
-        
-        setIsLoading(true);
-        try {
-          const user = await signInWithEmailLink(emailFromStore, window.location.href);
-          window.localStorage.removeItem('emailForSignIn');
-          
-          if(user) {
+     const checkUser = async () => {
+         const user = await getCurrentUser();
+         if (user) {
              const profile = await getUserProfile(user.uid);
              if (profile) {
                 router.push('/chat');
-             } else {
-                // First time user, redirect to complete profile (which is signup page for now)
-                router.push(`/signup?email=${encodeURIComponent(emailFromStore)}`);
-             }
-          }
-        } catch (error: any) {
-          toast({
-            title: "Login Failed",
-            description: "The sign-in link is invalid or has expired.",
-            variant: "destructive"
-          });
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-         const checkUser = async () => {
-             const user = await getCurrentUser();
-             if (user) {
-                 const profile = await getUserProfile(user.uid);
-                 if (profile) {
-                    router.push('/chat');
-                 }
              }
          }
-         checkUser();
-      }
-    };
-    
-    // We only want to run this on the client-side after the component has mounted.
-    handleEmailLinkSignIn();
-    
-  }, [router, toast]);
+     }
+     checkUser();
+  }, [router]);
 
 
   const handleLogin = async () => {
-    if (!email) {
-      toast({ title: "Email Required", description: "Please enter your email address.", variant: "destructive" });
+    if (!email || !password) {
+      toast({ title: "Missing Fields", description: "Please enter both email and password.", variant: "destructive" });
       return;
     }
     setIsLoading(true);
     try {
-      await sendSignInLink(email);
-      window.localStorage.setItem('emailForSignIn', email);
-      setIsLinkSent(true);
-      toast({
-        title: "Check Your Email",
-        description: `A sign-in link has been sent to ${email}.`,
-      });
+      await signIn(email, password);
+      router.push('/chat');
     } catch (error: any) {
       toast({
-        title: "Failed to Send Link",
-        description: "Could not send sign-in link. Please try again.",
+        title: "Login Failed",
+        description: "Invalid email or password. Please try again.",
         variant: "destructive"
       });
     } finally {
       setIsLoading(false);
     }
   };
-
-  if (isLoading) {
-    return (
-       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-          <Card className="mx-auto w-full max-w-sm text-center">
-             <CardContent className="p-6">
-                <p>Signing you in... Please wait.</p>
-             </CardContent>
-          </Card>
-       </div>
-    );
-  }
-  
-  if (isLinkSent) {
-     return (
-       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-          <Card className="mx-auto w-full max-w-sm text-center">
-            <CardHeader>
-                <CardTitle>Email Sent</CardTitle>
-            </CardHeader>
-             <CardContent className="p-6 space-y-4">
-                <p>A sign-in link has been sent to <strong>{email}</strong>.</p>
-                <p>Please check your inbox and click the link to log in.</p>
-             </CardContent>
-          </Card>
-       </div>
-     )
-  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
@@ -141,7 +65,7 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-2xl font-bold">Indian Community Chat</CardTitle>
           <CardDescription>
-            Sign in with a secure link sent to your email.
+            Enter your credentials to access your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -158,8 +82,19 @@ export default function LoginPage() {
                 disabled={isLoading}
               />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
             <Button type="submit" className="w-full" onClick={handleLogin} disabled={isLoading}>
-              {isLoading ? 'Sending Link...' : 'Send Magic Link'}
+              {isLoading ? 'Logging in...' : 'Login'}
             </Button>
           </div>
           <div className="mt-4 text-center text-sm">
