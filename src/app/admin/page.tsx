@@ -8,7 +8,8 @@ import type { ChartConfig } from "@/components/ui/chart"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Shield, TrendingUp, ShieldAlert, Bot, Eye, Ban } from "lucide-react"
+import { Shield, TrendingUp, ShieldAlert, Bot, Eye, Ban, Database } from "lucide-react"
+import Link from "next/link"
 
 const chartData = [
   { category: "Jobs", count: 186 },
@@ -59,9 +60,17 @@ const spamReports = [
 export default function AdminPage() {
     return (
         <div className="space-y-4 p-4">
-            <div className="flex items-center gap-3">
-              <Shield className="w-6 h-6 text-primary" />
-              <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <Shield className="w-6 h-6 text-primary" />
+                    <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
+                </div>
+                <Link href="/admin/seed">
+                    <Button variant="outline">
+                        <Database className="w-4 h-4 mr-2" />
+                        Seed Data
+                    </Button>
+                </Link>
             </div>
 
             <Tabs defaultValue="spam-reports" className="w-full">
