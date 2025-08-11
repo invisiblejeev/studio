@@ -56,6 +56,8 @@ export default function LoginPage() {
       if (profile) {
           router.push('/chat');
       } else {
+          // This case can happen if profile creation failed after signup
+          await signIn(email, password); // Re-auth to be safe before logging out
           toast({
             title: "Login Failed",
             description: "User profile not found. Please sign up again.",
@@ -65,18 +67,18 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       let errorMessage = "An unexpected error occurred. Please try again.";
+      // Firebase auth errors have a 'code' property.
       switch (error.code) {
           case 'auth/user-not-found':
-              errorMessage = "No user found with this email address.";
+          case 'auth/invalid-credential':
+              errorMessage = "Invalid email or password. Please check your credentials.";
               break;
           case 'auth/wrong-password':
               errorMessage = "Incorrect password. Please try again.";
               break;
-          case 'auth/invalid-credential':
-               errorMessage = "Invalid credentials. Please check your email and password.";
-               break;
           default:
               console.error("Login error:", error);
+              errorMessage = "An unexpected error occurred during login.";
       }
       toast({
         title: "Login Failed",
@@ -100,7 +102,7 @@ export default function LoginPage() {
         description: "Please check your inbox for instructions to reset your password.",
       });
     } catch (error: any) {
-       let errorMessage = "Could not send password reset email. Please ensure the email is correct.";
+       let errorMessage = "Could not send password reset email. Please try again.";
        if(error.code === 'auth/user-not-found') {
           errorMessage = "No user found with this email address.";
        }
