@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -64,7 +63,8 @@ export default function RequirementsPage() {
             try {
                 const q = query(
                     collection(db, "chats", "california", "messages"), 
-                    where("category", "in", categories)
+                    where("category", "in", categories),
+                    orderBy("timestamp", "desc")
                 );
 
                 const querySnapshot = await getDocs(q);
@@ -91,11 +91,8 @@ export default function RequirementsPage() {
                     }
                 });
                 
-                // Sort by timestamp on the client side
-                const sortedReqs = reqs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-
-                setAllRequirements(sortedReqs);
-                setFilteredRequirements(sortedReqs);
+                setAllRequirements(reqs);
+                setFilteredRequirements(reqs);
             } catch (error) {
                 console.error("Error fetching requirements:", error);
             } finally {
