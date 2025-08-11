@@ -29,44 +29,54 @@ export default function SignupPage() {
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
   const [debouncedUsername] = useDebounce(formData.username, 500);
 
+  const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const [debouncedEmail] = useDebounce(formData.email, 500);
+
   useEffect(() => {
     const emailFromQuery = searchParams.get('email');
     if (emailFromQuery) {
       setFormData(prev => ({...prev, email: decodeURIComponent(emailFromQuery)}));
-    } else {
-       // If no email is in the query, the user might not have come from the magic link flow
-       // You could redirect them to login, or just let them fill the form.
-       // For now, we'll let them fill, but a real app might redirect.
     }
   }, [searchParams]);
 
-  const checkUsername = useCallback(async (username: string) => {
-    if (username.length < 3) {
-      setUsernameStatus("idle");
+  const checkIdentifier = useCallback(async (field: 'username' | 'email', value: string, setStatus: (status: "idle" | "checking" | "available" | "taken") => void) => {
+    if (value.length < 3) {
+      setStatus("idle");
       return;
     }
-    setUsernameStatus("checking");
+    setStatus("checking");
     try {
-      const taken = await isIdentifierTaken('username', username);
-      setUsernameStatus(taken ? "taken" : "available");
+      const taken = await isIdentifierTaken(field, value);
+      setStatus(taken ? "taken" : "available");
     } catch (error) {
-      setUsernameStatus("idle");
+      setStatus("idle");
     }
   }, []);
 
   useEffect(() => {
     if (debouncedUsername) {
-      checkUsername(debouncedUsername);
+      checkIdentifier('username', debouncedUsername, setUsernameStatus);
     } else {
       setUsernameStatus("idle");
     }
-  }, [debouncedUsername, checkUsername]);
+  }, [debouncedUsername, checkIdentifier]);
+  
+  useEffect(() => {
+    if (debouncedEmail) {
+      checkIdentifier('email', debouncedEmail, setEmailStatus);
+    } else {
+      setEmailStatus("idle");
+    }
+  }, [debouncedEmail, checkIdentifier]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({...prev, [id]: value}));
     if (id === "username") {
       setUsernameStatus("checking");
+    }
+    if (id === "email") {
+      setEmailStatus("checking");
     }
   }
 
@@ -83,10 +93,10 @@ export default function SignupPage() {
         return;
     }
     
-    if (usernameStatus !== 'available') {
+    if (usernameStatus !== 'available' || emailStatus !== 'available') {
       toast({
-        title: "Username unavailable",
-        description: "Please choose a different username.",
+        title: "Username or Email unavailable",
+        description: "Please choose a different username and make sure the email is not already registered.",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -106,6 +116,10 @@ export default function SignupPage() {
             lastName: formData.lastName,
             username: formData.username,
             email: formData.email,
+            phone: "",
+            state: "",
+            city: "",
+            avatar: `https://i.pravatar.cc/150?u=${formData.username}`
         };
 
         await createUserProfile(user.uid, profileData);
@@ -158,14 +172,21 @@ export default function SignupPage() {
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="m@example.com"
-                required
-                value={formData.email}
-                onChange={handleChange}
-              />
+               <div className="relative">
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your@email.com"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  className="pr-10"
+                />
+                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    {renderStatusIcon(emailStatus)}
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
@@ -196,7 +217,7 @@ export default function SignupPage() {
               </div>
             </div>
             
-            <Button type="submit" className="w-full" onClick={handleSignUp} disabled={isLoading || usernameStatus !== 'available'}>
+            <Button type="submit" className="w-full" onClick={handleSignUp} disabled={isLoading || usernameStatus !== 'available' || emailStatus !== 'available'}>
               {isLoading ? 'Saving...' : 'Complete Sign Up'}
             </Button>
             
@@ -212,3 +233,5 @@ export default function SignupPage() {
     </div>
   )
 }
+
+    
