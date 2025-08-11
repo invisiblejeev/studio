@@ -1,6 +1,6 @@
 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, or } from 'firebase/firestore';
 
 export interface UserProfile {
   uid: string;
@@ -24,7 +24,7 @@ export async function isIdentifierTaken(field: 'username' | 'email', value: stri
   return !querySnapshot.empty;
 }
 
-export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid' | 'phone' | 'state' | 'city' | 'avatar'>) {
+export async function createUserProfile(uid: string, data: {firstName: string, lastName: string, username: string, email: string}) {
     const userProfileData = {
         uid,
         ...data,
