@@ -23,11 +23,9 @@ export default function SignupPage() {
     username: '',
     email: '',
     password: '',
-    confirmPassword: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
   const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
@@ -95,7 +93,7 @@ export default function SignupPage() {
   const handleSignUp = async () => {
     setIsLoading(true);
 
-    if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password || !formData.confirmPassword) {
+    if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password) {
         toast({
             title: "Missing fields",
             description: "Please fill out all fields.",
@@ -105,16 +103,6 @@ export default function SignupPage() {
         return;
     }
     
-    if (formData.password !== formData.confirmPassword) {
-        toast({
-            title: "Passwords do not match",
-            description: "Please ensure your passwords match.",
-            variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-    }
-
     if (usernameStatus !== 'available') {
       toast({
         title: "Username unavailable",
@@ -260,29 +248,6 @@ export default function SignupPage() {
                   onClick={() => setShowPassword(prev => !prev)}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-             <div className="grid gap-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-               <div className="relative">
-                <Input 
-                  id="confirmPassword" 
-                  type={showConfirmPassword ? "text" : "password"} 
-                  required 
-                  onChange={handleChange} 
-                  value={formData.confirmPassword} 
-                  disabled={isLoading}
-                  className="pr-10"
-                />
-                <Button 
-                  type="button"
-                  variant="ghost" 
-                  size="icon" 
-                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:bg-transparent"
-                  onClick={() => setShowConfirmPassword(prev => !prev)}
-                >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
