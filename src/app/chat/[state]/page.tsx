@@ -7,7 +7,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
 import { Paperclip, SendHorizonal } from "lucide-react"
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import Link from "next/link";
 
 
 export default function ChatPage() {
@@ -15,13 +16,42 @@ export default function ChatPage() {
   const state = params.state as string;
 
   const messages = [
-    { id: 1, user: { name: 'Rohan', avatar: 'https://placehold.co/40x40.png' }, text: 'Anyone looking for a frontend developer role? My company is hiring.', time: '2:30 PM' },
-    { id: 2, user: { name: 'Priya', avatar: 'https://placehold.co/40x40.png' }, text: 'I am! Can you share the details?', time: '2:31 PM' },
-    { id: 3, user: { name: 'You', avatar: 'https://placehold.co/40x40.png' }, text: 'There is a great Diwali event happening this weekend in the Bay Area. Anyone interested?', time: '2:35 PM' },
-    { id: 4, user: { name: 'Amit', avatar: 'https://placehold.co/40x40.png' }, text: 'I\'m selling my old couch, it\'s in great condition. DM for price.', time: '2:40 PM' },
+    { id: 1, user: { id: 'user1', name: 'Rohan', avatar: 'https://placehold.co/40x40.png' }, text: 'Anyone looking for a frontend developer role? My company is hiring.', time: '2:30 PM' },
+    { id: 2, user: { id: 'user2', name: 'Priya', avatar: 'https://placehold.co/40x40.png' }, text: 'I am! Can you share the details?', time: '2:31 PM' },
+    { id: 3, user: { id: 'you', name: 'You', avatar: 'https://placehold.co/40x40.png' }, text: 'There is a great Diwali event happening this weekend in the Bay Area. Anyone interested?', time: '2:35 PM' },
+    { id: 4, user: { id: 'user3', name: 'Amit', avatar: 'https://placehold.co/40x40.png' }, text: 'I\'m selling my old couch, it\'s in great condition. DM for price.', time: '2:40 PM' },
   ];
 
   const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
+
+  const renderMessage = (msg: (typeof messages)[0]) => {
+    const isYou = msg.user.name === 'You';
+    const messageContent = (
+      <>
+        <Avatar className="mt-1">
+          <AvatarImage src={msg.user.avatar} data-ai-hint="person avatar" />
+          <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
+        </Avatar>
+        <div className={`rounded-lg p-3 max-w-xs lg:max-w-md shadow-sm ${isYou ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
+            {!isYou && <p className="font-semibold text-sm mb-1">{msg.user.name}</p>}
+            <p className="text-sm">{msg.text}</p>
+            <p className="text-xs text-right mt-2 opacity-70">{msg.time}</p>
+        </div>
+      </>
+    );
+
+    return (
+      <div key={msg.id} className={`flex items-start gap-3 ${isYou ? 'justify-end flex-row-reverse' : 'justify-start'}`}>
+          {isYou ? (
+            messageContent
+          ) : (
+            <Link href={`/chat/user/${msg.user.id}`} className="flex items-start gap-3">
+              {messageContent}
+            </Link>
+          )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col h-full bg-background rounded-xl border">
@@ -30,19 +60,7 @@ export default function ChatPage() {
       </header>
       <ScrollArea className="flex-1 p-4">
           <div className="space-y-6">
-              {messages.map((msg) => (
-                  <div key={msg.id} className={`flex items-start gap-3 ${msg.user.name === 'You' ? 'justify-end flex-row-reverse' : 'justify-start'}`}>
-                      <Avatar className="mt-1">
-                        <AvatarImage src={msg.user.avatar} data-ai-hint="person avatar" />
-                        <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className={`rounded-lg p-3 max-w-xs lg:max-w-md shadow-sm ${msg.user.name === 'You' ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
-                          {msg.user.name !== 'You' && <p className="font-semibold text-sm mb-1">{msg.user.name}</p>}
-                          <p className="text-sm">{msg.text}</p>
-                          <p className="text-xs text-right mt-2 opacity-70">{msg.time}</p>
-                      </div>
-                  </div>
-              ))}
+              {messages.map(renderMessage)}
           </div>
       </ScrollArea>
       <div className="p-4 border-t bg-card rounded-b-xl">
