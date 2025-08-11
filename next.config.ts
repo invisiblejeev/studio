@@ -18,6 +18,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  experimental: {
+    // This is the fix for the cross-origin request warning.
+    allowedDevOrigins: [
+        "https://6000-firebase-studio-1754884826408.cluster-f4iwdviaqvc2ct6pgytzw4xqy4.cloudworkstations.dev"
+    ]
+  }
 };
 
 export default nextConfig;
