@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { allStates } from "@/lib/states";
-import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil, X, Save, Upload, Trash2 } from "lucide-react";
+import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil, X, Save, Upload, Trash2, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -250,11 +250,11 @@ export default function ProfilePage() {
           </div>
           <DialogFooter className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                <Upload className="mr-2" /> 
+                {isUploading ? <LoaderCircle className="mr-2 animate-spin" /> : <Upload className="mr-2" />}
                 {isUploading ? 'Uploading...' : 'Upload Photo'}
             </Button>
             <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
-            <Button variant="destructive" onClick={handleDeleteImage} disabled={!profile.avatar}><Trash2 className="mr-2" /> Delete</Button>
+            <Button variant="destructive" onClick={handleDeleteImage} disabled={!profile.avatar || isUploading}><Trash2 className="mr-2" /> Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -325,3 +325,5 @@ export default function ProfilePage() {
     </div>
   )
 }
+
+    
