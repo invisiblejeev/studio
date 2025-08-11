@@ -62,7 +62,12 @@ export default function SignupPage() {
   
   useEffect(() => {
     if (debouncedEmail) {
-      checkIdentifier('email', debouncedEmail, setEmailStatus);
+      // A simple regex for basic email format validation before hitting the DB
+      if (/^\S+@\S+\.\S+$/.test(debouncedEmail)) {
+        checkIdentifier('email', debouncedEmail, setEmailStatus);
+      } else {
+        setEmailStatus("idle");
+      }
     } else {
       setEmailStatus("idle");
     }
@@ -113,7 +118,7 @@ export default function SignupPage() {
             phone: formData.phone,
             state: formData.state,
             city: formData.city,
-            avatar: `https://placehold.co/100x100.png`
+            avatar: `https://i.pravatar.cc/150?u=${formData.username}`
         };
 
         await createUserProfile(user.uid, profileData);
