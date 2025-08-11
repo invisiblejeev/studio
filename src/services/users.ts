@@ -15,13 +15,23 @@ export interface UserProfile {
 }
 
 export async function isIdentifierTaken(field: 'username' | 'email', value: string): Promise<boolean> {
-  const q = query(collection(db, 'users'), where(field, '==', value));
+  // Ensure value is a non-empty string before querying
+  if (!value) {
+    return false;
+  }
+  const q = query(collection(db, 'users'), where(field, '==', value.toLowerCase()));
   const querySnapshot = await getDocs(q);
   return !querySnapshot.empty;
 }
 
-export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid'>) {
-  await setDoc(doc(db, 'users', uid), { uid, ...data });
+export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid' | 'phone' | 'state' | 'city' | 'avatar'>) {
+    const userProfileData = {
+        uid,
+        ...data,
+        username: data.username.toLowerCase(),
+        email: data.email.toLowerCase(),
+    };
+    await setDoc(doc(db, 'users', uid), userProfileData);
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {

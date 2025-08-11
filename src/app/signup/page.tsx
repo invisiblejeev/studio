@@ -23,6 +23,7 @@ export default function SignupPage() {
     email: '',
     password: ''
   });
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -30,56 +31,65 @@ export default function SignupPage() {
   }
 
   const handleSignUp = async () => {
+    setIsLoading(true);
     if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password) {
         toast({
             title: "Missing fields",
             description: "Please fill out all fields.",
             variant: "destructive",
         });
+        setIsLoading(false);
         return;
     }
     
-    const usernameTaken = await isIdentifierTaken('username', formData.username);
-    if (usernameTaken) {
-      toast({
-        title: "Username already taken",
-        description: "Please choose a different username.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const emailTaken = await isIdentifierTaken('email', formData.email);
-    if (emailTaken) {
-      toast({
-        title: "Email already in use",
-        description: "This email is already associated with an account. Please log in or use a different email.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
-      const user = await signUp(formData.email, formData.password);
-      if (user) {
-        await createUserProfile(user.uid, {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          username: formData.username,
-          email: formData.email,
-        });
+      const usernameTaken = await isIdentifierTaken('username', formData.username);
+      if (usernameTaken) {
         toast({
-          title: "Signup Successful!",
-          description: "You have successfully created an account.",
+          title: "Username already taken",
+          description: "Please choose a different username.",
+          variant: "destructive",
         });
-        router.push('/chat');
+        setIsLoading(false);
+        return;
       }
+
+      const emailTaken = await isIdentifierTaken('email', formData.email);
+      if (emailTaken) {
+        toast({
+          title: "Email already in use",
+          description: "This email is already associated with an account. Please log in or use a different email.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const user = await signUp(formData.email, formData.password);
+      
+      const profileData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        username: formData.username,
+        email: formData.email,
+      };
+
+      await createUserProfile(user.uid, profileData);
+
+      toast({
+        title: "Signup Successful!",
+        description: "You have successfully created an account.",
+      });
+      router.push('/chat');
+
     } catch (error: any) {
        toast({
         title: "Signup Failed",
-        description: "Could not create an account. The email might be invalid or the password too weak.",
+        description: error.message || "Could not create an account. The email might be invalid or the password too weak.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -102,11 +112,11 @@ export default function SignupPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="firstName">First Name</Label>
-                <Input id="firstName" placeholder="John" required onChange={handleChange} value={formData.firstName} />
+                <Input id="firstName" placeholder="John" required onChange={handleChange} value={formData.firstName} disabled={isLoading} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="lastName">Last Name</Label>
-                <Input id="lastName" placeholder="Doe" required onChange={handleChange} value={formData.lastName} />
+                <Input id="lastName" placeholder="Doe" required onChange={handleChange} value={formData.lastName} disabled={isLoading} />
               </div>
             </div>
             <div className="grid gap-2">
@@ -118,6 +128,7 @@ export default function SignupPage() {
                 required
                 onChange={handleChange} 
                 value={formData.username}
+                disabled={isLoading}
               />
             </div>
             <div className="grid gap-2">
@@ -129,15 +140,16 @@ export default function SignupPage() {
                 required
                 onChange={handleChange} 
                 value={formData.email}
+                disabled={isLoading}
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required onChange={handleChange} value={formData.password} />
+              <Input id="password" type="password" required onChange={handleChange} value={formData.password} disabled={isLoading} />
             </div>
             
-            <Button type="submit" className="w-full" onClick={handleSignUp}>
-              Sign Up
+            <Button type="submit" className="w-full" onClick={handleSignUp} disabled={isLoading}>
+              {isLoading ? 'Signing Up...' : 'Sign Up'}
             </Button>
             
           </div>
