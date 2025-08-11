@@ -18,16 +18,19 @@ const CategorizeMessageInputSchema = z.object({
 export type CategorizeMessageInput = z.infer<typeof CategorizeMessageInputSchema>;
 
 const CategorySchema = z.enum([
-  'job search',
-  'event needs',
-  'buy/sell requests',
-  'general chat',
-  'spam',
-  'other',
+  'Jobs',
+  'Housing',
+  'Marketplace',
+  'Events',
+  'General Chat',
+  'Other',
 ]);
+export type Category = z.infer<typeof CategorySchema>;
+
 
 const CategorizeMessageOutputSchema = z.object({
   category: CategorySchema.describe('The category of the message.'),
+  title: z.string().describe('A concise, descriptive title for the requirement.'),
   reason: z.string().optional().describe('The reason for the categorization.'),
 });
 export type CategorizeMessageOutput = z.infer<typeof CategorizeMessageOutputSchema>;
@@ -40,9 +43,16 @@ const categorizeMessagePrompt = ai.definePrompt({
   name: 'categorizeMessagePrompt',
   input: {schema: CategorizeMessageInputSchema},
   output: {schema: CategorizeMessageOutputSchema},
-  prompt: `You are an AI assistant that categorizes messages in an Indian community chat app. 
+  prompt: `You are an AI assistant that categorizes messages in an Indian community chat app and generates a title for the post. 
 
-  Given the following message, determine the appropriate category. If the message is not related to job search, event needs, or buy/sell requests, categorize it as \"general chat\".  If the message is spam, categorize it as \"spam\".
+  Given the following message, determine the appropriate category from: "Jobs", "Housing", "Marketplace", "Events", "General Chat", or "Other".
+  - "Jobs": For job postings or people looking for work.
+  - "Housing": For roommate requests, apartments for rent, or sublets.
+  - "Marketplace": For buying or selling items like cars, furniture, etc.
+  - "Events": For community events, festivals, or gatherings like Diwali.
+  - "General Chat": If it does not fit any other category.
+
+  Also, create a short, descriptive title for the message content (e.g., "Software Engineer Position", "Roommate Needed", "Selling Honda Civic", "Diwali Celebration").
 
 Message: {{{text}}}
 

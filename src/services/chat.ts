@@ -1,5 +1,6 @@
 import { db } from '@/lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { categorizeMessage } from '@/ai/flows/categorize-message';
 
 export interface Message {
   id: string;
@@ -11,11 +12,27 @@ export interface Message {
   text: string;
   time: string; // Should be a Timestamp, but using string for simplicity with mock data
   timestamp: any;
+  category?: string;
+  title?: string;
 }
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
+  
+  // Do not categorize personal messages
+  if(roomId.includes('_')) {
+    await addDoc(collection(db, 'chats', roomId, 'messages'), {
+      ...message,
+      timestamp: serverTimestamp(),
+    });
+    return;
+  }
+
+  const { category, title } = await categorizeMessage({ text: message.text });
+
   await addDoc(collection(db, 'chats', roomId, 'messages'), {
     ...message,
+    category,
+    title,
     timestamp: serverTimestamp(),
   });
 };
