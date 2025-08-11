@@ -11,7 +11,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { signUp } from "@/services/auth";
-import { isUsernameTaken, createUserProfile } from "@/services/users";
+import { isIdentifierTaken, createUserProfile } from "@/services/users";
 
 export default function SignupPage() {
   const { toast } = useToast();
@@ -39,10 +39,18 @@ export default function SignupPage() {
         return;
     }
     
-    if (await isUsernameTaken(formData.username)) {
+    if (await isIdentifierTaken('username', formData.username)) {
       toast({
         title: "Username already taken",
         description: "Please choose a different username.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (await isIdentifierTaken('email', formData.email)) {
+      toast({
+        title: "Email already in use",
+        description: "This email is already associated with an account. Please log in or use a different email.",
         variant: "destructive",
       });
       return;

@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getCurrentUser, logOut } from "@/services/auth";
-import { getUserProfile, updateUserProfile, isUsernameTaken, UserProfile } from "@/services/users";
+import { getUserProfile, updateUserProfile, isIdentifierTaken, UserProfile } from "@/services/users";
 import { useRouter } from "next/navigation";
 
 
@@ -91,7 +91,7 @@ export default function ProfilePage() {
   const handleSave = async () => {
     if (!profile || !initialProfile) return;
 
-    if (profile.username !== initialProfile.username && await isUsernameTaken(profile.username)) {
+    if (profile.username !== initialProfile.username && await isIdentifierTaken('username', profile.username)) {
         toast({
             title: "Username taken",
             description: "This username is already in use. Please choose another one.",

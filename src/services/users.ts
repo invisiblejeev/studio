@@ -13,8 +13,8 @@ export interface UserProfile {
   avatar?: string;
 }
 
-export async function isUsernameTaken(username: string): Promise<boolean> {
-  const q = query(collection(db, 'users'), where('username', '==', username));
+export async function isIdentifierTaken(field: 'username' | 'email', value: string): Promise<boolean> {
+  const q = query(collection(db, 'users'), where(field, '==', value));
   const querySnapshot = await getDocs(q);
   return !querySnapshot.empty;
 }
