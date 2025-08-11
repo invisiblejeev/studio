@@ -52,18 +52,15 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const user = await signIn(email, password);
-      // After successful sign-in, check for profile
       const profile = await getUserProfile(user.uid);
       if (profile) {
           router.push('/chat');
       } else {
-          // This case should ideally not happen if signup is successful
           toast({
             title: "Login Failed",
             description: "User profile not found. Please sign up again.",
             variant: "destructive"
           });
-          setIsLoading(false);
       }
     } catch (error: any) {
       toast({
@@ -71,7 +68,8 @@ export default function LoginPage() {
         description: "Invalid email or password. Please try again.",
         variant: "destructive"
       });
-      setIsLoading(false);
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -123,7 +121,7 @@ export default function LoginPage() {
               />
             </div>
             <Button type="submit" className="w-full" onClick={handleLogin} disabled={isLoading}>
-              Login
+              {isLoading ? "Logging in..." : "Login"}
             </Button>
           </div>
           <div className="mt-4 text-center text-sm">
