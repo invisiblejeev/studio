@@ -64,8 +64,7 @@ export default function RequirementsPage() {
             try {
                 const q = query(
                     collection(db, "chats", "california", "messages"), 
-                    where("category", "in", categories), 
-                    orderBy("timestamp", "desc")
+                    where("category", "in", categories)
                 );
 
                 const querySnapshot = await getDocs(q);
@@ -78,20 +77,25 @@ export default function RequirementsPage() {
                 querySnapshot.forEach(doc => {
                     const data = doc.data();
                     const timestamp = data.timestamp?.toDate();
-                    reqs.push({
-                        id: doc.id,
-                        user: data.user,
-                        text: data.text,
-                        time: timestamp ? timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
-                        timestamp: timestamp,
-                        category: data.category,
-                        title: data.title,
-                        userInfo: userMap.get(data.user.id) || undefined
-                    } as Requirement);
+                    if(timestamp) {
+                        reqs.push({
+                            id: doc.id,
+                            user: data.user,
+                            text: data.text,
+                            time: timestamp ? timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+                            timestamp: timestamp,
+                            category: data.category,
+                            title: data.title,
+                            userInfo: userMap.get(data.user.id) || undefined
+                        } as Requirement);
+                    }
                 });
                 
-                setAllRequirements(reqs);
-                setFilteredRequirements(reqs);
+                // Sort by timestamp on the client side
+                const sortedReqs = reqs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+                setAllRequirements(sortedReqs);
+                setFilteredRequirements(sortedReqs);
             } catch (error) {
                 console.error("Error fetching requirements:", error);
             } finally {
