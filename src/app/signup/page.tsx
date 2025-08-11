@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast";
-import { IndianRupee } from "lucide-react"
+import { IndianRupee, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -21,9 +21,12 @@ export default function SignupPage() {
     lastName: '',
     username: '',
     email: '',
-    password: ''
+    password: '',
+    confirmPassword: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -33,10 +36,20 @@ export default function SignupPage() {
   const handleSignUp = async () => {
     setIsLoading(true);
 
-    if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password) {
+    if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password || !formData.confirmPassword) {
         toast({
             title: "Missing fields",
             description: "Please fill out all fields.",
+            variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+        toast({
+            title: "Passwords do not match",
+            description: "Please ensure your passwords match.",
             variant: "destructive",
         });
         setIsLoading(false);
@@ -147,7 +160,49 @@ export default function SignupPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required onChange={handleChange} value={formData.password} disabled={isLoading} />
+              <div className="relative">
+                <Input 
+                  id="password" 
+                  type={showPassword ? "text" : "password"} 
+                  required 
+                  onChange={handleChange} 
+                  value={formData.password} 
+                  disabled={isLoading} 
+                  className="pr-10"
+                />
+                <Button 
+                  type="button"
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:bg-transparent"
+                  onClick={() => setShowPassword(prev => !prev)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+             <div className="grid gap-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+               <div className="relative">
+                <Input 
+                  id="confirmPassword" 
+                  type={showConfirmPassword ? "text" : "password"} 
+                  required 
+                  onChange={handleChange} 
+                  value={formData.confirmPassword} 
+                  disabled={isLoading}
+                  className="pr-10"
+                />
+                <Button 
+                  type="button"
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:bg-transparent"
+                  onClick={() => setShowConfirmPassword(prev => !prev)}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             
             <Button type="submit" className="w-full" onClick={handleSignUp} disabled={isLoading}>
