@@ -65,9 +65,9 @@ const sampleUsers: Omit<UserProfile, 'uid'>[] = [
     firstName: "jeevitesh",
     lastName: "reddy",
     username: "invisiblejeev",
-    email: "jeevitesh.reddy@example.com",
+    email: "ambavarapujeevam@gmail.com",
     state: "virginia",
-    city: "Chantilly",
+    city: "fairfax",
     phone: "703-703-5959",
     avatar: "https://i.pravatar.cc/150?u=invisiblejeev"
   }

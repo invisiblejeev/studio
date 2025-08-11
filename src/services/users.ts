@@ -1,5 +1,6 @@
 
 
+
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
@@ -19,7 +20,7 @@ export async function isIdentifierTaken(field: 'username' | 'email', value: stri
   if (!value) {
     return false;
   }
-  const q = query(collection(db, 'users'), where(field, '==', value.toLowerCase()));
+  const q = query(collection(db, 'users'), where(field, '==', value));
   const querySnapshot = await getDocs(q);
   return !querySnapshot.empty;
 }
