@@ -44,7 +44,10 @@ export default function SignupPage() {
       if (user) {
         await createUserProfile({
           uid: user.uid,
-          ...formData,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          username: formData.username,
+          email: formData.email,
         });
         toast({
           title: "Signup Successful!",
