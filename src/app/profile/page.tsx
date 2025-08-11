@@ -153,6 +153,35 @@ export default function ProfilePage() {
           })
       }
   }
+  
+  const handleDeleteImage = async () => {
+      if (!profile || !profile.avatar) {
+          toast({
+              title: "No Image to Delete",
+              description: "You do not have a profile picture to delete.",
+          });
+          return;
+      }
+
+      try {
+          await updateUserProfile(profile.uid, { avatar: "" });
+          const updatedProfile = { ...profile, avatar: "" };
+          setProfile(updatedProfile);
+          setInitialProfile(updatedProfile);
+          setIsImageDialogOpen(false);
+          toast({
+              title: "Profile Picture Deleted",
+              description: "Your profile picture has been removed.",
+          });
+      } catch (error) {
+          toast({
+              title: "Error",
+              description: "Failed to delete profile picture.",
+              variant: "destructive"
+          });
+      }
+  }
+
 
   if (!profile) {
       return (
@@ -188,7 +217,7 @@ export default function ProfilePage() {
           <DialogFooter className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Button variant="outline"><Upload className="mr-2" /> Upload Photo</Button>
             <Button variant="outline"><Pencil className="mr-2" /> Edit</Button>
-            <Button variant="destructive"><Trash2 className="mr-2" /> Delete</Button>
+            <Button variant="destructive" onClick={handleDeleteImage} disabled={!profile.avatar}><Trash2 className="mr-2" /> Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
