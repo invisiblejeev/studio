@@ -59,6 +59,7 @@ export default function SignupPage() {
     try {
       const user = await signUp(formData.email, formData.password);
       if (user) {
+        // Do not pass password to createUserProfile
         await createUserProfile(user.uid, {
           firstName: formData.firstName,
           lastName: formData.lastName,
@@ -74,7 +75,7 @@ export default function SignupPage() {
     } catch (error: any) {
        toast({
         title: "Signup Failed",
-        description: error.message,
+        description: "Could not create an account. The email might be invalid or the password too weak.",
         variant: "destructive",
       });
     }

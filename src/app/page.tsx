@@ -26,7 +26,7 @@ export default function LoginPage() {
     } catch (error: any) {
       toast({
         title: "Login Failed",
-        description: error.message,
+        description: "Invalid credentials. Please check your information and try again.",
         variant: "destructive"
       });
     }
