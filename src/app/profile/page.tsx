@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { allStates } from "@/lib/states";
-import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil, X, Save } from "lucide-react";
+import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil, X, Save, Upload, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getCurrentUser, logOut } from "@/services/auth";
 import { getUserProfile, updateUserProfile, isIdentifierTaken, UserProfile } from "@/services/users";
 import { useRouter } from "next/navigation";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 
 
 const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange }: { icon: React.ElementType, label: string, value: string, isEditing: boolean, onValueChange: (value: string) => void }) => (
@@ -65,6 +66,7 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [initialProfile, setInitialProfile] = useState<UserProfile | null>(null);
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -128,19 +130,44 @@ export default function ProfilePage() {
   }
   
   if (!profile) {
-      return <div>Loading...</div>
+      return (
+        <div className="flex min-h-screen items-center justify-center">
+            <p>Loading...</p>
+        </div>
+      );
   }
 
   return (
     <div className="bg-muted/20 min-h-screen pb-24">
-      <div className="flex flex-col items-center text-center py-6 bg-background">
-          <Avatar className="h-24 w-24 mb-4 bg-primary/10">
-            <AvatarImage src={profile.avatar || "https://placehold.co/100x100.png"} data-ai-hint="person avatar" />
-            <AvatarFallback>{profile.firstName.charAt(0)}{profile.lastName.charAt(0)}</AvatarFallback>
-          </Avatar>
-          <h1 className="text-2xl font-bold">{profile.firstName} {profile.lastName}</h1>
-          <p className="text-muted-foreground">@{profile.username}</p>
-      </div>
+       <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+        <div className="flex flex-col items-center text-center py-6 bg-background">
+            <DialogTrigger asChild>
+                <Avatar className="h-24 w-24 mb-4 bg-primary/10 cursor-pointer hover:opacity-80 transition-opacity">
+                    <AvatarImage src={profile.avatar || "https://placehold.co/100x100.png"} data-ai-hint="person avatar" />
+                    <AvatarFallback>{profile.firstName.charAt(0)}{profile.lastName.charAt(0)}</AvatarFallback>
+                </Avatar>
+            </DialogTrigger>
+            <h1 className="text-2xl font-bold">{profile.firstName} {profile.lastName}</h1>
+            <p className="text-muted-foreground">@{profile.username}</p>
+        </div>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Profile Picture</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center my-4">
+              <Avatar className="h-48 w-48">
+                <AvatarImage src={profile.avatar || "https://placehold.co/192x192.png"} data-ai-hint="person avatar" />
+                <AvatarFallback>{profile.firstName.charAt(0)}{profile.lastName.charAt(0)}</AvatarFallback>
+              </Avatar>
+          </div>
+          <DialogFooter className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <Button variant="outline"><Upload className="mr-2" /> Upload Photo</Button>
+            <Button variant="outline"><Pencil className="mr-2" /> Edit</Button>
+            <Button variant="destructive"><Trash2 className="mr-2" /> Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <div className="space-y-6 p-4">
         <Card>
@@ -165,7 +192,7 @@ export default function ProfilePage() {
             <ProfileInfoItem icon={User} label="First Name" value={profile.firstName} isEditing={isEditing} onValueChange={handleProfileChange('firstName')} />
             <ProfileInfoItem icon={User} label="Last Name" value={profile.lastName} isEditing={isEditing} onValueChange={handleProfileChange('lastName')} />
             <ProfileInfoItem icon={User} label="Username" value={profile.username} isEditing={isEditing} onValueChange={handleProfileChange('username')} />
-            <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={isEditing} onValueChange={handleProfileChange('email')} />
+            <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={isEditing} onValue-change={handleProfileChange('email')} />
             <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone || ''} isEditing={isEditing} onValueChange={handleProfileChange('phone')} />
             <ProfileInfoItem icon={MapPin} label="State" value={profile.state || ''} isEditing={isEditing} onValueChange={handleProfileChange('state')} />
             <ProfileInfoItem icon={Globe} label="City" value={profile.city || ''} isEditing={isEditing} onValueChange={handleProfileChange('city')} />
