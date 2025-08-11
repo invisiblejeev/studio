@@ -4,15 +4,13 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
 import { Paperclip, SendHorizonal } from "lucide-react"
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 
 
 export default function ChatPage() {
-  const router = useRouter();
   const params = useParams();
   const state = params.state as string;
 
@@ -20,14 +18,8 @@ export default function ChatPage() {
     { id: 1, user: { name: 'Rohan', avatar: 'https://placehold.co/40x40.png' }, text: 'Anyone looking for a frontend developer role? My company is hiring.', time: '2:30 PM' },
     { id: 2, user: { name: 'Priya', avatar: 'https://placehold.co/40x40.png' }, text: 'I am! Can you share the details?', time: '2:31 PM' },
     { id: 3, user: { name: 'You', avatar: 'https://placehold.co/40x40.png' }, text: 'There is a great Diwali event happening this weekend in the Bay Area. Anyone interested?', time: '2:35 PM' },
-    { id: 4, user: { name: 'Amit', avatar: 'https://placehold.co/40x40.png' }, text: 'I am selling my old couch, it\'s in great condition. DM for price.', time: '2:40 PM' },
+    { id: 4, user: { name: 'Amit', avatar: 'https://placehold.co/40x40.png' }, text: 'I\'m selling my old couch, it\'s in great condition. DM for price.', time: '2:40 PM' },
   ];
-
-  const handleStateChange = (newState: string) => {
-    if (newState) {
-      router.push(`/chat/${newState}`);
-    }
-  };
 
   const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
 
@@ -35,16 +27,6 @@ export default function ChatPage() {
     <div className="flex flex-col h-full bg-background rounded-xl border">
       <header className="flex items-center justify-between p-4 border-b">
           <h2 className="text-xl font-bold">{currentStateName} Community</h2>
-          <Select value={state} onValueChange={handleStateChange}>
-              <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Change State" />
-              </SelectTrigger>
-              <SelectContent>
-                  {allStates.map(s => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                  ))}
-              </SelectContent>
-          </Select>
       </header>
       <ScrollArea className="flex-1 p-4">
           <div className="space-y-6">
