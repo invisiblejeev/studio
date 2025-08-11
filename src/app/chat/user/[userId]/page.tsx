@@ -91,6 +91,7 @@ export default function PersonalChatPage() {
                     handleSendMessage();
                   }
                 }}
+                maxRows={5}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                   <Button variant="ghost" size="icon" className="text-muted-foreground"><Paperclip className="w-5 h-5" /></Button>
