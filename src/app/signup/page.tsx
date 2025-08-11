@@ -39,7 +39,7 @@ export default function SignupPage() {
   const [debouncedEmail] = useDebounce(formData.email, 500);
 
   const checkIdentifier = useCallback(async (field: 'username' | 'email', value: string, setStatus: (status: "idle" | "checking" | "available" | "taken") => void) => {
-    const V = value.toLowerCase().trim();
+    const V = value.trim();
     if (V.length < 3) {
       setStatus("idle");
       return;
@@ -114,7 +114,7 @@ export default function SignupPage() {
             phone: formData.phone,
             state: formData.state,
             city: formData.city,
-            avatar: `https://placehold.co/100x100.png`
+            avatar: `https://i.pravatar.cc/150?u=${formData.username}`
         };
 
         await createUserProfile(user.uid, profileData);
