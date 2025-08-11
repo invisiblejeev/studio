@@ -3,16 +3,17 @@
 import { auth } from '@/lib/firebase';
 import { 
     sendSignInLinkToEmail, 
-    isSignInWithEmailLink, 
+    isSignInWithEmailLink as firebaseIsSignInWithEmailLink,
     signInWithEmailLink as firebaseSignInWithEmailLink,
     signOut, 
     onAuthStateChanged,
-    ActionCodeSettings
+    ActionCodeSettings,
+    User
 } from 'firebase/auth';
 import { createUserProfile, UserProfile } from './users';
 
 const actionCodeSettings: ActionCodeSettings = {
-  url: process.env.NEXT_PUBLIC_URL || 'http://localhost:9002', // Change to your app's URL
+  url: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:9002',
   handleCodeInApp: true,
 };
 
@@ -20,21 +21,24 @@ export const sendSignInLink = async (email: string) => {
     await sendSignInLinkToEmail(auth, email, actionCodeSettings);
 };
 
-export const isSignInWithEmailLink_ = (url: string) => {
-    return isSignInWithEmailLink(auth, url);
+export const isSignInWithEmailLink = (url: string) => {
+    return firebaseIsSignInWithEmailLink(auth, url);
 };
 
-export const signInWithEmailLink = async (email: string, url: string) => {
+export const signInWithEmailLink = async (email: string, url: string): Promise<User> => {
     const userCredential = await firebaseSignInWithEmailLink(auth, email, url);
     return userCredential.user;
 };
 
 export const logOut = async () => {
     await signOut(auth);
-    window.location.href = '/';
+    // Use a full page reload to clear all state and redirect to login.
+    if(typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
 }
 
-export const getCurrentUser = (): Promise<any> => {
+export const getCurrentUser = (): Promise<User | null> => {
     return new Promise((resolve, reject) => {
         const unsubscribe = onAuthStateChanged(auth, user => {
             unsubscribe();
@@ -42,5 +46,3 @@ export const getCurrentUser = (): Promise<any> => {
         }, reject);
     });
 };
-
-export { isSignInWithEmailLink };

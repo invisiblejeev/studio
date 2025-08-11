@@ -9,6 +9,7 @@ import { IndianRupee } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
+import { auth } from "@/lib/firebase"; // Import auth directly
 import { sendSignInLink, isSignInWithEmailLink, signInWithEmailLink, getCurrentUser } from "@/services/auth"
 import { useToast } from "@/hooks/use-toast"
 import { getUserProfile } from "@/services/users"
@@ -22,7 +23,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     const handleEmailLinkSignIn = async () => {
-      if (isSignInWithEmailLink(window.location.href)) {
+      // Ensure auth is initialized and function exists
+      if (auth && isSignInWithEmailLink && isSignInWithEmailLink(auth, window.location.href)) {
         let emailFromStore = window.localStorage.getItem('emailForSignIn');
         if (!emailFromStore) {
           // If the email is not in local storage, prompt the user for it.
@@ -66,7 +68,11 @@ export default function LoginPage() {
          checkUser();
       }
     };
-    handleEmailLinkSignIn();
+    // Wait for auth to be initialized before running the effect
+    const unsubscribe = auth.onAuthStateChanged(user => {
+        handleEmailLinkSignIn();
+        unsubscribe(); // Unsubscribe to prevent multiple executions
+    });
   }, [router, toast]);
 
 
