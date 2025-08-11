@@ -207,12 +207,16 @@ export default function ProfilePage() {
         console.error("Failed to upload image: ", error);
         toast({
             title: "Upload Failed",
-            description: "Could not upload the new profile picture.",
+            description: "Could not upload the new profile picture. Please check the file type or try again later.",
             variant: "destructive"
         });
     } finally {
         setIsUploading(false);
         setIsImageDialogOpen(false);
+        // Reset file input value
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
     }
   };
 
@@ -326,4 +330,3 @@ export default function ProfilePage() {
   )
 }
 
-    
