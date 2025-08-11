@@ -57,7 +57,7 @@ const SettingsItem = ({ icon: Icon, label, href, isLogout = false }: { icon: Rea
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState({
-    name: "John Doe",
+    username: "johndoe",
     email: "john.doe@email.com",
     phone: "+1 (555) 123-4567",
     state: "california",
@@ -75,7 +75,7 @@ export default function ProfilePage() {
             <AvatarImage src="https://placehold.co/100x100.png" data-ai-hint="person avatar" />
             <AvatarFallback>JD</AvatarFallback>
           </Avatar>
-          <h1 className="text-2xl font-bold">{profile.name}</h1>
+          <h1 className="text-2xl font-bold">{profile.username}</h1>
           <p className="text-muted-foreground">Indian Community Member</p>
       </div>
 
@@ -99,7 +99,7 @@ export default function ProfilePage() {
             )}
           </CardHeader>
           <CardContent className="space-y-5">
-            <ProfileInfoItem icon={User} label="Full Name" value={profile.name} isEditing={isEditing} onValueChange={handleProfileChange('name')} />
+            <ProfileInfoItem icon={User} label="Username" value={profile.username} isEditing={isEditing} onValueChange={handleProfileChange('username')} />
             <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={isEditing} onValueChange={handleProfileChange('email')} />
             <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone} isEditing={isEditing} onValueChange={handleProfileChange('phone')} />
             <ProfileInfoItem icon={MapPin} label="State" value={profile.state} isEditing={isEditing} onValueChange={handleProfileChange('state')} />

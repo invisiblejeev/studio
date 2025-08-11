@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -5,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { IndianRupee } from "lucide-react"
 import Link from "next/link"
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <Card className="mx-auto w-full max-w-sm">
@@ -15,13 +16,22 @@ export default function LoginPage() {
               <IndianRupee className="h-8 w-8" />
              </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Indian Community Chat</CardTitle>
+          <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Enter your details below to create your account
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="johndoe"
+                required
+              />
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -29,34 +39,22 @@ export default function LoginPage() {
                 type="email"
                 placeholder="m@example.com"
                 required
-                defaultValue="user@example.com"
               />
             </div>
             <div className="grid gap-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
-                <Link
-                  href="#"
-                  className="ml-auto inline-block text-sm underline"
-                >
-                  Forgot your password?
-                </Link>
-              </div>
-              <Input id="password" type="password" required defaultValue="password" />
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" required />
             </div>
             <Link href="/chat" passHref>
               <Button type="submit" className="w-full">
-                Login
+                Sign Up
               </Button>
             </Link>
-            <Button variant="outline" className="w-full">
-              Login with Phone
-            </Button>
           </div>
           <div className="mt-4 text-center text-sm">
-            Don't have an account?{" "}
-            <Link href="/signup" className="underline">
-              Sign up
+            Already have an account?{" "}
+            <Link href="/" className="underline">
+              Login
             </Link>
           </div>
         </CardContent>

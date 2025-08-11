@@ -6,14 +6,15 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
-import { Paperclip, SendHorizonal } from "lucide-react"
-import { useParams } from 'next/navigation';
+import { Paperclip, SendHorizonal, MessageSquare } from "lucide-react"
+import { useParams, useRouter } from 'next/navigation';
 import Link from "next/link";
 import { useState } from "react";
 
 
 export default function ChatPage() {
   const params = useParams();
+  const router = useRouter();
   const state = params.state as string;
 
   const [messages, setMessages] = useState([
@@ -69,9 +70,13 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background rounded-xl border">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-background rounded-xl border">
       <header className="flex items-center justify-between p-4 border-b">
           <h2 className="text-xl font-bold">{currentStateName} Community</h2>
+          <Button variant="outline" onClick={() => router.push('/chat/personal')}>
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Personal Chats
+          </Button>
       </header>
       <ScrollArea className="flex-1 p-4">
           <div className="space-y-6">
