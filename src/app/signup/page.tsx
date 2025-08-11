@@ -13,6 +13,8 @@ import { useState, useEffect, useCallback } from "react";
 import { createUserProfile, isIdentifierTaken } from "@/services/users";
 import { useDebounce } from "use-debounce";
 import { signUp } from "@/services/auth";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { allStates } from "@/lib/states";
 
 export default function SignupPage() {
   const { toast } = useToast();
@@ -23,6 +25,9 @@ export default function SignupPage() {
     username: '',
     email: '',
     password: '',
+    phone: '',
+    city: '',
+    state: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -77,7 +82,7 @@ export default function SignupPage() {
   const handleSignUp = async () => {
     setIsLoading(true);
 
-    if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password) {
+    if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password || !formData.phone || !formData.city || !formData.state) {
         toast({
             title: "Missing fields",
             description: "Please fill out all fields.",
@@ -105,9 +110,9 @@ export default function SignupPage() {
             lastName: formData.lastName,
             username: formData.username,
             email: formData.email,
-            phone: "",
-            state: "",
-            city: "",
+            phone: formData.phone,
+            state: formData.state,
+            city: formData.city,
             avatar: `https://i.pravatar.cc/150?u=${formData.username}`
         };
 
@@ -145,7 +150,7 @@ export default function SignupPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <Card className="mx-auto w-full max-w-sm">
+      <Card className="mx-auto w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
              <div className="bg-primary text-primary-foreground rounded-full p-3">
@@ -186,6 +191,29 @@ export default function SignupPage() {
                     {renderStatusIcon(usernameStatus)}
                 </div>
               </div>
+            </div>
+             <div className="grid gap-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input id="phone" placeholder="123-456-7890" required onChange={handleChange} value={formData.phone} disabled={isLoading} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                    <Label htmlFor="city">City</Label>
+                    <Input id="city" placeholder="San Francisco" required onChange={handleChange} value={formData.city} disabled={isLoading} />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor="state">State</Label>
+                    <Select onValueChange={(value) => setFormData(prev => ({...prev, state: value}))} value={formData.state} disabled={isLoading}>
+                        <SelectTrigger id="state">
+                            <SelectValue placeholder="Select State" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {allStates.map(s => (
+                                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
