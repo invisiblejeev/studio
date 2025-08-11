@@ -164,7 +164,7 @@ export default function SignupPage() {
                 placeholder="m@example.com"
                 required
                 value={formData.email}
-                disabled
+                onChange={handleChange}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
