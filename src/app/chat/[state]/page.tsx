@@ -9,39 +9,69 @@ import { allStates } from "@/lib/states";
 import { Paperclip, SendHorizonal, MessageSquare } from "lucide-react"
 import { useParams, useRouter } from 'next/navigation';
 import Link from "next/link";
-import { useState } from "react";
-
+import { useState, useEffect, useRef } from "react";
+import { getCurrentUser } from "@/services/auth";
+import { getUserProfile, UserProfile } from "@/services/users";
+import { getMessages, sendMessage, Message } from "@/services/chat";
 
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
   const state = params.state as string;
 
-  const [messages, setMessages] = useState([
-    { id: 1, user: { id: 'user1', name: 'Rohan', avatar: 'https://placehold.co/40x40.png' }, text: 'Anyone looking for a frontend developer role? My company is hiring.', time: '2:30 PM' },
-    { id: 2, user: { id: 'user2', name: 'Priya', avatar: 'https://placehold.co/40x40.png' }, text: 'I am! Can you share the details?', time: '2:31 PM' },
-    { id: 3, user: { id: 'you', name: 'You', avatar: 'https://placehold.co/40x40.png' }, text: 'There is a great Diwali event happening this weekend in the Bay Area. Anyone interested?', time: '2:35 PM' },
-    { id: 4, user: { id: 'user3', name: 'Amit', avatar: 'https://placehold.co/40x40.png' }, text: 'I\'m selling my old couch, it\'s in great condition. DM for price.', time: '2:40 PM' },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  const handleSendMessage = () => {
-    if (newMessage.trim() !== "") {
-      const newId = messages.length > 0 ? Math.max(...messages.map(m => m.id)) + 1 : 1;
-      setMessages([...messages, {
-        id: newId,
-        user: { id: 'you', name: 'You', avatar: 'https://placehold.co/40x40.png' },
+  useEffect(() => {
+    const fetchUser = async () => {
+      const user = await getCurrentUser() as any;
+      if (user) {
+        const profile = await getUserProfile(user.uid);
+        setCurrentUser(profile);
+      } else {
+        router.push('/');
+      }
+    };
+    fetchUser();
+  }, [router]);
+
+  useEffect(() => {
+    if (!state) return;
+    const unsubscribe = getMessages(state, (newMessages) => {
+      setMessages(newMessages);
+      setTimeout(() => {
+        if (scrollAreaRef.current) {
+            const viewport = scrollAreaRef.current.querySelector('div');
+            if (viewport) {
+                viewport.scrollTop = viewport.scrollHeight;
+            }
+        }
+      }, 0);
+    });
+    return () => unsubscribe();
+  }, [state]);
+
+
+  const handleSendMessage = async () => {
+    if (newMessage.trim() !== "" && currentUser) {
+      await sendMessage(state, {
+        user: { 
+            id: currentUser.uid, 
+            name: currentUser.username, 
+            avatar: currentUser.avatar || 'https://placehold.co/40x40.png' 
+        },
         text: newMessage,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }]);
+      });
       setNewMessage("");
     }
   };
 
   const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
 
-  const renderMessage = (msg: (typeof messages)[0]) => {
-    const isYou = msg.user.name === 'You';
+  const renderMessage = (msg: Message) => {
+    const isYou = msg.user.id === currentUser?.uid;
     const messageContent = (
       <>
         <Avatar className="mt-1">
@@ -78,7 +108,7 @@ export default function ChatPage() {
               Personal Chats
           </Button>
       </header>
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
           <div className="space-y-6">
               {messages.map(renderMessage)}
           </div>

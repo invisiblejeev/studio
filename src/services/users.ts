@@ -1,0 +1,38 @@
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+
+export interface UserProfile {
+  uid: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+  email: string;
+  phone?: string;
+  state?: string;
+  city?: string;
+  avatar?: string;
+}
+
+export async function isUsernameTaken(username: string): Promise<boolean> {
+  const q = query(collection(db, 'users'), where('username', '==', username));
+  const querySnapshot = await getDocs(q);
+  return !querySnapshot.empty;
+}
+
+export async function createUserProfile(user: UserProfile) {
+  await setDoc(doc(db, 'users', user.uid), user);
+}
+
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  const docRef = doc(db, 'users', uid);
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return docSnap.data() as UserProfile;
+  }
+  return null;
+}
+
+export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
+  const userRef = doc(db, 'users', uid);
+  await updateDoc(userRef, data);
+}

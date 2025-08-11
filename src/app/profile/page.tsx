@@ -10,11 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { allStates } from "@/lib/states";
 import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil, X, Save } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-
-// Mock database of existing users
-const existingUsernames = ["janedoe", "testuser"];
+import { getCurrentUser, logOut } from "@/services/auth";
+import { getUserProfile, updateUserProfile, isUsernameTaken, UserProfile } from "@/services/users";
+import { useRouter } from "next/navigation";
 
 
 const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange }: { icon: React.ElementType, label: string, value: string, isEditing: boolean, onValueChange: (value: string) => void }) => (
@@ -46,39 +46,52 @@ const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange }:
     </div>
 );
 
-const SettingsItem = ({ icon: Icon, label, href, isLogout = false }: { icon: React.ElementType, label: string, href: string, isLogout?: boolean }) => (
-    <Link href={href}>
-      <div className="flex items-center justify-between py-3">
+const SettingsItem = ({ icon: Icon, label, href, isLogout = false, onClick }: { icon: React.ElementType, label: string, href?: string, isLogout?: boolean, onClick?: () => void }) => {
+    const content = (
+      <div className="flex items-center justify-between py-3" onClick={onClick}>
           <div className="flex items-center gap-4">
               <Icon className={`w-5 h-5 ${isLogout ? 'text-destructive' : 'text-muted-foreground'}`} />
               <span className={`font-medium ${isLogout ? 'text-destructive' : ''}`}>{label}</span>
           </div>
           {!isLogout && <ChevronRight className="w-5 h-5 text-muted-foreground" />}
       </div>
-    </Link>
-);
+    );
+
+    return href ? <Link href={href}>{content}</Link> : <div className="cursor-pointer">{content}</div>;
+};
 
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
-  const [initialProfile, setInitialProfile] = useState({
-    firstName: "John",
-    lastName: "Doe",
-    username: "johndoe",
-    email: "john.doe@email.com",
-    phone: "+1 (555) 123-4567",
-    state: "california",
-    city: "San Francisco"
-  });
-  const [profile, setProfile] = useState(initialProfile);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [initialProfile, setInitialProfile] = useState<UserProfile | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
 
-  const handleProfileChange = (field: keyof typeof profile) => (value: string) => {
-    setProfile(prev => ({ ...prev, [field]: value }));
+  useEffect(() => {
+    const fetchUser = async () => {
+        const user = await getCurrentUser() as any;
+        if(user) {
+            const userProfile = await getUserProfile(user.uid);
+            setProfile(userProfile);
+            setInitialProfile(userProfile);
+        } else {
+            router.push('/');
+        }
+    };
+    fetchUser();
+  }, [router]);
+
+  const handleProfileChange = (field: keyof UserProfile) => (value: string) => {
+    if (profile) {
+        setProfile(prev => ({ ...prev!, [field]: value }));
+    }
   }
 
-  const handleSave = () => {
-    if (profile.username !== initialProfile.username && existingUsernames.includes(profile.username)) {
+  const handleSave = async () => {
+    if (!profile || !initialProfile) return;
+
+    if (profile.username !== initialProfile.username && await isUsernameTaken(profile.username)) {
         toast({
             title: "Username taken",
             description: "This username is already in use. Please choose another one.",
@@ -86,12 +99,22 @@ export default function ProfilePage() {
         });
         return;
     }
-    setInitialProfile(profile);
-    setIsEditing(false);
-    toast({
-        title: "Profile Saved",
-        description: "Your profile information has been updated successfully.",
-    });
+
+    try {
+        await updateUserProfile(profile.uid, profile);
+        setInitialProfile(profile);
+        setIsEditing(false);
+        toast({
+            title: "Profile Saved",
+            description: "Your profile information has been updated successfully.",
+        });
+    } catch(error: any) {
+        toast({
+            title: "Error",
+            description: "Failed to update profile.",
+            variant: "destructive"
+        });
+    }
   }
 
   const handleCancel = () => {
@@ -99,11 +122,20 @@ export default function ProfilePage() {
     setIsEditing(false);
   }
 
+  const handleLogout = async () => {
+    await logOut();
+    router.push('/');
+  }
+  
+  if (!profile) {
+      return <div>Loading...</div>
+  }
+
   return (
     <div className="bg-muted/20 min-h-screen pb-24">
       <div className="flex flex-col items-center text-center py-6 bg-background">
           <Avatar className="h-24 w-24 mb-4 bg-primary/10">
-            <AvatarImage src="https://placehold.co/100x100.png" data-ai-hint="person avatar" />
+            <AvatarImage src={profile.avatar || "https://placehold.co/100x100.png"} data-ai-hint="person avatar" />
             <AvatarFallback>{profile.firstName.charAt(0)}{profile.lastName.charAt(0)}</AvatarFallback>
           </Avatar>
           <h1 className="text-2xl font-bold">{profile.firstName} {profile.lastName}</h1>
@@ -134,9 +166,9 @@ export default function ProfilePage() {
             <ProfileInfoItem icon={User} label="Last Name" value={profile.lastName} isEditing={isEditing} onValueChange={handleProfileChange('lastName')} />
             <ProfileInfoItem icon={User} label="Username" value={profile.username} isEditing={isEditing} onValueChange={handleProfileChange('username')} />
             <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={isEditing} onValueChange={handleProfileChange('email')} />
-            <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone} isEditing={isEditing} onValueChange={handleProfileChange('phone')} />
-            <ProfileInfoItem icon={MapPin} label="State" value={profile.state} isEditing={isEditing} onValueChange={handleProfileChange('state')} />
-            <ProfileInfoItem icon={Globe} label="City" value={profile.city} isEditing={isEditing} onValueChange={handleProfileChange('city')} />
+            <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone || ''} isEditing={isEditing} onValueChange={handleProfileChange('phone')} />
+            <ProfileInfoItem icon={MapPin} label="State" value={profile.state || ''} isEditing={isEditing} onValueChange={handleProfileChange('state')} />
+            <ProfileInfoItem icon={Globe} label="City" value={profile.city || ''} isEditing={isEditing} onValueChange={handleProfileChange('city')} />
           </CardContent>
         </Card>
 
@@ -147,7 +179,7 @@ export default function ProfilePage() {
           <CardContent className="divide-y">
              <SettingsItem icon={Bell} label="Notifications" href="/settings" />
              <SettingsItem icon={Shield} label="Privacy & Security" href="/settings" />
-             <SettingsItem icon={LogOut} label="Logout" href="/" isLogout={true} />
+             <SettingsItem icon={LogOut} label="Logout" isLogout={true} onClick={handleLogout} />
           </CardContent>
         </Card>
       </div>

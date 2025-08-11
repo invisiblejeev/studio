@@ -10,9 +10,8 @@ import { IndianRupee } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-// Mock database of existing users
-const existingUsernames = ["johndoe", "janedoe", "testuser"];
+import { signUp } from "@/services/auth";
+import { isUsernameTaken, createUserProfile } from "@/services/users";
 
 export default function SignupPage() {
   const { toast } = useToast();
@@ -30,19 +29,35 @@ export default function SignupPage() {
     setFormData(prev => ({...prev, [id]: value}));
   }
 
-  const handleSignUp = () => {
-    if (existingUsernames.includes(formData.username)) {
+  const handleSignUp = async () => {
+    if (await isUsernameTaken(formData.username)) {
       toast({
         title: "Username already taken",
         description: "Please choose a different username.",
         variant: "destructive",
       });
-    } else {
+      return;
+    }
+
+    try {
+      const user = await signUp(formData.email, formData.password);
+      if (user) {
+        await createUserProfile({
+          uid: user.uid,
+          ...formData,
+        });
+        toast({
+          title: "Signup Successful!",
+          description: "You have successfully created an account.",
+        });
+        router.push('/chat');
+      }
+    } catch (error: any) {
        toast({
-        title: "Signup Successful!",
-        description: "You have successfully created an account.",
+        title: "Signup Failed",
+        description: error.message,
+        variant: "destructive",
       });
-      router.push('/chat');
     }
   }
 
