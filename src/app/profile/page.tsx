@@ -1,19 +1,27 @@
+
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil, X, Save } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
-const ProfileInfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: string }) => (
-    <div className="flex items-center gap-4">
-        <div className="bg-muted rounded-full p-2">
+const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange }: { icon: React.ElementType, label: string, value: string, isEditing: boolean, onValueChange: (value: string) => void }) => (
+    <div className="flex items-start gap-4">
+        <div className="bg-muted rounded-full p-2 mt-1">
             <Icon className="w-5 h-5 text-muted-foreground" />
         </div>
-        <div>
-            <p className="text-sm text-muted-foreground">{label}</p>
-            <p className="font-medium">{value}</p>
+        <div className="flex-1">
+            <Label htmlFor={label} className="text-xs text-muted-foreground">{label}</Label>
+            {isEditing ? (
+                <Input id={label} value={value} onChange={(e) => onValueChange(e.target.value)} className="h-9 mt-1" />
+            ) : (
+                <p className="font-medium pt-1">{value}</p>
+            )}
         </div>
     </div>
 );
@@ -32,6 +40,19 @@ const SettingsItem = ({ icon: Icon, label, href, isLogout = false }: { icon: Rea
 
 
 export default function ProfilePage() {
+  const [isEditing, setIsEditing] = useState(false);
+  const [profile, setProfile] = useState({
+    name: "John Doe",
+    email: "john.doe@email.com",
+    phone: "+1 (555) 123-4567",
+    state: "California",
+    city: "San Francisco"
+  });
+
+  const handleProfileChange = (field: keyof typeof profile) => (value: string) => {
+    setProfile(prev => ({ ...prev, [field]: value }));
+  }
+
   return (
     <div className="bg-muted/20 min-h-screen pb-24">
       <div className="flex flex-col items-center text-center py-6 bg-background">
@@ -39,7 +60,7 @@ export default function ProfilePage() {
             <AvatarImage src="https://placehold.co/100x100.png" data-ai-hint="person avatar" />
             <AvatarFallback>JD</AvatarFallback>
           </Avatar>
-          <h1 className="text-2xl font-bold">John Doe</h1>
+          <h1 className="text-2xl font-bold">{profile.name}</h1>
           <p className="text-muted-foreground">Indian Community Member</p>
       </div>
 
@@ -47,18 +68,27 @@ export default function ProfilePage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Profile Information</CardTitle>
-            <Link href="/profile/edit">
-                <Button variant="ghost" size="icon" className="text-primary">
+            {isEditing ? (
+              <div className="flex gap-2">
+                 <Button variant="ghost" size="icon" className="text-primary" onClick={() => setIsEditing(false)}>
+                    <X className="w-5 h-5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="text-primary" onClick={() => setIsEditing(false)}>
+                    <Save className="w-5 h-5" />
+                </Button>
+              </div>
+            ) : (
+                 <Button variant="ghost" size="icon" className="text-primary" onClick={() => setIsEditing(true)}>
                     <Pencil className="w-5 h-5" />
                 </Button>
-            </Link>
+            )}
           </CardHeader>
           <CardContent className="space-y-5">
-            <ProfileInfoItem icon={User} label="Full Name" value="John Doe" />
-            <ProfileInfoItem icon={Mail} label="Email" value="john.doe@email.com" />
-            <ProfileInfoItem icon={Phone} label="Phone Number" value="+1 (555) 123-4567" />
-            <ProfileInfoItem icon={MapPin} label="State" value="California" />
-            <ProfileInfoItem icon={Globe} label="City" value="San Francisco" />
+            <ProfileInfoItem icon={User} label="Full Name" value={profile.name} isEditing={isEditing} onValueChange={handleProfileChange('name')} />
+            <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={isEditing} onValueChange={handleProfileChange('email')} />
+            <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone} isEditing={isEditing} onValueChange={handleProfileChange('phone')} />
+            <ProfileInfoItem icon={MapPin} label="State" value={profile.state} isEditing={isEditing} onValueChange={handleProfileChange('state')} />
+            <ProfileInfoItem icon={Globe} label="City" value={profile.city} isEditing={isEditing} onValueChange={handleProfileChange('city')} />
           </CardContent>
         </Card>
 
