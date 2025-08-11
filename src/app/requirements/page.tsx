@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Briefcase, Home, ShoppingCart, Calendar } from 'lucide-react';
+import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
@@ -147,9 +147,17 @@ export default function RequirementsPage() {
             {isLoading ? (
                 <p>Loading requirements...</p>
             ) : (
-                <div className="space-y-4">
-                    {filteredRequirements.map(req => <RequirementCard key={req.id} req={req} />)}
-                </div>
+                filteredRequirements.length > 0 ? (
+                    <div className="space-y-4">
+                        {filteredRequirements.map(req => <RequirementCard key={req.id} req={req} />)}
+                    </div>
+                ) : (
+                    <div className="text-center text-muted-foreground py-10">
+                        <FileQuestion className="mx-auto w-12 h-12 mb-4" />
+                        <h3 className="text-lg font-semibold">No Requirements Found</h3>
+                        <p className="text-sm">There are currently no items in this category.</p>
+                    </div>
+                )
             )}
         </div>
     );
