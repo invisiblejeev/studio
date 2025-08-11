@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 
 export default function SettingsPage() {
   return (
+    <div className="bg-muted/20 p-4">
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle>Settings</CardTitle>
@@ -29,8 +30,9 @@ export default function SettingsPage() {
                 <Switch id="show-online" defaultChecked />
             </div>
         </div>
-        <Button>Save Settings</Button>
+        <Button>Save Changes</Button>
       </CardContent>
     </Card>
+    </div>
   )
 }
