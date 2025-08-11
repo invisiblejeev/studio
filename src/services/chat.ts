@@ -19,7 +19,8 @@ export interface Message {
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
   
-  if (message.text && roomId.includes('_')) {
+  // Do not categorize personal messages
+  if (roomId.includes('_')) {
     await addDoc(collection(db, 'chats', roomId, 'messages'), {
       ...message,
       timestamp: serverTimestamp(),
@@ -27,6 +28,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     return;
   }
 
+  // Only categorize messages that have text.
   if (message.text) {
     const { category, title } = await categorizeMessage({ text: message.text });
     await addDoc(collection(db, 'chats', roomId, 'messages'), {
@@ -36,7 +38,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
       timestamp: serverTimestamp(),
     });
   } else {
-    // For image-only messages
+    // For image-only messages, just add them without categorization
     await addDoc(collection(db, 'chats', roomId, 'messages'), {
       ...message,
       timestamp: serverTimestamp(),
