@@ -210,7 +210,7 @@ export default function ProfilePage() {
           </DialogHeader>
           <div className="flex justify-center my-4">
               <Avatar className="h-48 w-48">
-                <AvatarImage src={profile.avatar || "https://placehold.co/192x192.png"} data-ai-hint="person avatar" />
+                <AvatarImage src={profile.avatar || "https://images.unsplash.com/photo-1621327708553-f6d70636f961?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxubyUyMGRwfGVufDB8fHx8MTc1NDkyOTc1MXww&ixlib=rb-4.1.0&q=80&w=1080"} data-ai-hint="person avatar" />
                 <AvatarFallback>{profile.firstName.charAt(0)}{profile.lastName.charAt(0)}</AvatarFallback>
               </Avatar>
           </div>
@@ -288,3 +288,5 @@ export default function ProfilePage() {
     </div>
   )
 }
+
+    
