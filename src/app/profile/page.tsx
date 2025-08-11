@@ -3,7 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, ChevronRight, CreditCard, Globe, LogOut, Mail, MapPin, Phone, Shield, User } from "lucide-react";
+import { Bell, ChevronRight, Globe, LogOut, Mail, MapPin, Phone, Shield, User, Pencil } from "lucide-react";
 import Link from "next/link";
 
 const ProfileInfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: string }) => (
@@ -36,7 +36,8 @@ export default function ProfilePage() {
     <div className="bg-muted/20 min-h-screen pb-24">
       <div className="flex flex-col items-center text-center py-6 bg-background">
           <Avatar className="h-24 w-24 mb-4 bg-primary/10">
-            <User className="w-12 h-12 text-primary" />
+            <AvatarImage src="https://placehold.co/100x100.png" data-ai-hint="person avatar" />
+            <AvatarFallback>JD</AvatarFallback>
           </Avatar>
           <h1 className="text-2xl font-bold">John Doe</h1>
           <p className="text-muted-foreground">Indian Community Member</p>
@@ -46,9 +47,11 @@ export default function ProfilePage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Profile Information</CardTitle>
-            <Button variant="ghost" size="icon" className="text-primary">
-              <CreditCard className="w-5 h-5" />
-            </Button>
+            <Link href="/profile/edit">
+                <Button variant="ghost" size="icon" className="text-primary">
+                    <Pencil className="w-5 h-5" />
+                </Button>
+            </Link>
           </CardHeader>
           <CardContent className="space-y-5">
             <ProfileInfoItem icon={User} label="Full Name" value="John Doe" />
