@@ -11,7 +11,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   
   // A bit more complex logic to show nav for /chat, /chat/california, but not /chat/user/some-id or /chat/personal
   const showNav = showBottomNavRoutes.some(route => {
-    if (pathname.startsWith('/chat/user/') || pathname.startsWith('/chat/personal')) {
+    if (pathname.startsWith('/chat/user/') || pathname === '/chat/personal') {
         return false;
     }
     return pathname.startsWith(route)
