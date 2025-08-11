@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getCurrentUser, logOut } from "@/services/auth";
 import { getUserProfile, updateUserProfile, isIdentifierTaken, UserProfile } from "@/services/users";
 import { useRouter } from "next/navigation";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
 
 
 const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange }: { icon: React.ElementType, label: string, value: string, isEditing: boolean, onValueChange: (value: string) => void }) => (
@@ -47,14 +47,14 @@ const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange }:
     </div>
 );
 
-const SettingsItem = ({ icon: Icon, label, href, isLogout = false, onClick }: { icon: React.ElementType, label: string, href?: string, isLogout?: boolean, onClick?: () => void }) => {
+const SettingsItem = ({ icon: Icon, label, href, isDestructive = false, onClick }: { icon: React.ElementType, label: string, href?: string, isDestructive?: boolean, onClick?: () => void }) => {
     const content = (
       <div className="flex items-center justify-between py-3" onClick={onClick}>
           <div className="flex items-center gap-4">
-              <Icon className={`w-5 h-5 ${isLogout ? 'text-destructive' : 'text-muted-foreground'}`} />
-              <span className={`font-medium ${isLogout ? 'text-destructive' : ''}`}>{label}</span>
+              <Icon className={`w-5 h-5 ${isDestructive ? 'text-destructive' : 'text-muted-foreground'}`} />
+              <span className={`font-medium ${isDestructive ? 'text-destructive' : ''}`}>{label}</span>
           </div>
-          {!isLogout && <ChevronRight className="w-5 h-5 text-muted-foreground" />}
+          {!isDestructive && <ChevronRight className="w-5 h-5 text-muted-foreground" />}
       </div>
     );
 
@@ -67,6 +67,8 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [initialProfile, setInitialProfile] = useState<UserProfile | null>(null);
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
   const { toast } = useToast();
   const router = useRouter();
 
@@ -129,6 +131,17 @@ export default function ProfilePage() {
     router.push('/');
   }
   
+  const handleDeleteAccount = async () => {
+      // Placeholder for delete logic
+      console.log("Deleting account for user:", profile?.uid);
+      toast({
+          title: "Account Deleted",
+          description: "Your account has been successfully deleted.",
+      });
+      setIsDeleteDialogOpen(false);
+      await logOut();
+  }
+
   if (!profile) {
       return (
         <div className="flex min-h-screen items-center justify-center">
@@ -206,10 +219,33 @@ export default function ProfilePage() {
           <CardContent className="divide-y">
              <SettingsItem icon={Bell} label="Notifications" href="/settings" />
              <SettingsItem icon={Shield} label="Privacy & Security" href="/settings" />
-             <SettingsItem icon={LogOut} label="Logout" isLogout={true} onClick={handleLogout} />
+             <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogTrigger asChild>
+                    <div>
+                        <SettingsItem icon={Trash2} label="Delete Account" isDestructive={true} />
+                    </div>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Are you absolutely sure?</DialogTitle>
+                        <DialogDescription>
+                            This action cannot be undone. This will permanently delete your account and remove your data from our servers.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                        </DialogClose>
+                        <Button variant="destructive" onClick={handleDeleteAccount}>Confirm Delete</Button>
+                    </DialogFooter>
+                </DialogContent>
+             </Dialog>
+             <SettingsItem icon={LogOut} label="Logout" isDestructive={true} onClick={handleLogout} />
           </CardContent>
         </Card>
       </div>
     </div>
   )
 }
+
+    
