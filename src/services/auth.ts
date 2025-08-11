@@ -6,6 +6,7 @@ import {
     signInWithEmailAndPassword,
     signOut, 
     onAuthStateChanged,
+    sendPasswordResetEmail,
     User
 } from 'firebase/auth';
 
@@ -34,4 +35,8 @@ export const getCurrentUser = (): Promise<User | null> => {
             resolve(user);
         }, reject);
     });
+};
+
+export const sendPasswordReset = async (email: string): Promise<void> => {
+    await sendPasswordResetEmail(auth, email);
 };

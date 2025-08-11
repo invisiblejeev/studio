@@ -9,7 +9,7 @@ import { IndianRupee } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { signIn, getCurrentUser } from "@/services/auth"
+import { signIn, getCurrentUser, sendPasswordReset } from "@/services/auth"
 import { useToast } from "@/hooks/use-toast"
 import { getUserProfile } from "@/services/users"
 
@@ -61,6 +61,7 @@ export default function LoginPage() {
             description: "User profile not found. Please sign up again.",
             variant: "destructive"
           });
+          setIsLoading(false);
       }
     } catch (error: any) {
       toast({
@@ -68,10 +69,32 @@ export default function LoginPage() {
         description: "Invalid email or password. Please try again.",
         variant: "destructive"
       });
+       setIsLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!email) {
+      toast({ title: "Email Required", description: "Please enter your email address to reset your password.", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await sendPasswordReset(email);
+      toast({
+        title: "Password Reset Email Sent",
+        description: "Please check your inbox for instructions to reset your password.",
+      });
+    } catch (error: any) {
+       toast({
+        title: "Error",
+        description: "Could not send password reset email. Please ensure the email is correct.",
+        variant: "destructive",
+      });
     } finally {
         setIsLoading(false);
     }
-  };
+  }
 
   if (isLoading) {
       return (
@@ -110,7 +133,12 @@ export default function LoginPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
+                <div className="flex items-center">
+                    <Label htmlFor="password">Password</Label>
+                    <button onClick={handlePasswordReset} className="ml-auto inline-block text-sm underline">
+                        Forgot password?
+                    </button>
+                </div>
               <Input
                 id="password"
                 type="password"
