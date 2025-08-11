@@ -9,8 +9,9 @@ export interface Message {
     name: string;
     avatar: string;
   };
-  text: string;
-  time: string; // Should be a Timestamp, but using string for simplicity with mock data
+  text?: string;
+  imageUrl?: string;
+  time: string; 
   timestamp: any;
   category?: string;
   title?: string;
@@ -18,8 +19,7 @@ export interface Message {
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
   
-  // Do not categorize personal messages
-  if(roomId.includes('_')) {
+  if (message.text && roomId.includes('_')) {
     await addDoc(collection(db, 'chats', roomId, 'messages'), {
       ...message,
       timestamp: serverTimestamp(),
@@ -27,14 +27,21 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     return;
   }
 
-  const { category, title } = await categorizeMessage({ text: message.text });
-
-  await addDoc(collection(db, 'chats', roomId, 'messages'), {
-    ...message,
-    category,
-    title,
-    timestamp: serverTimestamp(),
-  });
+  if (message.text) {
+    const { category, title } = await categorizeMessage({ text: message.text });
+    await addDoc(collection(db, 'chats', roomId, 'messages'), {
+      ...message,
+      category,
+      title,
+      timestamp: serverTimestamp(),
+    });
+  } else {
+    // For image-only messages
+    await addDoc(collection(db, 'chats', roomId, 'messages'), {
+      ...message,
+      timestamp: serverTimestamp(),
+    });
+  }
 };
 
 export const getMessages = (roomId: string, callback: (messages: Message[]) => void) => {
@@ -48,6 +55,7 @@ export const getMessages = (roomId: string, callback: (messages: Message[]) => v
         id: doc.id,
         user: data.user,
         text: data.text,
+        imageUrl: data.imageUrl,
         time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
         timestamp: timestamp
       } as Message

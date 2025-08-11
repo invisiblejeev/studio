@@ -6,23 +6,29 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
-import { Paperclip, SendHorizonal, MessageSquare } from "lucide-react"
+import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle } from "lucide-react"
 import { useRouter, useParams } from 'next/navigation';
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { getMessages, sendMessage, Message } from "@/services/chat";
+import { uploadChatImage } from "@/services/storage";
+import { useToast } from "@/hooks/use-toast";
+import Image from "next/image";
 
 export default function ChatPage() {
   const router = useRouter();
   const params = useParams();
   const state = params.state as string;
+  const { toast } = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -55,17 +61,45 @@ export default function ChatPage() {
 
 
   const handleSendMessage = async () => {
-    if (newMessage.trim() !== "" && currentUser) {
-      await sendMessage(state, {
-        user: { 
-            id: currentUser.uid, 
-            name: currentUser.username, 
-            avatar: currentUser.avatar || 'https://placehold.co/40x40.png' 
-        },
-        text: newMessage,
-      });
-      setNewMessage("");
-    }
+    if (newMessage.trim() === "" || !currentUser) return;
+    
+    await sendMessage(state, {
+      user: { 
+          id: currentUser.uid, 
+          name: currentUser.username, 
+          avatar: currentUser.avatar || 'https://placehold.co/40x40.png' 
+      },
+      text: newMessage,
+    });
+    setNewMessage("");
+  };
+
+  const handleImageSend = async (file: File) => {
+      if (!file || !currentUser) return;
+      setIsUploading(true);
+      try {
+          const imageUrl = await uploadChatImage(state, file);
+          await sendMessage(state, {
+             user: { 
+                id: currentUser.uid, 
+                name: currentUser.username, 
+                avatar: currentUser.avatar || 'https://placehold.co/40x40.png' 
+             },
+             imageUrl,
+          });
+      } catch (error) {
+          console.error("Error uploading image:", error);
+          toast({
+              title: "Upload Failed",
+              description: "Could not upload the image. Please try again.",
+              variant: "destructive"
+          });
+      } finally {
+          setIsUploading(false);
+          if (fileInputRef.current) {
+              fileInputRef.current.value = "";
+          }
+      }
   };
 
   const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
@@ -80,7 +114,12 @@ export default function ChatPage() {
         </Avatar>
         <div className={`rounded-lg p-3 max-w-xs lg:max-w-md shadow-sm ${isYou ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
             {!isYou && <p className="font-semibold text-sm mb-1">{msg.user.name}</p>}
-            <p className="text-sm">{msg.text}</p>
+            {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+            {msg.imageUrl && (
+              <div className="relative aspect-square mt-2 rounded-md overflow-hidden">
+                <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
+              </div>
+            )}
             <p className="text-xs text-right mt-2 opacity-70">{msg.time}</p>
         </div>
       </>
@@ -111,6 +150,19 @@ export default function ChatPage() {
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
           <div className="space-y-6">
               {messages.map(renderMessage)}
+               {isUploading && (
+                <div className="flex items-start gap-3 justify-end flex-row-reverse">
+                    <Avatar className="mt-1">
+                        <AvatarImage src={currentUser?.avatar} data-ai-hint="person avatar" />
+                        <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="rounded-lg p-3 max-w-xs lg:max-w-md shadow-sm bg-primary text-primary-foreground">
+                        <div className="flex items-center justify-center h-24 w-24 bg-primary-foreground/20 rounded-md">
+                           <LoaderCircle className="w-6 h-6 animate-spin" />
+                        </div>
+                    </div>
+                </div>
+            )}
           </div>
       </ScrollArea>
       <div className="p-4 border-t bg-card rounded-b-xl">
@@ -129,8 +181,11 @@ export default function ChatPage() {
                 maxRows={5}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="text-muted-foreground"><Paperclip className="w-5 h-5" /></Button>
-                  <Button size="icon" onClick={handleSendMessage}><SendHorizonal className="w-5 h-5" /></Button>
+                   <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                       <Paperclip className="w-5 h-5" />
+                   </Button>
+                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleImageSend(e.target.files[0])} />
+                  <Button size="icon" onClick={handleSendMessage} disabled={newMessage.trim() === ''}><SendHorizonal className="w-5 h-5" /></Button>
               </div>
           </div>
       </div>
