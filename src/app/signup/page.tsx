@@ -6,32 +6,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast";
-import { IndianRupee, Eye, EyeOff, CheckCircle2, XCircle, LoaderCircle } from "lucide-react"
+import { IndianRupee, CheckCircle2, XCircle, LoaderCircle } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
-import { signUp } from "@/services/auth";
-import { isIdentifierTaken, createUserProfile } from "@/services/users";
+import { createUserProfile, isIdentifierTaken } from "@/services/users";
 import { useDebounce } from "use-debounce";
+import { getCurrentUser } from "@/services/auth";
 
 export default function SignupPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     username: '',
     email: '',
-    password: '',
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
-  const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
   
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
   const [debouncedUsername] = useDebounce(formData.username, 500);
-  const [debouncedEmail] = useDebounce(formData.email, 500);
+
+  useEffect(() => {
+    const emailFromQuery = searchParams.get('email');
+    if (emailFromQuery) {
+      setFormData(prev => ({...prev, email: emailFromQuery}));
+    }
+  }, [searchParams]);
 
   const checkUsername = useCallback(async (username: string) => {
     if (username.length < 3) {
@@ -46,21 +49,6 @@ export default function SignupPage() {
       setUsernameStatus("idle");
     }
   }, []);
-  
-  const checkEmail = useCallback(async (email: string) => {
-    if (!email.match(/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/)) {
-        setEmailStatus("idle");
-        return;
-    }
-    setEmailStatus("checking");
-    try {
-        const taken = await isIdentifierTaken('email', email);
-        setEmailStatus(taken ? "taken" : "available");
-    } catch (error) {
-        setEmailStatus("idle");
-    }
-  }, []);
-
 
   useEffect(() => {
     if (debouncedUsername) {
@@ -70,30 +58,18 @@ export default function SignupPage() {
     }
   }, [debouncedUsername, checkUsername]);
   
-  useEffect(() => {
-    if (debouncedEmail) {
-      checkEmail(debouncedEmail);
-    } else {
-      setEmailStatus("idle");
-    }
-  }, [debouncedEmail, checkEmail]);
-
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({...prev, [id]: value}));
     if (id === "username") {
       setUsernameStatus("checking");
     }
-    if (id === "email") {
-      setEmailStatus("checking");
-    }
   }
 
   const handleSignUp = async () => {
     setIsLoading(true);
 
-    if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password) {
+    if (!formData.firstName || !formData.lastName || !formData.username) {
         toast({
             title: "Missing fields",
             description: "Please fill out all fields.",
@@ -113,19 +89,13 @@ export default function SignupPage() {
       return;
     }
     
-    if (emailStatus !== 'available') {
-      toast({
-        title: "Email already in use",
-        description: "This email is already registered. Please log in.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
     try {
-        const userCredential = await signUp(formData.email, formData.password);
-        const user = userCredential;
+        const user = await getCurrentUser() as any;
+        if (!user || user.email.toLowerCase() !== formData.email.toLowerCase()) {
+            toast({ title: "Authentication Error", description: "Your email could not be verified. Please try signing in again.", variant: "destructive" });
+            router.push('/');
+            return;
+        }
 
         const profileData = {
             firstName: formData.firstName,
@@ -175,13 +145,24 @@ export default function SignupPage() {
               <IndianRupee className="h-8 w-8" />
              </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
+          <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
           <CardDescription>
-            Enter your details below to create your account
+            Enter your details below to create your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="m@example.com"
+                required
+                value={formData.email}
+                disabled
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="firstName">First Name</Label>
@@ -210,50 +191,9 @@ export default function SignupPage() {
                 </div>
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="m@example.com"
-                  required
-                  onChange={handleChange} 
-                  value={formData.email}
-                  disabled={isLoading}
-                  className="pr-10"
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    {renderStatusIcon(emailStatus)}
-                </div>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input 
-                  id="password" 
-                  type={showPassword ? "text" : "password"} 
-                  required 
-                  onChange={handleChange} 
-                  value={formData.password} 
-                  disabled={isLoading} 
-                  className="pr-10"
-                />
-                <Button 
-                  type="button"
-                  variant="ghost" 
-                  size="icon" 
-                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:bg-transparent"
-                  onClick={() => setShowPassword(prev => !prev)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
             
-            <Button type="submit" className="w-full" onClick={handleSignUp} disabled={isLoading || usernameStatus !== 'available' || emailStatus !== 'available'}>
-              {isLoading ? 'Signing Up...' : 'Sign Up'}
+            <Button type="submit" className="w-full" onClick={handleSignUp} disabled={isLoading || usernameStatus !== 'available'}>
+              {isLoading ? 'Saving...' : 'Complete Sign Up'}
             </Button>
             
           </div>

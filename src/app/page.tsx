@@ -5,32 +5,123 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { IndianRupee, Eye, EyeOff } from "lucide-react"
+import { IndianRupee } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
-import { signIn } from "@/services/auth"
+import { useState, useEffect } from "react"
+import { sendSignInLink, isSignInWithEmailLink, signInWithEmailLink, getCurrentUser } from "@/services/auth"
 import { useToast } from "@/hooks/use-toast"
+import { getUserProfile } from "@/services/users"
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [loginId, setLoginId] = useState("user@example.com");
-  const [password, setPassword] = useState("password");
-  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLinkSent, setIsLinkSent] = useState(false);
+
+  useEffect(() => {
+    const handleEmailLinkSignIn = async () => {
+      if (isSignInWithEmailLink(window.location.href)) {
+        let emailFromStore = window.localStorage.getItem('emailForSignIn');
+        if (!emailFromStore) {
+          // If the email is not in local storage, prompt the user for it.
+          emailFromStore = window.prompt('Please provide your email for confirmation');
+          if (!emailFromStore) {
+            toast({ title: "Login Failed", description: "Email is required to complete sign-in.", variant: "destructive" });
+            return;
+          }
+        }
+        
+        setIsLoading(true);
+        try {
+          const user = await signInWithEmailLink(emailFromStore, window.location.href);
+          window.localStorage.removeItem('emailForSignIn');
+          
+          if(user) {
+             const profile = await getUserProfile(user.uid);
+             if (profile) {
+                router.push('/chat');
+             } else {
+                // First time user, redirect to complete profile (which is signup page for now)
+                router.push(`/signup?email=${encodeURIComponent(emailFromStore)}`);
+             }
+          }
+        } catch (error: any) {
+          toast({
+            title: "Login Failed",
+            description: "The sign-in link is invalid or has expired.",
+            variant: "destructive"
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+         const checkUser = async () => {
+             const user = await getCurrentUser();
+             if (user) {
+                 router.push('/chat');
+             }
+         }
+         checkUser();
+      }
+    };
+    handleEmailLinkSignIn();
+  }, [router, toast]);
+
 
   const handleLogin = async () => {
+    if (!email) {
+      toast({ title: "Email Required", description: "Please enter your email address.", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
     try {
-      await signIn(loginId, password);
-      router.push('/chat');
+      await sendSignInLink(email);
+      window.localStorage.setItem('emailForSignIn', email);
+      setIsLinkSent(true);
+      toast({
+        title: "Check Your Email",
+        description: `A sign-in link has been sent to ${email}.`,
+      });
     } catch (error: any) {
       toast({
-        title: "Login Failed",
-        description: "Invalid credentials. Please check your information and try again.",
+        title: "Failed to Send Link",
+        description: "Could not send sign-in link. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  if (isLoading) {
+    return (
+       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+          <Card className="mx-auto w-full max-w-sm text-center">
+             <CardContent className="p-6">
+                <p>Signing you in... Please wait.</p>
+             </CardContent>
+          </Card>
+       </div>
+    );
+  }
+  
+  if (isLinkSent) {
+     return (
+       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+          <Card className="mx-auto w-full max-w-sm text-center">
+            <CardHeader>
+                <CardTitle>Email Sent</CardTitle>
+            </CardHeader>
+             <CardContent className="p-6 space-y-4">
+                <p>A sign-in link has been sent to <strong>{email}</strong>.</p>
+                <p>Please check your inbox and click the link to log in.</p>
+             </CardContent>
+          </Card>
+       </div>
+     )
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
@@ -43,55 +134,26 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-2xl font-bold">Indian Community Chat</CardTitle>
           <CardDescription>
-            Enter your email, phone, or username to login
+            Sign in with a secure link sent to your email.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="loginId">Email, Phone, or Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="loginId"
-                type="text"
-                placeholder="Your email, phone, or username"
+                id="email"
+                type="email"
+                placeholder="your@email.com"
                 required
-                value={loginId}
-                onChange={(e) => setLoginId(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
               />
             </div>
-            <div className="grid gap-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
-                <Link
-                  href="#"
-                  className="ml-auto inline-block text-sm underline"
-                >
-                  Forgot your password?
-                </Link>
-              </div>
-              <div className="relative">
-                <Input 
-                  id="password" 
-                  type={showPassword ? "text" : "password"} 
-                  required 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
-                />
-                <Button 
-                  type="button"
-                  variant="ghost" 
-                  size="icon" 
-                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:bg-transparent"
-                  onClick={() => setShowPassword(prev => !prev)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-              <Button type="submit" className="w-full" onClick={handleLogin}>
-                Login
-              </Button>
+            <Button type="submit" className="w-full" onClick={handleLogin} disabled={isLoading}>
+              {isLoading ? 'Sending Link...' : 'Send Magic Link'}
+            </Button>
           </div>
           <div className="mt-4 text-center text-sm">
             Don't have an account?{" "}
