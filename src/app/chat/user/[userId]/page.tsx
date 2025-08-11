@@ -8,9 +8,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Paperclip, SendHorizonal, ArrowLeft } from "lucide-react"
 import { useParams, useRouter } from 'next/navigation';
 import Link from "next/link";
-import { use } from "react";
+import { use, useState } from "react";
 
-const users = {
+const users: Record<string, { name: string; avatar: string }> = {
     user1: { name: 'Rohan', avatar: 'https://placehold.co/40x40.png' },
     user2: { name: 'Priya', avatar: 'https://placehold.co/40x40.png' },
     user3: { name: 'Amit', avatar: 'https://placehold.co/40x40.png' },
@@ -18,20 +18,35 @@ const users = {
 
 export default function PersonalChatPage() {
   const params = useParams();
-  const userId = params ? (params.userId as keyof typeof users) : null;
+  const userId = use(params ? Promise.resolve(params.userId) : Promise.resolve(null)) as keyof typeof users | null;
   const router = useRouter();
   
   const otherUser = userId ? users[userId] : { name: 'Unknown User', avatar: 'https://placehold.co/40x40.png' };
 
-  if (!userId) {
-    // Optionally handle the case where userId is not available yet
-    return null; // or a loading spinner
-  }
-
-  const messages = [
+  const [messages, setMessages] = useState([
     { id: 1, user: { name: otherUser.name, avatar: otherUser.avatar }, text: 'Anyone looking for a frontend developer role? My company is hiring.', time: '2:30 PM' },
     { id: 2, user: { name: 'You', avatar: 'https://placehold.co/40x40.png' }, text: 'I am!', time: '2:31 PM' },
-  ];
+  ]);
+
+  const [newMessage, setNewMessage] = useState("");
+
+  if (!userId) {
+    return null; 
+  }
+
+  const handleSendMessage = () => {
+    if (newMessage.trim() !== "") {
+      const newId = messages.length > 0 ? Math.max(...messages.map(m => m.id)) + 1 : 1;
+      setMessages([...messages, {
+        id: newId,
+        user: { name: 'You', avatar: 'https://placehold.co/40x40.png' },
+        text: newMessage,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }]);
+      setNewMessage("");
+    }
+  };
+
 
   return (
     <div className="flex flex-col h-full bg-background rounded-xl border">
@@ -66,10 +81,21 @@ export default function PersonalChatPage() {
       </ScrollArea>
       <div className="p-4 border-t bg-card rounded-b-xl">
           <div className="relative">
-              <Textarea placeholder={`Message ${otherUser.name}...`} className="pr-28 min-h-[48px] " />
+              <Textarea 
+                placeholder={`Message ${otherUser.name}...`} 
+                className="pr-28 min-h-[48px]"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+              />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                   <Button variant="ghost" size="icon" className="text-muted-foreground"><Paperclip className="w-5 h-5" /></Button>
-                  <Button size="icon"><SendHorizonal className="w-5 h-5" /></Button>
+                  <Button size="icon" onClick={handleSendMessage}><SendHorizonal className="w-5 h-5" /></Button>
               </div>
           </div>
       </div>
