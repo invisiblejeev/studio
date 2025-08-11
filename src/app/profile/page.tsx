@@ -110,12 +110,19 @@ export default function ProfilePage() {
 
     try {
         await updateUserProfile(profile.uid, profile);
-        setInitialProfile(profile);
-        setIsEditing(false);
+        
         toast({
             title: "Profile Saved",
             description: "Your profile information has been updated successfully.",
         });
+
+        if (profile.state && profile.state !== initialProfile.state) {
+            router.push(`/chat/${profile.state}`);
+        }
+        
+        setInitialProfile(profile);
+        setIsEditing(false);
+
     } catch(error: any) {
         toast({
             title: "Error",
