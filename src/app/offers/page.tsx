@@ -196,7 +196,7 @@ export default function OffersPage() {
           const offerRef = doc(db, 'offers', editingOffer.id);
           
           const newImageUrls = await uploadImages(imageFiles);
-          const finalImages = [...editingOffer.images, ...newImageUrls];
+          const finalImages = [...(editingOffer.images || []), ...newImageUrls];
 
           const updateData: Partial<Offer> & { [key: string]: any } = {
             ...editingOffer,
@@ -219,7 +219,7 @@ export default function OffersPage() {
 
   const openEditDialog = (offer: Offer) => {
     resetDialogState();
-    setEditingOffer(offer);
+    setEditingOffer({ ...offer, images: offer.images || [] });
     setEditValidUntil(offer.validUntil ? parse(offer.validUntil, 'yyyy-MM-dd', new Date()) : undefined);
     setImagePreviews([]); // New previews for newly added files in edit mode
     setImageFiles([]);
@@ -524,5 +524,3 @@ export default function OffersPage() {
     </div>
   )
 }
-
-    
