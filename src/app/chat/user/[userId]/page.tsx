@@ -18,8 +18,7 @@ import Link from "next/link";
 
 export default function PersonalChatPage() {
   const router = useRouter();
-  const params = useParams();
-  const otherUserId = params.userId as string;
+  const { userId: otherUserId } = useParams() as { userId: string };
   const { toast } = useToast();
   
   const [messages, setMessages] = useState<Message[]>([]);

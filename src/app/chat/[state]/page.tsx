@@ -19,8 +19,7 @@ import Image from "next/image";
 
 export default function ChatPage() {
   const router = useRouter();
-  const params = useParams();
-  const state = params.state as string;
+  const { state } = useParams() as { state: string };
   const { toast } = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
