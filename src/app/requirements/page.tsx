@@ -36,7 +36,7 @@ interface Requirement extends Message {
 
 const RequirementCard = ({ req }: { req: Requirement }) => {
     const { icon: Icon, color } = categoryConfig[req.category] || categoryConfig["Other"];
-    const stateName = req.userInfo?.state ? req.userInfo.state.charAt(0).toUpperCase() + req.userInfo.state.slice(1) : ''
+    const stateName = allStates.find(s => s.value === req.userInfo?.state)?.label || req.userInfo?.state || '';
 
     return (
         <Card className="overflow-hidden shadow-md">
@@ -76,7 +76,9 @@ export default function RequirementsPage() {
                 // It queries each state's chat collection individually.
                 const stateChatQueries = allStates.map(state => {
                     const messagesCollectionRef = collection(db, 'chats', state.value, 'messages');
-                    return query(messagesCollectionRef, where('category', 'in', categories), orderBy('timestamp', 'desc'), limit(10));
+                    // This is a simplified query that does not require a custom index.
+                    // We fetch recent messages and filter for categories on the client.
+                    return query(messagesCollectionRef, orderBy('timestamp', 'desc'), limit(20));
                 });
 
                 const querySnapshots = await Promise.all(stateChatQueries.map(q => getDocs(q)));
@@ -84,34 +86,43 @@ export default function RequirementsPage() {
                 querySnapshots.forEach(snapshot => {
                     snapshot.forEach(doc => {
                         const data = doc.data();
-                        const timestamp = data.timestamp?.toDate();
-                        if (timestamp) {
-                             userIds.add(data.user.id);
-                             allReqs.push({
-                                id: doc.id,
-                                ...data,
-                                time: timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-                                timestamp: timestamp,
-                            } as Requirement);
+                        // Client-side filtering: only include messages that have a category.
+                        if (data.category && categories.includes(data.category)) {
+                            const timestamp = data.timestamp?.toDate();
+                            if (timestamp) {
+                                 userIds.add(data.user.id);
+                                 allReqs.push({
+                                    id: doc.id,
+                                    ...data,
+                                    time: timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                                    timestamp: timestamp,
+                                } as Requirement);
+                            }
                         }
                     });
                 });
                 
                 // Fetch user profiles for all unique users
-                const userPromises = Array.from(userIds).map(uid => getUserProfile(uid));
-                const users = (await Promise.all(userPromises)).filter(Boolean) as UserProfile[];
-                const userMap = new Map(users.map(u => [u.uid, u]));
-                
-                // Add userInfo to requirements and sort globally
-                const reqsWithUsers = allReqs.map(req => ({
-                    ...req,
-                    userInfo: userMap.get(req.user.id)
-                }));
-                
-                reqsWithUsers.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-                
-                setAllRequirements(reqsWithUsers);
-                setFilteredRequirements(reqsWithUsers);
+                if (userIds.size > 0) {
+                    const userPromises = Array.from(userIds).map(uid => getUserProfile(uid));
+                    const users = (await Promise.all(userPromises)).filter(Boolean) as UserProfile[];
+                    const userMap = new Map(users.map(u => [u.uid, u]));
+                    
+                    // Add userInfo to requirements and sort globally
+                    const reqsWithUsers = allReqs.map(req => ({
+                        ...req,
+                        userInfo: userMap.get(req.user.id)
+                    }));
+                    
+                    reqsWithUsers.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+                    
+                    setAllRequirements(reqsWithUsers);
+                    setFilteredRequirements(reqsWithUsers);
+                } else {
+                    setAllRequirements([]);
+                    setFilteredRequirements([]);
+                }
+
             } catch (error) {
                 console.error("Error fetching requirements:", error);
             } finally {
@@ -161,7 +172,9 @@ export default function RequirementsPage() {
             </div>
 
             {isLoading ? (
-                <p>Loading requirements...</p>
+                <div className="text-center py-10">
+                    <p>Loading requirements...</p>
+                </div>
             ) : (
                 filteredRequirements.length > 0 ? (
                     <div className="space-y-4">
