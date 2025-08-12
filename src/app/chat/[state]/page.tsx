@@ -145,7 +145,7 @@ export default function ChatPage() {
 
 
   return (
-    <div className="flex flex-col h-screen bg-background rounded-xl border">
+    <div className="flex flex-col h-full bg-background rounded-xl border">
       <header className="flex items-center justify-between p-4 border-b">
           <h2 className="text-xl font-bold">{currentStateName} Community</h2>
           <Button variant="outline" onClick={() => router.push('/chat/personal')}>
