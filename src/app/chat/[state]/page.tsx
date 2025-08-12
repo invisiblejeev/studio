@@ -66,12 +66,16 @@ export default function ChatPage() {
     if ((newMessage.trim() === "" && !imageFile) || !currentUser) return;
 
     setIsUploading(true);
-
     let imageUrl: string | undefined = undefined;
+
     if (imageFile) {
         try {
-            // No need to create a Data URI here if we are passing the file to the service
-            // This logic is now handled inside the sendMessage function
+            imageUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(imageFile);
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = (error) => reject(error);
+            });
         } catch (error) {
             console.error("Error processing image:", error);
             toast({
@@ -91,7 +95,7 @@ export default function ChatPage() {
           avatar: currentUser.avatar || ''
       },
       text: newMessage,
-      imageFile: imageFile || undefined,
+      imageUrl: imageUrl,
     });
     
     setNewMessage("");
@@ -254,5 +258,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
-    
