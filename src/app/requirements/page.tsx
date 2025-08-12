@@ -1,16 +1,19 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale } from 'lucide-react';
+import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2 } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, doc, deleteDoc } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import type { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
 import { allStates } from '@/lib/states';
+import { getCurrentUser } from '@/services/auth';
+import { useToast } from '@/hooks/use-toast';
+import { differenceInDays } from 'date-fns';
 
 const categoryConfig: Record<Category, { icon: React.ElementType, color: string }> = {
     "Jobs": { icon: Briefcase, color: "bg-blue-100 text-blue-800" },
@@ -34,13 +37,23 @@ interface Requirement extends Message {
     userInfo?: UserProfile;
 }
 
-const RequirementCard = ({ req }: { req: Requirement }) => {
+const RequirementCard = ({ req, currentUser, onDelete }: { req: Requirement, currentUser: UserProfile | null, onDelete: (req: Requirement) => void }) => {
     const { icon: Icon, color } = categoryConfig[req.category] || categoryConfig["Other"];
     const stateName = allStates.find(s => s.value === req.userInfo?.state)?.label || req.userInfo?.state || '';
 
     return (
-        <Card className="overflow-hidden shadow-md">
+        <Card className="overflow-hidden shadow-md relative group">
             <CardContent className="p-4">
+                 {currentUser?.isAdmin && (
+                    <Button 
+                        variant="destructive" 
+                        size="icon" 
+                        className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => onDelete(req)}
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                )}
                 <div className="flex items-start gap-4">
                     <div className={`p-3 rounded-full ${color}`}>
                         <Icon className="w-5 h-5" />
@@ -64,21 +77,25 @@ export default function RequirementsPage() {
     const [filteredRequirements, setFilteredRequirements] = useState<Requirement[]>([]);
     const [activeFilter, setActiveFilter] = useState<Category | 'All'>('All');
     const [isLoading, setIsLoading] = useState(true);
+    const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+    const { toast } = useToast();
 
-    useEffect(() => {
-        const fetchRequirements = async () => {
+     useEffect(() => {
+        const fetchUserAndRequirements = async () => {
             setIsLoading(true);
             try {
+                const user = await getCurrentUser();
+                if (user) {
+                    const profile = await getUserProfile(user.uid);
+                    setCurrentUser(profile);
+                }
+
                 const userIds = new Set<string>();
                 let allReqs: Requirement[] = [];
 
-                // This approach avoids collectionGroup queries which need manual indexing.
-                // It queries each state's chat collection individually.
                 const stateChatQueries = allStates.map(state => {
                     const messagesCollectionRef = collection(db, 'chats', state.value, 'messages');
-                    // This is a simplified query that does not require a custom index.
-                    // We fetch recent messages and filter for categories on the client.
-                    return query(messagesCollectionRef, orderBy('timestamp', 'desc'), limit(20));
+                    return query(messagesCollectionRef, orderBy('timestamp', 'desc'), limit(50));
                 });
 
                 const querySnapshots = await Promise.all(stateChatQueries.map(q => getDocs(q)));
@@ -86,9 +103,14 @@ export default function RequirementsPage() {
                 querySnapshots.forEach(snapshot => {
                     snapshot.forEach(doc => {
                         const data = doc.data();
-                        // Client-side filtering: only include messages that have a category.
+                        const timestamp = data.timestamp?.toDate();
+                        
+                        // Auto-delete (hide) requirements older than 7 days
+                        if (timestamp && differenceInDays(new Date(), timestamp) > 7) {
+                            return; 
+                        }
+
                         if (data.category && categories.includes(data.category)) {
-                            const timestamp = data.timestamp?.toDate();
                             if (timestamp) {
                                  userIds.add(data.user.id);
                                  allReqs.push({
@@ -102,13 +124,11 @@ export default function RequirementsPage() {
                     });
                 });
                 
-                // Fetch user profiles for all unique users
                 if (userIds.size > 0) {
                     const userPromises = Array.from(userIds).map(uid => getUserProfile(uid));
                     const users = (await Promise.all(userPromises)).filter(Boolean) as UserProfile[];
                     const userMap = new Map(users.map(u => [u.uid, u]));
                     
-                    // Add userInfo to requirements and sort globally
                     const reqsWithUsers = allReqs.map(req => ({
                         ...req,
                         userInfo: userMap.get(req.user.id)
@@ -130,7 +150,7 @@ export default function RequirementsPage() {
             }
         };
 
-        fetchRequirements();
+        fetchUserAndRequirements();
     }, []);
 
     const handleFilter = (category: Category | 'All') => {
@@ -141,6 +161,36 @@ export default function RequirementsPage() {
             setFilteredRequirements(allRequirements.filter(r => r.category === category));
         }
     };
+    
+    const handleDeleteRequirement = async (reqToDelete: Requirement) => {
+        if (!currentUser?.isAdmin || !reqToDelete.userInfo?.state) return;
+        
+        try {
+            const messageRef = doc(db, 'chats', reqToDelete.userInfo.state, 'messages', reqToDelete.id);
+            await deleteDoc(messageRef);
+
+            // Optimistically update UI
+            const updatedReqs = allRequirements.filter(r => r.id !== reqToDelete.id);
+            setAllRequirements(updatedReqs);
+            if (activeFilter === 'All') {
+                setFilteredRequirements(updatedReqs);
+            } else {
+                setFilteredRequirements(updatedReqs.filter(r => r.category === activeFilter));
+            }
+
+            toast({
+                title: 'Requirement Deleted',
+                description: 'The post has been successfully removed.',
+            });
+        } catch (error) {
+            console.error('Error deleting requirement:', error);
+            toast({
+                title: 'Error',
+                description: 'Could not delete the requirement. Please try again.',
+                variant: 'destructive',
+            });
+        }
+    }
     
     return (
         <div className="space-y-6 p-4 bg-gray-50 min-h-screen">
@@ -178,7 +228,7 @@ export default function RequirementsPage() {
             ) : (
                 filteredRequirements.length > 0 ? (
                     <div className="space-y-4">
-                        {filteredRequirements.map(req => <RequirementCard key={req.id} req={req} />)}
+                        {filteredRequirements.map(req => <RequirementCard key={req.id} req={req} currentUser={currentUser} onDelete={handleDeleteRequirement} />)}
                     </div>
                 ) : (
                     <div className="text-center text-muted-foreground py-10">
