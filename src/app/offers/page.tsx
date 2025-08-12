@@ -183,9 +183,9 @@ export default function OffersPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-4 flex-1">
-                <CardTitle>{offer.title}</CardTitle>
-                <CardDescription className="mt-2">{offer.description}</CardDescription>
-                <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+                <CardTitle className="text-xl">{offer.title}</CardTitle>
+                <CardDescription className="mt-1 text-sm">{offer.description}</CardDescription>
+                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                     {offer.code && (
                         <div className="flex items-center gap-2">
                             <Tag className="w-4 h-4"/>
@@ -200,18 +200,18 @@ export default function OffersPage() {
                     )}
                 </div>
               </CardContent>
-              <CardFooter className="p-4 pt-0">
+              <CardFooter className="p-2 pt-0">
                 {currentUser?.isAdmin ? (
                     <div className="w-full flex gap-2">
-                        <Button className="w-full" variant="outline" onClick={() => openEditDialog(offer)}>
+                        <Button className="w-full" variant="outline" size="sm" onClick={() => openEditDialog(offer)}>
                             <Pencil className="mr-2 h-4 w-4" /> Edit
                         </Button>
-                        <Button className="w-full" variant="destructive" onClick={() => handleDeleteOffer(offer.id)}>
+                        <Button className="w-full" variant="destructive" size="sm" onClick={() => handleDeleteOffer(offer.id)}>
                             <Trash2 className="mr-2 h-4 w-4" /> Delete
                         </Button>
                     </div>
                 ) : (
-                    <Button className="w-full">
+                    <Button className="w-full" size="sm">
                        <Ticket className="mr-2 h-4 w-4" />
                        View Deal
                     </Button>
