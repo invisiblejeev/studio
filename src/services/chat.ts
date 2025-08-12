@@ -1,3 +1,4 @@
+
 import { db } from '@/lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
 import { categorizeMessage } from '@/ai/flows/categorize-message';
@@ -18,32 +19,29 @@ export interface Message {
 }
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
-  
-  // Do not categorize personal messages
-  if (roomId.includes('_')) {
-    await addDoc(collection(db, 'chats', roomId, 'messages'), {
+  const messagePayload: any = {
       ...message,
       timestamp: serverTimestamp(),
-    });
+  };
+
+  // Do not categorize personal messages, just send them.
+  if (roomId.includes('_')) {
+    await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
     return;
   }
 
-  // Only categorize messages that have text.
+  // For public channels, categorize if there's text.
   if (message.text) {
-    const { category, title } = await categorizeMessage({ text: message.text });
-    await addDoc(collection(db, 'chats', roomId, 'messages'), {
-      ...message,
-      category,
-      title,
-      timestamp: serverTimestamp(),
-    });
-  } else {
-    // For image-only messages, just add them without categorization
-    await addDoc(collection(db, 'chats', roomId, 'messages'), {
-      ...message,
-      timestamp: serverTimestamp(),
-    });
+    try {
+        const { category, title } = await categorizeMessage({ text: message.text });
+        messagePayload.category = category;
+        messagePayload.title = title;
+    } catch(e) {
+        console.error("Failed to categorize message, sending without category.", e);
+    }
   }
+  
+  await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 };
 
 export const getMessages = (roomId: string, callback: (messages: Message[]) => void) => {
@@ -59,7 +57,9 @@ export const getMessages = (roomId: string, callback: (messages: Message[]) => v
         text: data.text,
         imageUrl: data.imageUrl,
         time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-        timestamp: timestamp
+        timestamp: timestamp,
+        category: data.category,
+        title: data.title
       } as Message
     });
     callback(messages);
