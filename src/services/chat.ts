@@ -1,6 +1,6 @@
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { categorizeMessage } from '@/ai/flows/categorize-message';
 
 export interface Message {
@@ -25,35 +25,41 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
       timestamp: serverTimestamp(),
   };
 
-  // 1. Add text if it exists and is not empty.
   if (message.text && message.text.trim() !== '') {
     messagePayload.text = message.text;
   }
 
-  // 2. Add image URL if it exists.
   if (message.imageUrl) {
     messagePayload.imageUrl = message.imageUrl;
   }
   
-  // 3. If there is no text and no image, do not send an empty message.
   if (!messagePayload.text && !messagePayload.imageUrl) {
     console.log("Attempted to send an empty message. Aborting.");
     return;
   }
 
-  // 4. For public channels (not personal chats), categorize if there's text.
+  // 1. Immediately add the message to the database for a fast user experience.
+  const messageRef = await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
+
+  // 2. For public channels (not personal chats), categorize in the background if there's text.
   const isPersonalChat = roomId.includes('_');
   if (messagePayload.text && !isPersonalChat) {
-    try {
-        const { category, title } = await categorizeMessage({ text: messagePayload.text });
-        messagePayload.category = category;
-        messagePayload.title = title;
-    } catch(e) {
-        console.error("Failed to categorize message, sending without category.", e);
-    }
+      // Don't await this, let it run in the background
+      categorizeMessage({ text: messagePayload.text })
+        .then(categorization => {
+            if (categorization) {
+                // 3. Update the message document with the category info.
+                updateDoc(messageRef, {
+                    category: categorization.category,
+                    title: categorization.title,
+                });
+            }
+        })
+        .catch(e => {
+            console.error("Failed to categorize message in the background.", e);
+            // The message is already sent, so we just log the error.
+        });
   }
-  
-  await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 };
 
 export const getMessages = (roomId: string, callback: (messages: Message[]) => void) => {
