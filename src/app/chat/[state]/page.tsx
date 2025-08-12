@@ -28,6 +28,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
   const [isUploading, setIsUploading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -60,8 +61,9 @@ export default function ChatPage({ params }: { params: { state: string } }) {
 
 
   const handleSendMessage = async () => {
-    if (newMessage.trim() === "" || !currentUser) return;
+    if ((newMessage.trim() === "" && !imagePreview) || !currentUser) return;
     
+    setIsUploading(true);
     await sendMessage(state, {
       user: { 
           id: currentUser.uid, 
@@ -69,47 +71,38 @@ export default function ChatPage({ params }: { params: { state: string } }) {
           avatar: currentUser.avatar || ''
       },
       text: newMessage,
+      imageUrl: imagePreview || undefined,
     });
     setNewMessage("");
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    setIsUploading(false);
   };
 
-  const handleImageSend = async (file: File) => {
-      if (!file || !currentUser) return;
-      setIsUploading(true);
-      try {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = async () => {
-              const dataUrl = reader.result as string;
-              await sendMessage(state, {
-                 user: { 
-                    id: currentUser.uid, 
-                    name: currentUser.username, 
-                    avatar: currentUser.avatar || ''
-                 },
-                 imageUrl: dataUrl,
-              });
-              setIsUploading(false);
-          }
-          reader.onerror = (error) => {
-              throw error;
-          }
-      } catch (error) {
-          console.error("Error uploading image:", error);
+  const handleFileSelect = async (file: File) => {
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+          const dataUrl = reader.result as string;
+          setImagePreview(dataUrl);
+      }
+      reader.onerror = (error) => {
+          console.error("Error reading file:", error);
           toast({
-              title: "Upload Failed",
-              description: "Could not upload the image. Please try again.",
+              title: "File Read Failed",
+              description: "Could not read the selected file. Please try again.",
               variant: "destructive"
           });
-          setIsUploading(false);
-      } finally {
-          if (fileInputRef.current) {
-              fileInputRef.current.value = "";
-          }
       }
   };
 
   const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
+  const canSendMessage = (newMessage.trim() !== "" || !!imagePreview) && !isUploading;
+
 
   return (
     <div className="flex flex-col h-screen bg-background rounded-xl border">
@@ -145,21 +138,21 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                         <div className={cn('p-3 rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
                             !msg.text && msg.imageUrl ? 'p-1' : 'p-3',
-                            isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
-                            isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
-                            !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
-                            !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
-                            !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
-                            'rounded-lg'
+                             isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
+                             isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
+                             !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
+                             !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
+                             !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
+                             'rounded-lg'
                         )}>
-                            {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                             {msg.imageUrl && (
                                <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                                  <div className="relative aspect-square mt-2 rounded-md overflow-hidden max-w-[200px]">
+                                  <div className="relative aspect-square rounded-md overflow-hidden max-w-[200px]">
                                     <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
                                   </div>
                                </Link>
                             )}
+                            {msg.text && <p className="text-sm whitespace-pre-wrap mt-2">{msg.text}</p>}
                         </div>
                         {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                      </div>
@@ -192,6 +185,14 @@ export default function ChatPage({ params }: { params: { state: string } }) {
           </div>
       </ScrollArea>
       <div className="p-4 border-t bg-card rounded-b-xl">
+          {imagePreview && (
+              <div className="mb-2 relative w-24 h-24">
+                  <Image src={imagePreview} alt="Image preview" fill className="rounded-md object-cover" />
+                  <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => { setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}>
+                      <X className="h-4 w-4" />
+                  </Button>
+              </div>
+          )}
           <div className="relative">
               <Textarea 
                 placeholder="Type your message..." 
@@ -205,13 +206,16 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                   }
                 }}
                 maxRows={5}
+                disabled={isUploading}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                    <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
                        <Paperclip className="w-5 h-5" />
                    </Button>
-                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleImageSend(e.target.files[0])} />
-                  <Button size="icon" onClick={handleSendMessage} disabled={newMessage.trim() === ''}><SendHorizonal className="w-5 h-5" /></Button>
+                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFileSelect(e.target.files[0])} disabled={isUploading} />
+                  <Button size="icon" onClick={handleSendMessage} disabled={!canSendMessage}>
+                      {isUploading ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <SendHorizonal className="w-5 h-5" />}
+                  </Button>
               </div>
           </div>
       </div>

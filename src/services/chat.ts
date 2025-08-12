@@ -19,21 +19,33 @@ export interface Message {
 }
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
+  // Base payload with user and timestamp.
   const messagePayload: any = {
-      ...message,
+      user: message.user,
       timestamp: serverTimestamp(),
   };
 
-  // Do not categorize personal messages, just send them.
-  if (roomId.includes('_')) {
-    await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
+  // 1. Add text if it exists and is not empty.
+  if (message.text && message.text.trim() !== '') {
+    messagePayload.text = message.text;
+  }
+
+  // 2. Add image URL if it exists.
+  if (message.imageUrl) {
+    messagePayload.imageUrl = message.imageUrl;
+  }
+  
+  // 3. If there is no text and no image, do not send an empty message.
+  if (!messagePayload.text && !messagePayload.imageUrl) {
+    console.log("Attempted to send an empty message. Aborting.");
     return;
   }
 
-  // For public channels, categorize if there's text.
-  if (message.text) {
+  // 4. For public channels (not personal chats), categorize if there's text.
+  const isPersonalChat = roomId.includes('_');
+  if (messagePayload.text && !isPersonalChat) {
     try {
-        const { category, title } = await categorizeMessage({ text: message.text });
+        const { category, title } = await categorizeMessage({ text: messagePayload.text });
         messagePayload.category = category;
         messagePayload.title = title;
     } catch(e) {
