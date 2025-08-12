@@ -14,7 +14,6 @@ import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getCurrentUser, logOut, deleteCurrentUser } from "@/services/auth";
 import { getUserProfile, updateUserProfile, isIdentifierTaken, UserProfile, deleteUserProfile } from "@/services/users";
-import { uploadProfilePicture } from "@/services/storage";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
 
@@ -200,28 +199,34 @@ export default function ProfilePage() {
 
     setIsUploading(true);
     try {
-        const downloadURL = await uploadProfilePicture(profile.uid, file);
-        await updateUserProfile(profile.uid, { avatar: downloadURL });
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const dataUrl = reader.result as string;
+            await updateUserProfile(profile.uid, { avatar: dataUrl });
+            const updatedProfile = { ...profile, avatar: dataUrl };
+            setProfile(updatedProfile);
+            setInitialProfile(updatedProfile);
+            toast({
+                title: "Success",
+                description: "Profile picture uploaded successfully.",
+            });
+            setIsUploading(false);
+            setIsImageDialogOpen(false);
+        };
+        reader.onerror = (error) => {
+            throw error;
+        }
 
-        const updatedProfile = { ...profile, avatar: downloadURL };
-        setProfile(updatedProfile);
-        setInitialProfile(updatedProfile);
-
-        toast({
-            title: "Success",
-            description: "Profile picture uploaded successfully.",
-        });
     } catch (error) {
         console.error("Failed to upload image: ", error);
         toast({
             title: "Upload Failed",
-            description: "Could not upload the new profile picture. Please check the file type or try again later.",
+            description: "Could not upload the new profile picture. Please try again.",
             variant: "destructive"
         });
-    } finally {
         setIsUploading(false);
-        setIsImageDialogOpen(false);
-        // Reset file input value
+    } finally {
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
@@ -337,5 +342,3 @@ export default function ProfilePage() {
     </div>
   )
 }
-
-    

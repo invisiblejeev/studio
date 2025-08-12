@@ -11,14 +11,14 @@ import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { getMessages, sendMessage, Message, getPersonalChatRoomId } from "@/services/chat";
-import { uploadChatImage } from "@/services/storage";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import Link from "next/link";
 
 export default function PersonalChatPage() {
   const router = useRouter();
-  const { userId: otherUserId } = useParams() as { userId: string };
+  const params = useParams();
+  const otherUserId = params.userId as string;
   const { toast } = useToast();
   
   const [messages, setMessages] = useState<Message[]>([]);
@@ -81,15 +81,23 @@ export default function PersonalChatPage() {
       if (!file || !currentUser || !roomId) return;
       setIsUploading(true);
       try {
-          const imageUrl = await uploadChatImage(roomId, file);
-          await sendMessage(roomId, {
-             user: { 
-                id: currentUser.uid, 
-                name: currentUser.username, 
-                avatar: currentUser.avatar || 'https://placehold.co/40x40.png' 
-             },
-             imageUrl,
-          });
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = async () => {
+              const dataUrl = reader.result as string;
+              await sendMessage(roomId, {
+                 user: { 
+                    id: currentUser.uid, 
+                    name: currentUser.username, 
+                    avatar: currentUser.avatar || 'https://placehold.co/40x40.png' 
+                 },
+                 imageUrl: dataUrl,
+              });
+              setIsUploading(false);
+          };
+          reader.onerror = (error) => {
+              throw error;
+          };
       } catch (error) {
           console.error("Error uploading image:", error);
           toast({
@@ -97,8 +105,8 @@ export default function PersonalChatPage() {
               description: "Could not upload the image. Please try again.",
               variant: "destructive"
           });
-      } finally {
           setIsUploading(false);
+      } finally {
           if (fileInputRef.current) {
               fileInputRef.current.value = "";
           }

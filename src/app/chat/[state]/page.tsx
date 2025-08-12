@@ -13,13 +13,13 @@ import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { getMessages, sendMessage, Message } from "@/services/chat";
-import { uploadChatImage } from "@/services/storage";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 
 export default function ChatPage() {
   const router = useRouter();
-  const { state } = useParams() as { state: string };
+  const params = useParams();
+  const state = params.state as string;
   const { toast } = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -77,15 +77,23 @@ export default function ChatPage() {
       if (!file || !currentUser) return;
       setIsUploading(true);
       try {
-          const imageUrl = await uploadChatImage(state, file);
-          await sendMessage(state, {
-             user: { 
-                id: currentUser.uid, 
-                name: currentUser.username, 
-                avatar: currentUser.avatar || 'https://placehold.co/40x40.png' 
-             },
-             imageUrl,
-          });
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = async () => {
+              const dataUrl = reader.result as string;
+              await sendMessage(state, {
+                 user: { 
+                    id: currentUser.uid, 
+                    name: currentUser.username, 
+                    avatar: currentUser.avatar || 'https://placehold.co/40x40.png' 
+                 },
+                 imageUrl: dataUrl,
+              });
+              setIsUploading(false);
+          }
+          reader.onerror = (error) => {
+              throw error;
+          }
       } catch (error) {
           console.error("Error uploading image:", error);
           toast({
@@ -93,8 +101,8 @@ export default function ChatPage() {
               description: "Could not upload the image. Please try again.",
               variant: "destructive"
           });
-      } finally {
           setIsUploading(false);
+      } finally {
           if (fileInputRef.current) {
               fileInputRef.current.value = "";
           }
