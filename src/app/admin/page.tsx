@@ -208,7 +208,7 @@ export default function AdminDashboardPage() {
         
         <Dialog open={isAddOfferOpen} onOpenChange={setIsAddOfferOpen}>
             <DialogTrigger asChild>
-                <Button className="fixed bottom-20 right-4 h-14 w-14 rounded-full shadow-lg md:bottom-8 md:right-8 z-30">
+                <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg md:bottom-8 md:right-8 z-30">
                     <Plus className="h-6 w-6" />
                 </Button>
             </DialogTrigger>
