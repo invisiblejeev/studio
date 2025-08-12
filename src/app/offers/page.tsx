@@ -6,10 +6,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, deleteDoc, query, orderBy, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc, query, orderBy, addDoc, updateDoc } from 'firebase/firestore';
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket } from "lucide-react";
+import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from "@/components/ui/badge";
@@ -45,9 +45,17 @@ export default function OffersPage() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // State for Add Dialog
   const [isAddOfferOpen, setIsAddOfferOpen] = useState(false);
   const [newOffer, setNewOffer] = useState(initialNewOfferState);
-  const [validUntil, setValidUntil] = useState<Date | undefined>();
+  const [addValidUntil, setAddValidUntil] = useState<Date | undefined>();
+
+  // State for Edit Dialog
+  const [isEditOfferOpen, setIsEditOfferOpen] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
+  const [editValidUntil, setEditValidUntil] = useState<Date | undefined>();
+
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
@@ -100,12 +108,12 @@ export default function OffersPage() {
       try {
           await addDoc(collection(db, 'offers'), {
               ...newOffer,
-              validUntil: validUntil ? format(validUntil, 'yyyy-MM-dd') : null,
+              validUntil: addValidUntil ? format(addValidUntil, 'yyyy-MM-dd') : null,
               image: `https://placehold.co/600x400.png`
           });
           toast({ title: "Offer Added", description: "The new offer has been successfully created." });
           setNewOffer(initialNewOfferState);
-          setValidUntil(undefined);
+          setAddValidUntil(undefined);
           setIsAddOfferOpen(false);
       } catch (error) {
           console.error("Error adding offer: ", error);
@@ -113,6 +121,36 @@ export default function OffersPage() {
       } finally {
           setIsSaving(false);
       }
+  }
+
+  const handleEditOffer = async () => {
+    if (!editingOffer) return;
+     if (!editingOffer.title || !editingOffer.description || !editingOffer.hint) {
+          toast({ title: "Missing Fields", description: "Please fill out title, description, and hint for the offer.", variant: "destructive" });
+          return;
+      }
+      setIsSaving(true);
+      try {
+          const offerRef = doc(db, 'offers', editingOffer.id);
+          await updateDoc(offerRef, {
+              ...editingOffer,
+              validUntil: editValidUntil ? format(editValidUntil, 'yyyy-MM-dd') : null
+          });
+          toast({ title: "Offer Updated", description: "The offer has been successfully updated."});
+          setIsEditOfferOpen(false);
+          setEditingOffer(null);
+      } catch (error) {
+          console.error("Error updating offer: ", error);
+          toast({ title: "Error", description: "Could not update the offer. Please try again.", variant: "destructive" });
+      } finally {
+          setIsSaving(false);
+      }
+  }
+
+  const openEditDialog = (offer: Offer) => {
+    setEditingOffer(offer);
+    setEditValidUntil(offer.validUntil ? parse(offer.validUntil, 'yyyy-MM-dd', new Date()) : undefined);
+    setIsEditOfferOpen(true);
   }
 
   return (
@@ -164,10 +202,14 @@ export default function OffersPage() {
               </CardContent>
               <CardFooter className="p-4 pt-0">
                 {currentUser?.isAdmin ? (
-                    <Button className="w-full" variant="destructive" onClick={() => handleDeleteOffer(offer.id)}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete Offer
-                    </Button>
+                    <div className="w-full flex gap-2">
+                        <Button className="w-full" variant="outline" onClick={() => openEditDialog(offer)}>
+                            <Pencil className="mr-2 h-4 w-4" /> Edit
+                        </Button>
+                        <Button className="w-full" variant="destructive" onClick={() => handleDeleteOffer(offer.id)}>
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </Button>
+                    </div>
                 ) : (
                     <Button className="w-full">
                        <Ticket className="mr-2 h-4 w-4" />
@@ -181,86 +223,168 @@ export default function OffersPage() {
       )}
 
       {currentUser?.isAdmin && (
-        <Dialog open={isAddOfferOpen} onOpenChange={setIsAddOfferOpen}>
-            <DialogTrigger asChild>
-                <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg md:bottom-8 md:right-8 z-30">
-                    <Plus className="h-6 w-6" />
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[480px]">
-                <DialogHeader>
-                    <DialogTitle>Add New Offer</DialogTitle>
-                    <DialogDescription>Create a new coupon or offer for the community.</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="title">Title</Label>
-                        <Input id="title" value={newOffer.title} onChange={(e) => setNewOffer({...newOffer, title: e.target.value})} />
-                    </div>
-                     <div className="grid gap-2">
-                        <Label htmlFor="description">Description</Label>
-                        <Textarea id="description" value={newOffer.description} onChange={(e) => setNewOffer({...newOffer, description: e.target.value})} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="code">Coupon Code</Label>
-                            <Input id="code" placeholder="e.g., DIWALI20" value={newOffer.code} onChange={(e) => setNewOffer({...newOffer, code: e.target.value})} />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="type">Offer Type</Label>
-                            <Select onValueChange={(value) => setNewOffer({...newOffer, type: value})} value={newOffer.type}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select Type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Discount">Discount</SelectItem>
-                                    <SelectItem value="Deal">Deal</SelectItem>
-                                    <SelectItem value="Service">Service</SelectItem>
-                                    <SelectItem value="Other">Other</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                            <Label>Valid Until</Label>
-                             <Popover>
-                                <PopoverTrigger asChild>
-                                <Button
-                                    variant={"outline"}
-                                    className={cn(
-                                    "justify-start text-left font-normal",
-                                    !validUntil && "text-muted-foreground"
-                                    )}
-                                >
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {validUntil ? format(validUntil, "PPP") : <span>Pick a date</span>}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar
-                                        mode="single"
-                                        selected={validUntil}
-                                        onSelect={setValidUntil}
-                                        initialFocus
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="hint">Image Hint</Label>
-                            <Input id="hint" placeholder="e.g., 'indian food'" value={newOffer.hint} onChange={(e) => setNewOffer({...newOffer, hint: e.target.value})} />
-                        </div>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddOfferOpen(false)} disabled={isSaving}>Cancel</Button>
-                    <Button onClick={handleAddOffer} disabled={isSaving}>
-                        {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Offer"}
+        <>
+            {/* Add Offer Dialog */}
+            <Dialog open={isAddOfferOpen} onOpenChange={setIsAddOfferOpen}>
+                <DialogTrigger asChild>
+                    <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg md:bottom-8 md:right-8 z-30">
+                        <Plus className="h-6 w-6" />
                     </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[480px]">
+                    <DialogHeader>
+                        <DialogTitle>Add New Offer</DialogTitle>
+                        <DialogDescription>Create a new coupon or offer for the community.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="title">Title</Label>
+                            <Input id="title" value={newOffer.title} onChange={(e) => setNewOffer({...newOffer, title: e.target.value})} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="description">Description</Label>
+                            <Textarea id="description" value={newOffer.description} onChange={(e) => setNewOffer({...newOffer, description: e.target.value})} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="code">Coupon Code</Label>
+                                <Input id="code" placeholder="e.g., DIWALI20" value={newOffer.code} onChange={(e) => setNewOffer({...newOffer, code: e.target.value})} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="type">Offer Type</Label>
+                                <Select onValueChange={(value) => setNewOffer({...newOffer, type: value})} value={newOffer.type}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Discount">Discount</SelectItem>
+                                        <SelectItem value="Deal">Deal</SelectItem>
+                                        <SelectItem value="Service">Service</SelectItem>
+                                        <SelectItem value="Other">Other</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label>Valid Until</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                    <Button
+                                        variant={"outline"}
+                                        className={cn(
+                                        "justify-start text-left font-normal",
+                                        !addValidUntil && "text-muted-foreground"
+                                        )}
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {addValidUntil ? format(addValidUntil, "PPP") : <span>Pick a date</span>}
+                                    </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar
+                                            mode="single"
+                                            selected={addValidUntil}
+                                            onSelect={setAddValidUntil}
+                                            initialFocus
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="hint">Image Hint</Label>
+                                <Input id="hint" placeholder="e.g., 'indian food'" value={newOffer.hint} onChange={(e) => setNewOffer({...newOffer, hint: e.target.value})} />
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddOfferOpen(false)} disabled={isSaving}>Cancel</Button>
+                        <Button onClick={handleAddOffer} disabled={isSaving}>
+                            {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Offer"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Offer Dialog */}
+            {editingOffer && (
+                 <Dialog open={isEditOfferOpen} onOpenChange={setIsEditOfferOpen}>
+                    <DialogContent className="sm:max-w-[480px]">
+                        <DialogHeader>
+                            <DialogTitle>Edit Offer</DialogTitle>
+                            <DialogDescription>Update the details for this offer.</DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="title-edit">Title</Label>
+                                <Input id="title-edit" value={editingOffer.title} onChange={(e) => setEditingOffer({...editingOffer, title: e.target.value})} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="description-edit">Description</Label>
+                                <Textarea id="description-edit" value={editingOffer.description} onChange={(e) => setEditingOffer({...editingOffer, description: e.target.value})} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="code-edit">Coupon Code</Label>
+                                    <Input id="code-edit" placeholder="e.g., DIWALI20" value={editingOffer.code || ''} onChange={(e) => setEditingOffer({...editingOffer, code: e.target.value})} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="type-edit">Offer Type</Label>
+                                    <Select onValueChange={(value) => setEditingOffer({...editingOffer, type: value})} value={editingOffer.type || ''}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select Type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Discount">Discount</SelectItem>
+                                            <SelectItem value="Deal">Deal</SelectItem>
+                                            <SelectItem value="Service">Service</SelectItem>
+                                            <SelectItem value="Other">Other</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label>Valid Until</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn(
+                                            "justify-start text-left font-normal",
+                                            !editValidUntil && "text-muted-foreground"
+                                            )}
+                                        >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {editValidUntil ? format(editValidUntil, "PPP") : <span>Pick a date</span>}
+                                        </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0">
+                                            <Calendar
+                                                mode="single"
+                                                selected={editValidUntil}
+                                                onSelect={setEditValidUntil}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="hint-edit">Image Hint</Label>
+                                    <Input id="hint-edit" placeholder="e.g., 'indian food'" value={editingOffer.hint} onChange={(e) => setEditingOffer({...editingOffer, hint: e.target.value})} />
+                                </div>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsEditOfferOpen(false)} disabled={isSaving}>Cancel</Button>
+                            <Button onClick={handleEditOffer} disabled={isSaving}>
+                                {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Changes"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
+        </>
       )}
     </div>
   )
