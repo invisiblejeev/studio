@@ -1,2 +1,10 @@
-// This file is a duplicate and has been intentionally left blank to resolve routing conflicts.
-// The correct implementation is in src/app/(app)/chat/layout.tsx
+
+'use client';
+
+export default function ChatLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="p-0 md:p-0">
+            {children}
+        </div>
+    );
+}
