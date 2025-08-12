@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { doc, setDoc, writeBatch } from "firebase/firestore";
+import { doc, setDoc, writeBatch, serverTimestamp } from "firebase/firestore";
 import type { UserProfile } from "@/services/users";
-import { Database, PartyPopper, AlertTriangle } from "lucide-react";
+import { Bot, Database, PartyPopper, AlertTriangle } from "lucide-react";
 
 const sampleUsers: Omit<UserProfile, 'uid'>[] = [
   {
@@ -41,50 +41,48 @@ const sampleUsers: Omit<UserProfile, 'uid'>[] = [
     phone: "345-678-9012",
     avatar: "https://i.pravatar.cc/150?u=rajk"
   },
-  {
-    firstName: "Sunita",
-    lastName: "Gupta",
-    username: "sunitag",
-    email: "sunita.gupta@example.com",
-    state: "illinois",
-    city: "Chicago",
-    phone: "456-789-0123",
-    avatar: "https://i.pravatar.cc/150?u=sunitag"
-  },
-  {
-    firstName: "Vikram",
-    lastName: "Singh",
-    username: "viksingh",
-    email: "vikram.singh@example.com",
-    state: "florida",
-    city: "Miami",
-    phone: "567-890-1234",
-    avatar: "https://i.pravatar.cc/150?u=viksingh"
-  },
-  {
-    firstName: "jeevitesh",
-    lastName: "reddy",
-    username: "invisiblejeev",
-    email: "ambavarapujeevam@gmail.com",
-    state: "virginia",
-    city: "fairfax",
-    phone: "703-703-5959",
-    avatar: "https://i.pravatar.cc/150?u=invisiblejeev"
-  }
 ];
+
+const sampleSpamReports = [
+    { 
+        status: "HIDDEN",
+        message: "Get rich quick! Make $5000 per day working from home!", 
+        user: "spam.user@email.com",
+        state: "California",
+        keywords: ["get rich quick", "make money"]
+    },
+    { 
+        status: "HIDDEN",
+        message: "Buy cheap medications online without prescription", 
+        user: "suspicious.account@email.com",
+        state: "Texas",
+        keywords: ["medications", "without prescription"]
+    },
+    { 
+        status: "PENDING",
+        message: "Free iPhone giveaway! Click this link now!", 
+        user: "fake.giveaway@email.com",
+        state: "New York",
+        keywords: []
+    },
+];
+
+const sampleDailySummary = {
+    summary: "Today, we saw a total of 1018 messages. 209 messages were flagged as spam, primarily due to keywords like 'FREE' and 'make money'. The AI successfully categorized 186 job-related queries, 305 event discussions, and 237 buy/sell requests, helping to keep our community channels organized."
+}
 
 
 export default function SeedDataPage() {
-    const [isLoading, setIsLoading] = useState(false);
+    const [isUserLoading, setIsUserLoading] = useState(false);
+    const [isAdminLoading, setIsAdminLoading] = useState(false);
     const { toast } = useToast();
 
-    const handleSeedDatabase = async () => {
-        setIsLoading(true);
+    const handleSeedUsers = async () => {
+        setIsUserLoading(true);
         try {
             const batch = writeBatch(db);
             
             sampleUsers.forEach((user, index) => {
-                // NOTE: These UIDs are placeholders. For real users, Firebase Auth generates these.
                 const uid = `sampleuser${index + 1}`; 
                 const userRef = doc(db, "users", uid);
                 batch.set(userRef, { ...user, uid });
@@ -94,29 +92,62 @@ export default function SeedDataPage() {
 
             toast({
                 title: "Database Seeded!",
-                description: `${sampleUsers.length} sample users have been added to the 'users' collection.`,
+                description: `${sampleUsers.length} sample users have been added.`,
                 action: <PartyPopper className="w-5 h-5 text-green-500" />,
             });
         } catch (error) {
-            console.error("Error seeding database:", error);
+            console.error("Error seeding users:", error);
             toast({
-                title: "Error Seeding Database",
-                description: "Could not add sample users. Check the console for more details.",
+                title: "Error Seeding Users",
+                description: "Could not add sample users. Check the console.",
                 variant: "destructive",
                 action: <AlertTriangle className="w-5 h-5" />,
             });
         } finally {
-            setIsLoading(false);
+            setIsUserLoading(false);
         }
     };
 
+    const handleSeedAdminData = async () => {
+        setIsAdminLoading(true);
+        try {
+            const batch = writeBatch(db);
+            
+            sampleSpamReports.forEach(report => {
+                const reportRef = doc(db, "spam-reports", `sample-report-${Math.random()}`);
+                batch.set(reportRef, { ...report, timestamp: serverTimestamp() });
+            });
+
+            const summaryRef = doc(db, "daily-summaries", "latest-summary");
+            batch.set(summaryRef, { ...sampleDailySummary, timestamp: serverTimestamp() });
+            
+            await batch.commit();
+
+            toast({
+                title: "Admin Data Seeded!",
+                description: `Added ${sampleSpamReports.length} spam reports and a daily summary.`,
+                action: <PartyPopper className="w-5 h-5 text-green-500" />,
+            });
+        } catch (error) {
+            console.error("Error seeding admin data:", error);
+            toast({
+                title: "Error Seeding Admin Data",
+                description: "Could not add sample data. Check the console.",
+                variant: "destructive",
+                action: <AlertTriangle className="w-5 h-5" />,
+            });
+        } finally {
+            setIsAdminLoading(false);
+        }
+    }
+
     return (
-        <div className="p-4">
+        <div className="p-4 space-y-8">
             <Card className="max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Database />
-                        Seed Sample Data
+                        Seed User Data
                     </CardTitle>
                     <CardDescription>
                         Click the button below to add {sampleUsers.length} sample user profiles to your Firestore database. This is useful for testing and development.
@@ -124,14 +155,39 @@ export default function SeedDataPage() {
                 </CardHeader>
                 <CardContent>
                     <Button 
-                        onClick={handleSeedDatabase} 
-                        disabled={isLoading} 
+                        onClick={handleSeedUsers} 
+                        disabled={isUserLoading} 
                         className="w-full"
                     >
-                        {isLoading ? "Seeding..." : `Add ${sampleUsers.length} Sample Users`}
+                        {isUserLoading ? "Seeding..." : `Add ${sampleUsers.length} Sample Users`}
                     </Button>
                     <p className="text-xs text-muted-foreground mt-4">
                         <strong>Note:</strong> This action will create documents in the 'users' collection. If documents with the same IDs exist, they will be overwritten.
+                    </p>
+                </CardContent>
+            </Card>
+
+             <Card className="max-w-md mx-auto">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Bot />
+                        Seed Admin Dashboard Data
+                    </CardTitle>
+                    <CardDescription>
+                        Click the button below to add sample spam reports and an AI daily summary to your Firestore database.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button 
+                        onClick={handleSeedAdminData} 
+                        disabled={isAdminLoading} 
+                        className="w-full"
+                        variant="secondary"
+                    >
+                        {isAdminLoading ? "Seeding..." : `Add Sample Admin Data`}
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-4">
+                        <strong>Note:</strong> This will create documents in 'spam-reports' and 'daily-summaries' collections.
                     </p>
                 </CardContent>
             </Card>

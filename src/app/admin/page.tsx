@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Shield, TrendingUp, ShieldAlert, Bot, Eye, Ban, Database } from "lucide-react"
 import Link from "next/link"
+import { useState, useEffect } from "react"
+import { db } from "@/lib/firebase"
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore"
 
 const chartData = [
   { category: "Jobs", count: 186 },
@@ -27,37 +30,53 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-const spamReports = [
-    { 
-        id: 1, 
-        status: "HIDDEN",
-        message: "Get rich quick! Make $5000 per day working from home!", 
-        timestamp: "8/10/2025 10:57:58 PM", 
-        user: "spam.user@email.com",
-        state: "California",
-        keywords: ["get rich quick", "make money"]
-    },
-    { 
-        id: 2, 
-        status: "HIDDEN",
-        message: "Buy cheap medications online without prescription", 
-        timestamp: "8/10/2025 9:57:58 PM", 
-        user: "suspicious.account@email.com",
-        state: "Texas",
-        keywords: ["medications", "without prescription"]
-    },
-    { 
-        id: 3, 
-        status: "PENDING",
-        message: "Free iPhone giveaway! Click this link now!", 
-        timestamp: "8/10/2025 8:57:58 PM",
-        user: "fake.giveaway@email.com",
-        state: "New York",
-        keywords: []
-    },
-]
+interface SpamReport {
+    id: string;
+    status: "HIDDEN" | "PENDING";
+    message: string;
+    timestamp: any;
+    user: string;
+    state: string;
+    keywords: string[];
+}
+
+interface DailySummary {
+    id: string;
+    summary: string;
+    timestamp: any;
+}
+
 
 export default function AdminPage() {
+    const [spamReports, setSpamReports] = useState<SpamReport[]>([]);
+    const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
+
+    useEffect(() => {
+        const spamQuery = query(collection(db, "spam-reports"), orderBy("timestamp", "desc"));
+        const spamUnsubscribe = onSnapshot(spamQuery, (snapshot) => {
+            const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SpamReport));
+            setSpamReports(reports);
+        });
+
+        const summaryQuery = query(collection(db, "daily-summaries"), orderBy("timestamp", "desc"), );
+        const summaryUnsubscribe = onSnapshot(summaryQuery, (snapshot) => {
+            if (!snapshot.empty) {
+                const summaryDoc = snapshot.docs[0];
+                setDailySummary({ id: summaryDoc.id, ...summaryDoc.data() } as DailySummary);
+            }
+        });
+
+        return () => {
+            spamUnsubscribe();
+            summaryUnsubscribe();
+        }
+    }, []);
+
+    const formatTimestamp = (timestamp: any) => {
+        if (!timestamp) return "No date";
+        return timestamp.toDate().toLocaleString();
+    }
+
     return (
         <div className="space-y-4 p-4">
             <div className="flex items-center justify-between">
@@ -106,12 +125,12 @@ export default function AdminPage() {
                     </Card>
                 </TabsContent>
                 <TabsContent value="spam-reports" className="mt-6 space-y-4">
-                    {spamReports.map((report) => (
+                    {spamReports.length > 0 ? spamReports.map((report) => (
                         <Card key={report.id}>
                             <CardHeader>
                                 <div className="flex justify-between items-start">
                                     <Badge variant={report.status === 'HIDDEN' ? 'secondary' : 'destructive'}>{report.status}</Badge>
-                                    <p className="text-xs text-muted-foreground">{report.timestamp}</p>
+                                    <p className="text-xs text-muted-foreground">{formatTimestamp(report.timestamp)}</p>
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -120,7 +139,7 @@ export default function AdminPage() {
                                     <p className="text-sm text-muted-foreground">User: {report.user}</p>
                                     <p className="text-sm text-muted-foreground">State: {report.state}</p>
                                 </div>
-                                {report.keywords.length > 0 && (
+                                {report.keywords && report.keywords.length > 0 && (
                                     <div>
                                         <p className="text-sm font-semibold">Flagged Keywords:</p>
                                         <div className="flex flex-wrap gap-2 mt-2">
@@ -136,7 +155,9 @@ export default function AdminPage() {
                                 <Button variant="destructive"><Ban className="w-4 h-4 mr-2" />Ban User</Button>
                             </CardFooter>
                         </Card>
-                    ))}
+                    )) : (
+                        <p className="text-center text-muted-foreground py-8">No spam reports found. Try seeding some data!</p>
+                    )}
                 </TabsContent>
                 <TabsContent value="ai-insights" className="mt-6">
                     <Card>
@@ -145,7 +166,7 @@ export default function AdminPage() {
                             <CardDescription>AI-generated summary of today's activity.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <p>Today, we saw a total of 1018 messages. 209 messages were flagged as spam, primarily due to keywords like 'FREE' and 'make money'. The AI successfully categorized 186 job-related queries, 305 event discussions, and 237 buy/sell requests, helping to keep our community channels organized.</p>
+                            <p>{dailySummary ? dailySummary.summary : "No daily summary available. Try seeding some data!"}</p>
                         </CardContent>
                     </Card>
                 </TabsContent>
