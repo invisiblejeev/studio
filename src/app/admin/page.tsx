@@ -13,6 +13,7 @@ import Link from "next/link"
 import { useState, useEffect } from "react"
 import { db } from "@/lib/firebase"
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore"
+import { useToast } from "@/hooks/use-toast"
 
 const chartData = [
   { category: "Jobs", count: 186 },
@@ -50,31 +51,67 @@ interface DailySummary {
 export default function AdminPage() {
     const [spamReports, setSpamReports] = useState<SpamReport[]>([]);
     const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
+    const { toast } = useToast();
+    const [permissionError, setPermissionError] = useState(false);
 
     useEffect(() => {
+        const handleError = (error: any) => {
+            if (error.code === 'permission-denied') {
+                console.error("Firestore Permission Denied. Make sure your account has admin privileges and your Firestore security rules are configured correctly to allow access to admin collections.");
+                toast({
+                    title: "Permission Denied",
+                    description: "You do not have permission to view admin data.",
+                    variant: "destructive"
+                });
+                setPermissionError(true);
+            } else {
+                console.error("Error fetching admin data:", error);
+            }
+        };
+
         const spamQuery = query(collection(db, "spam-reports"), orderBy("timestamp", "desc"));
         const spamUnsubscribe = onSnapshot(spamQuery, (snapshot) => {
             const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SpamReport));
             setSpamReports(reports);
-        });
+            if(permissionError) setPermissionError(false);
+        }, handleError);
 
-        const summaryQuery = query(collection(db, "daily-summaries"), orderBy("timestamp", "desc"), );
+        const summaryQuery = query(collection(db, "daily-summaries"), orderBy("timestamp", "desc"));
         const summaryUnsubscribe = onSnapshot(summaryQuery, (snapshot) => {
             if (!snapshot.empty) {
                 const summaryDoc = snapshot.docs[0];
                 setDailySummary({ id: summaryDoc.id, ...summaryDoc.data() } as DailySummary);
             }
-        });
+             if(permissionError) setPermissionError(false);
+        }, handleError);
 
         return () => {
             spamUnsubscribe();
             summaryUnsubscribe();
         }
-    }, []);
+    }, [toast, permissionError]);
 
     const formatTimestamp = (timestamp: any) => {
         if (!timestamp) return "No date";
         return timestamp.toDate().toLocaleString();
+    }
+
+    if (permissionError) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                 <ShieldAlert className="w-16 h-16 text-destructive mb-4" />
+                <h2 className="text-2xl font-bold">Permission Denied</h2>
+                <p className="text-muted-foreground max-w-md">
+                    You do not have the necessary permissions to view this page. Please contact your administrator or check your Firestore security rules to ensure your account has access to the 'spam-reports' and 'daily-summaries' collections.
+                </p>
+                 <Link href="/admin/seed" className="mt-4">
+                    <Button variant="outline">
+                        <Database className="w-4 h-4 mr-2" />
+                        Seed Data
+                    </Button>
+                </Link>
+            </div>
+        )
     }
 
     return (
