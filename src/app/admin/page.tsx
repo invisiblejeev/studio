@@ -7,9 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { summarizeDailyActivity, SummarizeDailyActivityOutput } from '@/ai/flows/summarize-daily-activity';
 import { db } from '@/lib/firebase';
-import { collectionGroup, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import { ShieldCheck, MessageCircleWarning, ListTodo, LoaderCircle } from 'lucide-react';
+import { allStates } from '@/lib/states';
 
 interface SpamMessage extends Message {
   isSpam: boolean;
@@ -35,44 +36,43 @@ export default function AdminDashboardPage() {
                 const activitySummary = await summarizeDailyActivity({});
                 setSummary(activitySummary);
 
-                // Query for spam messages across all chat rooms
-                const spamQuery = query(
-                    collectionGroup(db, 'messages'), 
-                    where('isSpam', '==', true), 
-                    orderBy('timestamp', 'desc'), 
-                    limit(10)
-                );
-                const spamSnapshot = await getDocs(spamQuery);
-                const spamData = spamSnapshot.docs.map(doc => {
-                    const data = doc.data();
-                    const timestamp = data.timestamp?.toDate();
-                    return { 
-                        id: doc.id,
-                        ...data,
-                        time: timestamp ? new Date(timestamp).toLocaleString() : 'N/A'
-                    } as SpamMessage;
+                let allMessages: Message[] = [];
+                
+                // Fetch recent messages from all state chats
+                const stateChatQueries = allStates.map(state => {
+                    const messagesCollectionRef = collection(db, 'chats', state.value, 'messages');
+                    return query(messagesCollectionRef, orderBy('timestamp', 'desc'), limit(50));
                 });
+
+                const querySnapshots = await Promise.all(stateChatQueries.map(q => getDocs(q)));
+
+                querySnapshots.forEach(snapshot => {
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        const timestamp = data.timestamp?.toDate();
+                        if (timestamp) {
+                           allMessages.push({
+                                id: doc.id,
+                                ...data,
+                                time: timestamp.toLocaleString(),
+                                timestamp: timestamp,
+                            } as Message);
+                        }
+                    });
+                });
+
+                // Client-side filtering for spam
+                const spamData = allMessages
+                    .filter(msg => (msg as SpamMessage).isSpam)
+                    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+                    .slice(0, 10) as SpamMessage[];
                 setSpamMessages(spamData);
 
-                // Query for requirements across all chat rooms
-                const reqQuery = query(
-                    collectionGroup(db, 'messages'), 
-                    where('category', '!=', 'General Chat'), 
-                    where('category', '!=', null),
-                    orderBy('category'),
-                    orderBy('timestamp', 'desc'), 
-                    limit(10)
-                );
-                const reqSnapshot = await getDocs(reqQuery);
-                const reqData = reqSnapshot.docs.map(doc => {
-                     const data = doc.data();
-                     const timestamp = data.timestamp?.toDate();
-                     return { 
-                        id: doc.id,
-                        ...data,
-                        time: timestamp ? new Date(timestamp).toLocaleString() : 'N/A'
-                    } as Requirement;
-                });
+                // Client-side filtering for requirements
+                const reqData = allMessages
+                    .filter(msg => msg.category && msg.category !== 'General Chat' && msg.category !== null)
+                     .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+                    .slice(0, 10) as Requirement[];
                 setRequirements(reqData);
 
             } catch (error) {
