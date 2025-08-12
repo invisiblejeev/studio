@@ -14,6 +14,7 @@ import { getMessages, sendMessage, Message, getPersonalChatRoomId } from "@/serv
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 export default function PersonalChatPage() {
   const router = useRouter();
@@ -73,7 +74,7 @@ export default function PersonalChatPage() {
       user: { 
           id: currentUser.uid, 
           name: currentUser.username, 
-          avatar: currentUser.avatar || 'https://placehold.co/40x40.png' 
+          avatar: currentUser.avatar || '' 
       },
       text: newMessage,
     });
@@ -92,7 +93,7 @@ export default function PersonalChatPage() {
                  user: { 
                     id: currentUser.uid, 
                     name: currentUser.username, 
-                    avatar: currentUser.avatar || 'https://placehold.co/40x40.png' 
+                    avatar: currentUser.avatar || '' 
                  },
                  imageUrl: dataUrl,
               });
@@ -139,41 +140,63 @@ export default function PersonalChatPage() {
           </div>
       </header>
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-          <div className="space-y-6">
-              {messages.map((msg) => {
+          <div className="space-y-2">
+              {messages.map((msg, index) => {
                 const isYou = msg.user.id === currentUser?.uid;
+                const prevMessage = messages[index - 1];
+                const nextMessage = messages[index + 1];
+
+                const isFirstInSequence = !prevMessage || prevMessage.user.id !== msg.user.id;
+                const isLastInSequence = !nextMessage || nextMessage.user.id !== msg.user.id;
+
                 return (
-                  <div key={msg.id} className={`flex items-start gap-3 ${isYou ? 'justify-end flex-row-reverse' : 'justify-start'}`}>
-                      <Avatar className="mt-1">
-                        <AvatarImage src={msg.user.avatar} data-ai-hint="person avatar" />
-                        <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className={`rounded-lg p-3 max-w-xs lg:max-w-md shadow-sm ${isYou ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
-                          {!isYou && <p className="font-semibold text-sm mb-1">{msg.user.name}</p>}
-                          {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-                          {msg.imageUrl && (
-                            <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                              <div className="relative aspect-square mt-2 rounded-md overflow-hidden">
-                                <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
-                              </div>
-                            </Link>
-                          )}
-                          <p className="text-xs text-right mt-2 opacity-70">{msg.time}</p>
-                      </div>
+                  <div key={msg.id} className={cn('flex items-end gap-2', isYou ? 'justify-end' : 'justify-start')}>
+                     {!isYou && (
+                        <Avatar className={cn('h-8 w-8', !isLastInSequence && 'invisible')}>
+                            <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                            <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                     )}
+                     <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
+                        <div className={cn('p-3 rounded-lg shadow-sm', 
+                            isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
+                            isFirstInSequence && (isYou ? 'rounded-br-none' : 'rounded-bl-none'),
+                            !isFirstInSequence && !isLastInSequence && 'rounded-none',
+                            isLastInSequence && (isYou ? 'rounded-bl-none' : 'rounded-br-none')
+                        )}>
+                            {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+                            {msg.imageUrl && (
+                              <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
+                                <div className="relative aspect-square mt-2 rounded-md overflow-hidden">
+                                  <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
+                                </div>
+                              </Link>
+                            )}
+                        </div>
+                        {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
+                     </div>
+                     {isYou && (
+                         <Avatar className={cn('h-8 w-8', !isLastInSequence && 'invisible')}>
+                            <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                            <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
+                         </Avatar>
+                     )}
                   </div>
                 )
               })}
               {isUploading && (
-                <div className="flex items-start gap-3 justify-end flex-row-reverse">
-                    <Avatar className="mt-1">
-                        <AvatarImage src={currentUser?.avatar} data-ai-hint="person avatar" />
+                <div className="flex items-end gap-2 justify-end">
+                    <div className="flex flex-col items-end">
+                      <div className="p-3 rounded-lg shadow-sm bg-primary text-primary-foreground rounded-br-none">
+                          <div className="flex items-center justify-center h-24 w-24 bg-primary-foreground/20 rounded-md">
+                             <LoaderCircle className="w-6 h-6 animate-spin" />
+                          </div>
+                      </div>
+                    </div>
+                    <Avatar className="h-8 w-8">
+                        <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                         <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
                     </Avatar>
-                    <div className="rounded-lg p-3 max-w-xs lg:max-w-md shadow-sm bg-primary text-primary-foreground">
-                        <div className="flex items-center justify-center h-24 w-24 bg-primary-foreground/20 rounded-md">
-                           <LoaderCircle className="w-6 h-6 animate-spin" />
-                        </div>
-                    </div>
                 </div>
             )}
           </div>
