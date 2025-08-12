@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion } from 'lucide-react';
+import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
@@ -16,11 +16,16 @@ const categoryConfig: Record<Category, { icon: React.ElementType, color: string 
     "Housing": { icon: Home, color: "bg-green-100 text-green-800" },
     "Marketplace": { icon: ShoppingCart, color: "bg-yellow-100 text-yellow-800" },
     "Events": { icon: Calendar, color: "bg-purple-100 text-purple-800" },
-    "General Chat": { icon: Briefcase, color: "bg-gray-100 text-gray-800" }, // Should not be shown
-    "Other": { icon: Briefcase, color: "bg-gray-100 text-gray-800" } // Should not be shown
+    "Plumber": { icon: Wrench, color: "bg-cyan-100 text-cyan-800" },
+    "Babysitter": { icon: Baby, color: "bg-pink-100 text-pink-800" },
+    "Pet Care": { icon: Dog, color: "bg-orange-100 text-orange-800" },
+    "Doctor": { icon: Stethoscope, color: "bg-red-100 text-red-800" },
+    "Lawyer": { icon: Scale, color: "bg-indigo-100 text-indigo-800" },
+    "General Chat": { icon: FileQuestion, color: "bg-gray-100 text-gray-800" }, 
+    "Other": { icon: FileQuestion, color: "bg-gray-100 text-gray-800" }
 };
 
-const categories: Category[] = ["Jobs", "Housing", "Marketplace", "Events"];
+const categories: Category[] = ["Jobs", "Housing", "Marketplace", "Events", "Plumber", "Babysitter", "Pet Care", "Doctor", "Lawyer"];
 
 interface Requirement extends Message {
     category: Category;
@@ -169,5 +174,4 @@ export default function RequirementsPage() {
             )}
         </div>
     );
-
-    
+}

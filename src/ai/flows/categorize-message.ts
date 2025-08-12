@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -22,6 +23,11 @@ const CategorySchema = z.enum([
   'Housing',
   'Marketplace',
   'Events',
+  'Plumber',
+  'Babysitter',
+  'Pet Care',
+  'Doctor',
+  'Lawyer',
   'General Chat',
   'Other',
 ]);
@@ -45,14 +51,19 @@ const categorizeMessagePrompt = ai.definePrompt({
   output: {schema: CategorizeMessageOutputSchema},
   prompt: `You are an AI assistant that categorizes messages in an Indian community chat app and generates a title for the post. 
 
-  Given the following message, determine the appropriate category from: "Jobs", "Housing", "Marketplace", "Events", "General Chat", or "Other".
+  Given the following message, determine the appropriate category from: "Jobs", "Housing", "Marketplace", "Events", "Plumber", "Babysitter", "Pet Care", "Doctor", "Lawyer", "General Chat", or "Other".
   - "Jobs": For job postings or people looking for work.
   - "Housing": For roommate requests, apartments for rent, or sublets.
   - "Marketplace": For buying or selling items like cars, furniture, etc.
   - "Events": For community events, festivals, or gatherings like Diwali.
+  - "Plumber": For requests for plumbing services.
+  - "Babysitter": For requests for childcare or babysitting services.
+  - "Pet Care": For requests for pet sitting, dog walking, or veterinary care.
+  - "Doctor": For requests for medical advice or doctor recommendations.
+  - "Lawyer": For requests for legal advice or lawyer recommendations.
   - "General Chat": If it does not fit any other category.
 
-  Also, create a short, descriptive title for the message content (e.g., "Software Engineer Position", "Roommate Needed", "Selling Honda Civic", "Diwali Celebration").
+  Also, create a short, descriptive title for the message content (e.g., "Software Engineer Position", "Roommate Needed", "Leaky Faucet Help", "Diwali Celebration").
 
 Message: {{{text}}}
 
