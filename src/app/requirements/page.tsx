@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, orderBy, collectionGroup } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, collectionGroup, limit } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import type { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
@@ -69,28 +69,32 @@ export default function RequirementsPage() {
             setIsLoading(true);
             try {
                 // This is a collection group query. It queries all 'messages' collections.
-                // To avoid needing a custom composite index, we perform a simple query 
-                // and do the sorting and joining on the client side.
+                // We fetch the latest messages and then filter for those with a category on the client.
+                // This avoids needing a custom composite index in Firestore.
                 const q = query(
                     collectionGroup(db, "messages"),
-                    where("category", "in", categories)
+                    orderBy("timestamp", "desc"),
+                    limit(200) // Limit to avoid fetching too much data
                 );
 
                 const querySnapshot = await getDocs(q);
                 const userIds = new Set<string>();
-                const reqs: Requirement[] = [];
+                let reqs: Requirement[] = [];
 
                 querySnapshot.forEach(doc => {
                     const data = doc.data();
-                    const timestamp = data.timestamp?.toDate();
-                    if (timestamp) {
-                        userIds.add(data.user.id);
-                        reqs.push({
-                            id: doc.id,
-                            ...data,
-                            time: timestamp ? timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
-                            timestamp: timestamp,
-                        } as Requirement);
+                    // Client-side filter for messages that have a category
+                    if (data.category && categories.includes(data.category)) {
+                        const timestamp = data.timestamp?.toDate();
+                        if (timestamp) {
+                            userIds.add(data.user.id);
+                            reqs.push({
+                                id: doc.id,
+                                ...data,
+                                time: timestamp ? timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+                                timestamp: timestamp,
+                            } as Requirement);
+                        }
                     }
                 });
 
@@ -99,11 +103,11 @@ export default function RequirementsPage() {
                 const users = (await Promise.all(userPromises)).filter(Boolean) as UserProfile[];
                 const userMap = new Map(users.map(u => [u.uid, u]));
 
-                // Add userInfo to requirements and sort by date
+                // Add userInfo to requirements. Sorting is already handled by the query.
                 const reqsWithUsers = reqs.map(req => ({
                     ...req,
                     userInfo: userMap.get(req.user.id)
-                })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+                }));
                 
                 setAllRequirements(reqsWithUsers);
                 setFilteredRequirements(reqsWithUsers);
