@@ -14,6 +14,7 @@ import { getMessages, sendMessage, Message, getPersonalChatRoomId } from "@/serv
 import { uploadChatImage } from "@/services/storage";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function PersonalChatPage() {
   const router = useRouter();
@@ -105,8 +106,12 @@ export default function PersonalChatPage() {
       }
   };
   
-  if (!otherUser) {
-      return <div>Loading...</div>;
+  if (!otherUser || !currentUser) {
+      return (
+         <div className="flex h-screen items-center justify-center">
+              <p>Loading chat...</p>
+          </div>
+      )
   }
 
   return (
@@ -125,24 +130,29 @@ export default function PersonalChatPage() {
       </header>
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
           <div className="space-y-6">
-              {messages.map((msg) => (
-                  <div key={msg.id} className={`flex items-start gap-3 ${msg.user.id === currentUser?.uid ? 'justify-end flex-row-reverse' : 'justify-start'}`}>
+              {messages.map((msg) => {
+                const isYou = msg.user.id === currentUser?.uid;
+                return (
+                  <div key={msg.id} className={`flex items-start gap-3 ${isYou ? 'justify-end flex-row-reverse' : 'justify-start'}`}>
                       <Avatar className="mt-1">
                         <AvatarImage src={msg.user.avatar} data-ai-hint="person avatar" />
                         <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
                       </Avatar>
-                      <div className={`rounded-lg p-3 max-w-xs lg:max-w-md shadow-sm ${msg.user.id === currentUser?.uid ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
-                          {msg.user.id !== currentUser?.uid && <p className="font-semibold text-sm mb-1">{msg.user.name}</p>}
+                      <div className={`rounded-lg p-3 max-w-xs lg:max-w-md shadow-sm ${isYou ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
+                          {!isYou && <p className="font-semibold text-sm mb-1">{msg.user.name}</p>}
                           {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                           {msg.imageUrl && (
-                            <div className="relative aspect-square mt-2 rounded-md overflow-hidden">
-                              <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
-                            </div>
+                            <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
+                              <div className="relative aspect-square mt-2 rounded-md overflow-hidden">
+                                <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
+                              </div>
+                            </Link>
                           )}
                           <p className="text-xs text-right mt-2 opacity-70">{msg.time}</p>
                       </div>
                   </div>
-              ))}
+                )
+              })}
               {isUploading && (
                 <div className="flex items-start gap-3 justify-end flex-row-reverse">
                     <Avatar className="mt-1">

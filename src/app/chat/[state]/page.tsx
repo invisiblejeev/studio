@@ -104,40 +104,6 @@ export default function ChatPage() {
 
   const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
 
-  const renderMessage = (msg: Message) => {
-    const isYou = msg.user.id === currentUser?.uid;
-    const messageContent = (
-      <>
-        <Avatar className="mt-1">
-          <AvatarImage src={msg.user.avatar} data-ai-hint="person avatar" />
-          <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
-        </Avatar>
-        <div className={`rounded-lg p-3 max-w-xs lg:max-w-md shadow-sm ${isYou ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
-            {!isYou && <p className="font-semibold text-sm mb-1">{msg.user.name}</p>}
-            {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-            {msg.imageUrl && (
-              <div className="relative aspect-square mt-2 rounded-md overflow-hidden">
-                <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
-              </div>
-            )}
-            <p className="text-xs text-right mt-2 opacity-70">{msg.time}</p>
-        </div>
-      </>
-    );
-
-    return (
-      <div key={msg.id} className={`flex items-start gap-3 ${isYou ? 'justify-end flex-row-reverse' : 'justify-start'}`}>
-          {isYou ? (
-            messageContent
-          ) : (
-            <Link href={`/chat/user/${msg.user.id}`} className="flex items-start gap-3">
-              {messageContent}
-            </Link>
-          )}
-      </div>
-    );
-  };
-
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-background rounded-xl border">
       <header className="flex items-center justify-between p-4 border-b">
@@ -149,7 +115,29 @@ export default function ChatPage() {
       </header>
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
           <div className="space-y-6">
-              {messages.map(renderMessage)}
+              {messages.map((msg) => {
+                const isYou = msg.user.id === currentUser?.uid;
+                return (
+                  <div key={msg.id} className={`flex items-start gap-3 ${isYou ? 'justify-end flex-row-reverse' : 'justify-start'}`}>
+                    <Avatar className="mt-1">
+                      <AvatarImage src={msg.user.avatar} data-ai-hint="person avatar" />
+                      <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className={`rounded-lg p-3 max-w-xs lg:max-w-md shadow-sm ${isYou ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
+                        {!isYou && <p className="font-semibold text-sm mb-1">{msg.user.name}</p>}
+                        {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+                        {msg.imageUrl && (
+                           <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
+                              <div className="relative aspect-square mt-2 rounded-md overflow-hidden">
+                                <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
+                              </div>
+                           </Link>
+                        )}
+                        <p className="text-xs text-right mt-2 opacity-70">{msg.time}</p>
+                    </div>
+                  </div>
+                )
+              })}
                {isUploading && (
                 <div className="flex items-start gap-3 justify-end flex-row-reverse">
                     <Avatar className="mt-1">
