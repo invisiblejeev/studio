@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, collectionGroup } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import type { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
@@ -35,6 +35,7 @@ interface Requirement extends Message {
 
 const RequirementCard = ({ req }: { req: Requirement }) => {
     const { icon: Icon, color } = categoryConfig[req.category] || categoryConfig["Other"];
+    const stateName = req.userInfo?.state ? req.userInfo.state.charAt(0).toUpperCase() + req.userInfo.state.slice(1) : ''
 
     return (
         <Card className="overflow-hidden shadow-md">
@@ -46,7 +47,7 @@ const RequirementCard = ({ req }: { req: Requirement }) => {
                     <div className="flex-1">
                         <h3 className="font-bold text-lg">{req.title}</h3>
                         <p className="text-sm text-muted-foreground">
-                            {req.userInfo?.firstName} {req.userInfo?.lastName} &middot; {req.userInfo?.state ? (req.userInfo.state.charAt(0).toUpperCase() + req.userInfo.state.slice(1)) : ''}
+                            {req.userInfo?.firstName} {req.userInfo?.lastName} &middot; {stateName}
                         </p>
                         <p className="mt-2 text-foreground">{req.text}</p>
                         <p className="text-xs text-muted-foreground mt-3">{req.time}</p>
@@ -67,31 +68,32 @@ export default function RequirementsPage() {
         const fetchRequirements = async () => {
             setIsLoading(true);
             try {
-                // Fetch for each category separately to avoid composite index requirement
-                const allReqs: Requirement[] = [];
-                const userIds = new Set<string>();
+                // This is a collection group query. It queries all 'messages' collections.
+                // It requires a specific exemption in Firestore, but for this case, 
+                // we query all categorized messages and filter client-side.
+                const q = query(
+                    collectionGroup(db, "messages"),
+                    where("category", "in", categories),
+                    orderBy("timestamp", "desc")
+                );
 
-                for (const category of categories) {
-                    const q = query(
-                        collection(db, "chats", "california", "messages"), 
-                        where("category", "==", category),
-                        orderBy("timestamp", "desc")
-                    );
-                    const querySnapshot = await getDocs(q);
-                    querySnapshot.forEach(doc => {
-                        const data = doc.data();
-                        const timestamp = data.timestamp?.toDate();
-                        if (timestamp) {
-                            userIds.add(data.user.id);
-                            allReqs.push({
-                                id: doc.id,
-                                ...data,
-                                time: timestamp ? timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
-                                timestamp: timestamp,
-                            } as Requirement);
-                        }
-                    });
-                }
+                const querySnapshot = await getDocs(q);
+                const userIds = new Set<string>();
+                const reqs: Requirement[] = [];
+
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const timestamp = data.timestamp?.toDate();
+                    if (timestamp) {
+                        userIds.add(data.user.id);
+                        reqs.push({
+                            id: doc.id,
+                            ...data,
+                            time: timestamp ? timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+                            timestamp: timestamp,
+                        } as Requirement);
+                    }
+                });
 
                 // Fetch user profiles for all unique users
                 const userPromises = Array.from(userIds).map(uid => getUserProfile(uid));
@@ -99,13 +101,10 @@ export default function RequirementsPage() {
                 const userMap = new Map(users.map(u => [u.uid, u]));
 
                 // Add userInfo to requirements
-                const reqsWithUsers = allReqs.map(req => ({
+                const reqsWithUsers = reqs.map(req => ({
                     ...req,
                     userInfo: userMap.get(req.user.id)
                 }));
-                
-                // Sort combined results by timestamp
-                reqsWithUsers.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
                 
                 setAllRequirements(reqsWithUsers);
                 setFilteredRequirements(reqsWithUsers);
@@ -133,7 +132,7 @@ export default function RequirementsPage() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Community Requirements</h1>
               <p className="text-muted-foreground">
-                  AI-detected needs and opportunities
+                  AI-detected needs and opportunities from all state chats.
               </p>
             </div>
             
