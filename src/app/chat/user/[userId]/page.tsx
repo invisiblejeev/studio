@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Paperclip, SendHorizonal, ArrowLeft, LoaderCircle } from "lucide-react"
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
@@ -16,8 +16,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-export default function PersonalChatPage({ params }: { params: { userId: string } }) {
+export default function PersonalChatPage() {
   const router = useRouter();
+  const params = useParams();
   const otherUserId = params.userId as string;
   const { toast } = useToast();
   
@@ -47,7 +48,9 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
         router.push('/');
       }
     };
-    fetchUsers();
+    if (otherUserId) {
+        fetchUsers();
+    }
   }, [router, otherUserId]);
 
   useEffect(() => {
