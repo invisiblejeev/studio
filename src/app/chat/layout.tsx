@@ -1,10 +1,3 @@
 
-'use client';
-
-export default function ChatLayout({ children }: { children: React.ReactNode }) {
-    return (
-        <div className="p-0 md:p-0">
-            {children}
-        </div>
-    );
-}
+// This file is a duplicate and is intentionally left blank.
+// The correct layout is located at src/app/(app)/chat/layout.tsx
