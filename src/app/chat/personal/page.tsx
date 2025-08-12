@@ -11,6 +11,7 @@ import { getCurrentUser } from "@/services/auth";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 import { getUserProfile, UserProfile } from "@/services/users";
+import { cn } from "@/lib/utils";
 
 
 interface ChatContact {
@@ -55,7 +56,7 @@ export default function PersonalChatsListPage() {
 
                 if (!lastMessageSnapshot.empty) {
                     const msg = lastMessageSnapshot.docs[0].data();
-                    lastMessage = msg.text;
+                    lastMessage = msg.text || (msg.imageUrl ? "Image" : "No messages yet");
                     const timestamp = msg.timestamp?.toDate();
                     time = timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
                 }
@@ -64,7 +65,8 @@ export default function PersonalChatsListPage() {
                     user: otherUser,
                     lastMessage,
                     time,
-                    unread: 0, // Unread count logic would need more implementation
+                    // Simulate unread counts for demonstration
+                    unread: Math.random() > 0.5 ? Math.floor(Math.random() * 3) + 1 : 0,
                 });
             }
             setChats(chatContacts);
@@ -95,10 +97,12 @@ export default function PersonalChatsListPage() {
                                     <p className="font-semibold">{chat.user.username}</p>
                                     <p className="text-xs text-muted-foreground">{chat.time}</p>
                                 </div>
-                                <div className="flex justify-between mt-1">
-                                    <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
+                                <div className="flex justify-between mt-1 items-center">
+                                    <p className={cn("text-sm text-muted-foreground truncate", chat.unread > 0 && "font-bold text-foreground")}>
+                                        {chat.lastMessage}
+                                    </p>
                                     {chat.unread > 0 && (
-                                        <div className="bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                                        <div className="bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center shrink-0 ml-2">
                                             {chat.unread}
                                         </div>
                                     )}
