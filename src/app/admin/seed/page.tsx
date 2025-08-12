@@ -183,7 +183,7 @@ export default function SeedDataPage() {
                     </CardTitle>
                     <CardDescription>
                         Click the button below to add sample spam reports and an AI daily summary to your Firestore database.
-                    </Description>
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Button 
