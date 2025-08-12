@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2 } from 'lucide-react';
+import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, orderBy, limit, doc, deleteDoc } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
@@ -13,7 +13,7 @@ import { getUserProfile, UserProfile } from '@/services/users';
 import { allStates } from '@/lib/states';
 import { getCurrentUser } from '@/services/auth';
 import { useToast } from '@/hooks/use-toast';
-import { differenceInDays } from 'date-fns';
+import { differenceInDays, formatDistanceToNowStrict } from 'date-fns';
 
 const categoryConfig: Record<Category, { icon: React.ElementType, color: string }> = {
     "Jobs": { icon: Briefcase, color: "bg-blue-100 text-blue-800" },
@@ -41,6 +41,18 @@ const RequirementCard = ({ req, currentUser, onDelete }: { req: Requirement, cur
     const { icon: Icon, color } = categoryConfig[req.category] || categoryConfig["Other"];
     const stateName = allStates.find(s => s.value === req.userInfo?.state)?.label || req.userInfo?.state || '';
 
+    const getExpiryInfo = () => {
+        if (!req.timestamp) return null;
+        const daysOld = differenceInDays(new Date(), req.timestamp);
+        const daysLeft = 7 - daysOld;
+        if (daysLeft <= 1) {
+            return "Expires soon";
+        }
+        return `Expires in ${daysLeft} days`;
+    };
+    
+    const expiryInfo = getExpiryInfo();
+
     return (
         <Card className="overflow-hidden shadow-md relative group">
             <CardContent className="p-4">
@@ -64,7 +76,15 @@ const RequirementCard = ({ req, currentUser, onDelete }: { req: Requirement, cur
                             {req.userInfo?.firstName} {req.userInfo?.lastName} &middot; {stateName}
                         </p>
                         <p className="mt-2 text-foreground">{req.text}</p>
-                        <p className="text-xs text-muted-foreground mt-3">{req.time}</p>
+                         <div className="flex justify-between items-center mt-3 text-xs text-muted-foreground">
+                            <span>{req.time}</span>
+                            {expiryInfo && (
+                                <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3"/>
+                                    {expiryInfo}
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
             </CardContent>
@@ -116,7 +136,7 @@ export default function RequirementsPage() {
                                  allReqs.push({
                                     id: doc.id,
                                     ...data,
-                                    time: timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                                    time: formatDistanceToNowStrict(timestamp, { addSuffix: true }),
                                     timestamp: timestamp,
                                 } as Requirement);
                             }
