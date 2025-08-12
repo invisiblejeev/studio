@@ -113,7 +113,7 @@ export default function ChatPage() {
   const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-background rounded-xl border">
+    <div className="flex flex-col h-screen bg-background rounded-xl border">
       <header className="flex items-center justify-between p-4 border-b">
           <h2 className="text-xl font-bold">{currentStateName} Community</h2>
           <Button variant="outline" onClick={() => router.push('/chat/personal')}>
@@ -143,9 +143,10 @@ export default function ChatPage() {
                         {!isYou && isFirstInSequence && <p className="text-xs text-muted-foreground mb-1 px-3">{msg.user.name}</p>}
                         <div className={cn('p-3 rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
-                            isFirstInSequence && (isYou ? 'rounded-br-none' : 'rounded-bl-none'),
-                            !isFirstInSequence && !isLastInSequence && 'rounded-none',
-                            isLastInSequence && (isYou ? 'rounded-bl-none' : 'rounded-br-none')
+                            isFirstInSequence && !isLastInSequence ? (isYou ? 'rounded-br-none' : 'rounded-bl-none')
+                            : !isFirstInSequence && !isLastInSequence ? 'rounded-none'
+                            : !isFirstInSequence && isLastInSequence ? (isYou ? 'rounded-tr-none' : 'rounded-tl-none')
+                            : 'rounded-lg' // Default case for single messages
                         )}>
                             {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                             {msg.imageUrl && (

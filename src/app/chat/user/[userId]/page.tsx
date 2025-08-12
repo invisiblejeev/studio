@@ -126,7 +126,7 @@ export default function PersonalChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background rounded-xl border">
+    <div className="flex flex-col h-screen bg-background rounded-xl border">
       <header className="flex items-center justify-start p-4 border-b gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
@@ -160,9 +160,10 @@ export default function PersonalChatPage() {
                      <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
                         <div className={cn('p-3 rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
-                            isFirstInSequence && (isYou ? 'rounded-br-none' : 'rounded-bl-none'),
-                            !isFirstInSequence && !isLastInSequence && 'rounded-none',
-                            isLastInSequence && (isYou ? 'rounded-bl-none' : 'rounded-br-none')
+                           isFirstInSequence && !isLastInSequence ? (isYou ? 'rounded-br-none' : 'rounded-bl-none')
+                            : !isFirstInSequence && !isLastInSequence ? 'rounded-none'
+                            : !isFirstInSequence && isLastInSequence ? (isYou ? 'rounded-tr-none' : 'rounded-tl-none')
+                            : 'rounded-lg' // Default case for single messages
                         )}>
                             {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                             {msg.imageUrl && (
