@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, orderBy, collectionGroup, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import type { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
+import { allStates } from '@/lib/states';
 
 const categoryConfig: Record<Category, { icon: React.ElementType, color: string }> = {
     "Jobs": { icon: Briefcase, color: "bg-blue-100 text-blue-800" },
@@ -68,46 +69,46 @@ export default function RequirementsPage() {
         const fetchRequirements = async () => {
             setIsLoading(true);
             try {
-                // This is a collection group query. It queries all 'messages' collections.
-                // We fetch the latest messages and then filter for those with a category on the client.
-                // This avoids needing a custom composite index in Firestore.
-                const q = query(
-                    collectionGroup(db, "messages"),
-                    orderBy("timestamp", "desc"),
-                    limit(200) // Limit to avoid fetching too much data
-                );
-
-                const querySnapshot = await getDocs(q);
                 const userIds = new Set<string>();
-                let reqs: Requirement[] = [];
+                let allReqs: Requirement[] = [];
 
-                querySnapshot.forEach(doc => {
-                    const data = doc.data();
-                    // Client-side filter for messages that have a category
-                    if (data.category && categories.includes(data.category)) {
+                // This approach avoids collectionGroup queries which need manual indexing.
+                // It queries each state's chat collection individually.
+                const stateChatQueries = allStates.map(state => {
+                    const messagesCollectionRef = collection(db, 'chats', state.value, 'messages');
+                    return query(messagesCollectionRef, where('category', 'in', categories), orderBy('timestamp', 'desc'), limit(10));
+                });
+
+                const querySnapshots = await Promise.all(stateChatQueries.map(q => getDocs(q)));
+
+                querySnapshots.forEach(snapshot => {
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
                         const timestamp = data.timestamp?.toDate();
                         if (timestamp) {
-                            userIds.add(data.user.id);
-                            reqs.push({
+                             userIds.add(data.user.id);
+                             allReqs.push({
                                 id: doc.id,
                                 ...data,
-                                time: timestamp ? timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+                                time: timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
                                 timestamp: timestamp,
                             } as Requirement);
                         }
-                    }
+                    });
                 });
-
+                
                 // Fetch user profiles for all unique users
                 const userPromises = Array.from(userIds).map(uid => getUserProfile(uid));
                 const users = (await Promise.all(userPromises)).filter(Boolean) as UserProfile[];
                 const userMap = new Map(users.map(u => [u.uid, u]));
-
-                // Add userInfo to requirements. Sorting is already handled by the query.
-                const reqsWithUsers = reqs.map(req => ({
+                
+                // Add userInfo to requirements and sort globally
+                const reqsWithUsers = allReqs.map(req => ({
                     ...req,
                     userInfo: userMap.get(req.user.id)
                 }));
+                
+                reqsWithUsers.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
                 
                 setAllRequirements(reqsWithUsers);
                 setFilteredRequirements(reqsWithUsers);
