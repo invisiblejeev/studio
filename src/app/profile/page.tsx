@@ -175,6 +175,7 @@ export default function ProfilePage() {
       }
 
       try {
+          // I'm assuming an empty string will signify no avatar
           await updateUserProfile(profile.uid, { avatar: "" });
           const updatedProfile = { ...profile, avatar: "" };
           setProfile(updatedProfile);
@@ -336,6 +337,3 @@ export default function ProfilePage() {
     </div>
   )
 }
-
-
-    
