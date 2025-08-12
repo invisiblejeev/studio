@@ -47,7 +47,7 @@ export default function PersonalChatsListPage() {
 
         // This is a complex query. In a production app, you'd likely store a user's chat rooms in their profile.
         // Here, we query all chat collections.
-        const personalChatsQuery = query(collectionGroup(db, "messages"));
+        const personalChatsQuery = query(collectionGroup(db, "messages"), orderBy("timestamp", "desc"));
 
         const unsubscribe = onSnapshot(personalChatsQuery, async (snapshot) => {
             const chatRooms: { [key: string]: { lastMessage: Message, unread: number } } = {};
@@ -59,13 +59,12 @@ export default function PersonalChatsListPage() {
 
                 if (roomId && roomId.includes(currentUser.uid)) {
                     myRooms.add(roomId);
-                    if (!chatRooms[roomId] || message.timestamp > chatRooms[roomId].lastMessage.timestamp) {
-                         const timestamp = message.timestamp?.toDate ? message.timestamp.toDate() : new Date();
-                         chatRooms[roomId] = {
-                             lastMessage: { ...message, id: doc.id, timestamp },
-                             // unread count would be calculated here if we had a "read" status
-                             unread: chatRooms[roomId] ? chatRooms[roomId].unread + 1 : 1 
-                         };
+                     if (!chatRooms[roomId]) { // Only process if it's a new room for this snapshot
+                        const timestamp = message.timestamp?.toDate ? message.timestamp.toDate() : new Date();
+                        chatRooms[roomId] = {
+                            lastMessage: { ...message, id: doc.id, timestamp },
+                            unread: 1 // Placeholder
+                        };
                     }
                 }
             });
@@ -76,7 +75,7 @@ export default function PersonalChatsListPage() {
                     if (chatRooms[roomId]) chatRooms[roomId].unread = 0;
                 } else {
                     // Simulate unread count
-                    if(chatRooms[roomId]) chatRooms[roomId].unread = Math.floor(Math.random() * 3) + 1;
+                    if(chatRooms[roomId]) chatRooms[roomId].unread = Math.floor(Math.random() * 3);
                 }
             })
 
@@ -119,14 +118,14 @@ export default function PersonalChatsListPage() {
 
 
     return (
-        <div className="flex flex-col h-full bg-background rounded-xl border">
+        <div className="flex flex-col h-screen bg-background rounded-xl border">
             <header className="flex items-center justify-start p-4 border-b gap-4">
                 <Button variant="ghost" size="icon" onClick={() => router.back()}>
                     <ArrowLeft className="w-5 h-5" />
                 </Button>
                 <h2 className="text-xl font-bold">Personal Chats</h2>
             </header>
-            <div className="flex-1">
+            <div className="flex-1 overflow-y-auto">
                 {chats.map(chat => (
                     <div key={chat.user.uid} onClick={() => handleChatClick(chat.roomId)} className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 cursor-pointer">
                         <Avatar className="h-12 w-12">
@@ -155,5 +154,3 @@ export default function PersonalChatsListPage() {
         </div>
     );
 }
-
-    
