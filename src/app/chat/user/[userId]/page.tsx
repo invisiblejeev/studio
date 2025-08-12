@@ -75,7 +75,9 @@ export default function PersonalChatPage() {
   const handleSendMessage = async () => {
     if ((newMessage.trim() === "" && !imageFile) || !currentUser || !roomId) return;
     
-    setIsUploading(true);
+    if (imageFile) {
+        setIsUploading(true);
+    }
 
     let imageUrl: string | undefined = undefined;
     if (imageFile) {

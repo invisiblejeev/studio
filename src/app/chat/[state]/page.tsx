@@ -65,7 +65,10 @@ export default function ChatPage() {
   const handleSendMessage = async () => {
     if ((newMessage.trim() === "" && !imageFile) || !currentUser) return;
 
-    setIsUploading(true);
+    if (imageFile) {
+        setIsUploading(true);
+    }
+    
     let imageUrl: string | undefined = undefined;
 
     if (imageFile) {
