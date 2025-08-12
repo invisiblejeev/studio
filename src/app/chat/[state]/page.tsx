@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
 import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle, X } from "lucide-react"
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
@@ -17,9 +17,10 @@ import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-export default function ChatPage({ params }: { params: { state: string } }) {
+export default function ChatPage() {
   const router = useRouter();
-  const state = params.state;
+  const params = useParams();
+  const state = params.state as string;
   const { toast } = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -69,14 +70,10 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     let imageUrl: string | undefined = undefined;
     if (imageFile) {
         try {
-            imageUrl = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(imageFile);
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = (error) => reject(error);
-            });
+            // No need to create a Data URI here if we are passing the file to the service
+            // This logic is now handled inside the sendMessage function
         } catch (error) {
-            console.error("Error converting image to Data URI:", error);
+            console.error("Error processing image:", error);
             toast({
                 title: "Image Upload Failed",
                 description: "Could not process the image. Please try again.",
@@ -94,7 +91,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
           avatar: currentUser.avatar || ''
       },
       text: newMessage,
-      imageUrl: imageUrl,
+      imageFile: imageFile || undefined,
     });
     
     setNewMessage("");
@@ -109,10 +106,10 @@ export default function ChatPage({ params }: { params: { state: string } }) {
   const handleFileSelect = (file: File) => {
       if (!file) return;
 
-      if (file.size > 1024 * 1024) { // 1MB limit
+      if (file.size > 1024 * 1024 * 5) { // 5MB limit
         toast({
           title: "Image Too Large",
-          description: "Please select an image smaller than 1MB.",
+          description: "Please select an image smaller than 5MB.",
           variant: "destructive"
         });
         return;
@@ -257,3 +254,5 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     </div>
   );
 }
+
+    
