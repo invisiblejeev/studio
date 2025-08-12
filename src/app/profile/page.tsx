@@ -303,7 +303,7 @@ export default function ProfilePage() {
             <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={false} onValueChange={() => {}} />
             <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone || ''} isEditing={isEditing} onValueChange={handleProfileChange('phone')} />
             <ProfileInfoItem icon={MapPin} label="State" value={profile.state || ''} isEditing={isEditing} onValueChange={handleProfileChange('state')} />
-            <ProfileInfoItem icon={Globe} label="City" value={profile.city || ''} isEditing={isEditing} onValue-Change={handleProfileChange('city')} />
+            <ProfileInfoItem icon={Globe} label="City" value={profile.city || ''} isEditing={isEditing} onValueChange={handleProfileChange('city')} />
           </CardContent>
         </Card>
 
@@ -342,3 +342,5 @@ export default function ProfilePage() {
     </div>
   )
 }
+
+    
