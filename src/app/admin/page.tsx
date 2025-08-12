@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { summarizeDailyActivity, SummarizeDailyActivityOutput } from '@/ai/flows
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, orderBy, limit, addDoc } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
-import { ShieldCheck, MessageCircleWarning, ListTodo, LoaderCircle, Plus, Upload, CalendarIcon } from 'lucide-react';
+import { ShieldCheck, MessageCircleWarning, ListTodo, LoaderCircle, Plus, Upload, CalendarIcon, Image as ImageIcon } from 'lucide-react';
 import { allStates } from '@/lib/states';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -22,6 +22,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import Image from 'next/image';
 
 interface SpamMessage extends Message {
   isSpam: boolean;
@@ -36,7 +37,6 @@ interface Requirement extends Message {
 const initialNewOfferState = {
     title: '',
     description: '',
-    hint: '',
     code: '',
     type: ''
 };
@@ -51,6 +51,10 @@ export default function AdminDashboardPage() {
     const [validUntil, setValidUntil] = useState<Date | undefined>();
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
 
     useEffect(() => {
         const fetchData = async () => {
@@ -108,22 +112,48 @@ export default function AdminDashboardPage() {
 
         fetchData();
     }, []);
+
+    const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setImageFile(file);
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                setImagePreview(reader.result as string);
+            }
+        }
+    }
     
     const handleAddOffer = async () => {
-        if (!newOffer.title || !newOffer.description || !newOffer.hint) {
-            toast({ title: "Missing Fields", description: "Please fill out title, description, and hint for the offer.", variant: "destructive" });
+        if (!newOffer.title || !newOffer.description) {
+            toast({ title: "Missing Fields", description: "Please fill out title and description.", variant: "destructive" });
             return;
         }
         setIsSaving(true);
         try {
+            let imageUrl = `https://placehold.co/600x400.png`;
+
+            if (imageFile) {
+                 imageUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(imageFile);
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = (error) => reject(error);
+                });
+            }
+
             await addDoc(collection(db, 'offers'), {
                 ...newOffer,
                 validUntil: validUntil ? format(validUntil, 'yyyy-MM-dd') : null,
-                image: `https://placehold.co/600x400.png`
+                image: imageUrl
             });
+
             toast({ title: "Offer Added", description: "The new offer has been successfully created." });
             setNewOffer(initialNewOfferState);
             setValidUntil(undefined);
+            setImageFile(null);
+            setImagePreview(null);
             setIsAddOfferOpen(false);
         } catch (error) {
             console.error("Error adding offer: ", error);
@@ -262,35 +292,45 @@ export default function AdminDashboardPage() {
                             </Select>
                         </div>
                     </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                            <Label>Valid Until</Label>
-                             <Popover>
-                                <PopoverTrigger asChild>
-                                <Button
-                                    variant={"outline"}
-                                    className={cn(
-                                    "justify-start text-left font-normal",
-                                    !validUntil && "text-muted-foreground"
-                                    )}
-                                >
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {validUntil ? format(validUntil, "PPP") : <span>Pick a date</span>}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar
-                                        mode="single"
-                                        selected={validUntil}
-                                        onSelect={setValidUntil}
-                                        initialFocus
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="hint">Image Hint</Label>
-                            <Input id="hint" placeholder="e.g., 'indian food'" value={newOffer.hint} onChange={(e) => setNewOffer({...newOffer, hint: e.target.value})} />
+                     <div className="grid gap-2">
+                        <Label>Valid Until</Label>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                className={cn(
+                                "justify-start text-left font-normal",
+                                !validUntil && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {validUntil ? format(validUntil, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                    mode="single"
+                                    selected={validUntil}
+                                    onSelect={setValidUntil}
+                                    initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                     <div className="grid gap-2">
+                        <Label>Offer Image</Label>
+                        <div className="flex items-center gap-4">
+                            {imagePreview ? (
+                                <Image src={imagePreview} alt="Offer preview" width={64} height={64} className="rounded-md aspect-square object-cover" />
+                            ) : (
+                                <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center">
+                                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                                </div>
+                            )}
+                            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                                <Upload className="mr-2 h-4 w-4" /> Upload
+                            </Button>
+                            <input type="file" className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
                         </div>
                     </div>
                 </div>
@@ -305,3 +345,5 @@ export default function AdminDashboardPage() {
       </div>
     )
 }
+
+    

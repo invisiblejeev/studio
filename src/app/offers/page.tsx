@@ -3,13 +3,12 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc, query, orderBy, addDoc, updateDoc } from 'firebase/firestore';
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil } from "lucide-react";
+import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil, Upload, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -21,13 +20,13 @@ import { format, parse } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from "@/components/ui/badge";
+import Image from "next/image";
 
 interface Offer {
   id: string;
   title: string;
   description: string;
   image: string;
-  hint: string;
   code?: string;
   validUntil?: string;
   type?: string;
@@ -36,7 +35,6 @@ interface Offer {
 const initialNewOfferState = {
     title: '',
     description: '',
-    hint: '',
     code: '',
     type: ''
 };
@@ -46,15 +44,18 @@ export default function OffersPage() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // State for Add Dialog
+  // State for Add/Edit Dialogs
   const [isAddOfferOpen, setIsAddOfferOpen] = useState(false);
   const [newOffer, setNewOffer] = useState(initialNewOfferState);
   const [addValidUntil, setAddValidUntil] = useState<Date | undefined>();
-
-  // State for Edit Dialog
   const [isEditOfferOpen, setIsEditOfferOpen] = useState(false);
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
   const [editValidUntil, setEditValidUntil] = useState<Date | undefined>();
+
+  // State for Image Upload
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
@@ -85,6 +86,27 @@ export default function OffersPage() {
     return () => unsubscribe();
   }, [toast]);
 
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        setImagePreview(reader.result as string);
+      };
+    }
+  };
+
+  const resetDialogState = () => {
+    setNewOffer(initialNewOfferState);
+    setEditingOffer(null);
+    setAddValidUntil(undefined);
+    setEditValidUntil(undefined);
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
   const handleDeleteOffer = async (offerId: string) => {
     if (!currentUser?.isAdmin) {
         toast({ title: "Unauthorized", description: "You are not authorized to delete offers.", variant: "destructive" });
@@ -100,20 +122,30 @@ export default function OffersPage() {
   }
 
   const handleAddOffer = async () => {
-      if (!newOffer.title || !newOffer.description || !newOffer.hint) {
-          toast({ title: "Missing Fields", description: "Please fill out title, description, and hint for the offer.", variant: "destructive" });
+      if (!newOffer.title || !newOffer.description) {
+          toast({ title: "Missing Fields", description: "Please fill out title and description.", variant: "destructive" });
           return;
       }
       setIsSaving(true);
       try {
+          let imageUrl = `https://placehold.co/600x400.png`;
+          if (imageFile) {
+            imageUrl = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.readAsDataURL(imageFile);
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = (error) => reject(error);
+            });
+          }
+
           await addDoc(collection(db, 'offers'), {
               ...newOffer,
               validUntil: addValidUntil ? format(addValidUntil, 'yyyy-MM-dd') : null,
-              image: `https://placehold.co/600x400.png`
+              image: imageUrl
           });
+
           toast({ title: "Offer Added", description: "The new offer has been successfully created." });
-          setNewOffer(initialNewOfferState);
-          setAddValidUntil(undefined);
+          resetDialogState();
           setIsAddOfferOpen(false);
       } catch (error) {
           console.error("Error adding offer: ", error);
@@ -125,20 +157,31 @@ export default function OffersPage() {
 
   const handleEditOffer = async () => {
     if (!editingOffer) return;
-     if (!editingOffer.title || !editingOffer.description || !editingOffer.hint) {
-          toast({ title: "Missing Fields", description: "Please fill out title, description, and hint for the offer.", variant: "destructive" });
+     if (!editingOffer.title || !editingOffer.description) {
+          toast({ title: "Missing Fields", description: "Please fill out title and description.", variant: "destructive" });
           return;
       }
       setIsSaving(true);
       try {
           const offerRef = doc(db, 'offers', editingOffer.id);
-          await updateDoc(offerRef, {
-              ...editingOffer,
-              validUntil: editValidUntil ? format(editValidUntil, 'yyyy-MM-dd') : null
-          });
+          const updateData: Partial<Offer> = {
+            ...editingOffer,
+            validUntil: editValidUntil ? format(editValidUntil, 'yyyy-MM-dd') : null,
+          };
+
+          if (imageFile) {
+             updateData.image = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.readAsDataURL(imageFile);
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = (error) => reject(error);
+            });
+          }
+
+          await updateDoc(offerRef, updateData);
           toast({ title: "Offer Updated", description: "The offer has been successfully updated."});
           setIsEditOfferOpen(false);
-          setEditingOffer(null);
+          resetDialogState();
       } catch (error) {
           console.error("Error updating offer: ", error);
           toast({ title: "Error", description: "Could not update the offer. Please try again.", variant: "destructive" });
@@ -148,10 +191,18 @@ export default function OffersPage() {
   }
 
   const openEditDialog = (offer: Offer) => {
+    resetDialogState();
     setEditingOffer(offer);
     setEditValidUntil(offer.validUntil ? parse(offer.validUntil, 'yyyy-MM-dd', new Date()) : undefined);
+    setImagePreview(offer.image);
     setIsEditOfferOpen(true);
   }
+
+  const openAddDialog = () => {
+    resetDialogState();
+    setIsAddOfferOpen(true);
+  }
+
 
   return (
     <div className="space-y-8 p-4 md:p-6 pb-24">
@@ -178,12 +229,12 @@ export default function OffersPage() {
             <Card key={offer.id} className="overflow-hidden flex flex-col">
               <CardHeader className="p-0">
                 <div className="aspect-video relative">
-                  <Image src={offer.image} alt={offer.title} fill className="object-cover" data-ai-hint={offer.hint} />
+                  <Image src={offer.image} alt={offer.title} fill className="object-cover" />
                   {offer.type && <Badge className="absolute top-2 right-2">{offer.type}</Badge>}
                 </div>
               </CardHeader>
               <CardContent className="p-4 flex-1">
-                <CardTitle className="text-xl">{offer.title}</CardTitle>
+                <CardTitle className="text-lg">{offer.title}</CardTitle>
                 <CardDescription className="mt-1 text-sm">{offer.description}</CardDescription>
                 <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                     {offer.code && (
@@ -227,7 +278,7 @@ export default function OffersPage() {
             {/* Add Offer Dialog */}
             <Dialog open={isAddOfferOpen} onOpenChange={setIsAddOfferOpen}>
                 <DialogTrigger asChild>
-                    <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg md:bottom-8 md:right-8 z-30">
+                    <Button onClick={openAddDialog} className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg md:bottom-8 md:right-8 z-30">
                         <Plus className="h-6 w-6" />
                     </Button>
                 </DialogTrigger>
@@ -265,35 +316,45 @@ export default function OffersPage() {
                                 </Select>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                                <Label>Valid Until</Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                    <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                        "justify-start text-left font-normal",
-                                        !addValidUntil && "text-muted-foreground"
-                                        )}
-                                    >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {addValidUntil ? format(addValidUntil, "PPP") : <span>Pick a date</span>}
-                                    </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
-                                        <Calendar
-                                            mode="single"
-                                            selected={addValidUntil}
-                                            onSelect={setAddValidUntil}
-                                            initialFocus
-                                        />
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="hint">Image Hint</Label>
-                                <Input id="hint" placeholder="e.g., 'indian food'" value={newOffer.hint} onChange={(e) => setNewOffer({...newOffer, hint: e.target.value})} />
+                        <div className="grid gap-2">
+                            <Label>Valid Until</Label>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                    "justify-start text-left font-normal",
+                                    !addValidUntil && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {addValidUntil ? format(addValidUntil, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar
+                                        mode="single"
+                                        selected={addValidUntil}
+                                        onSelect={setAddValidUntil}
+                                        initialFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Offer Image</Label>
+                            <div className="flex items-center gap-4">
+                                {imagePreview ? (
+                                    <Image src={imagePreview} alt="Offer preview" width={64} height={64} className="rounded-md aspect-square object-cover" />
+                                ) : (
+                                    <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center">
+                                        <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                                    </div>
+                                )}
+                                <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                                    <Upload className="mr-2 h-4 w-4" /> Upload
+                                </Button>
+                                <input type="file" className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
                             </div>
                         </div>
                     </div>
@@ -343,35 +404,45 @@ export default function OffersPage() {
                                     </Select>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="grid gap-2">
-                                    <Label>Valid Until</Label>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                        <Button
-                                            variant={"outline"}
-                                            className={cn(
-                                            "justify-start text-left font-normal",
-                                            !editValidUntil && "text-muted-foreground"
-                                            )}
-                                        >
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {editValidUntil ? format(editValidUntil, "PPP") : <span>Pick a date</span>}
-                                        </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0">
-                                            <Calendar
-                                                mode="single"
-                                                selected={editValidUntil}
-                                                onSelect={setEditValidUntil}
-                                                initialFocus
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="hint-edit">Image Hint</Label>
-                                    <Input id="hint-edit" placeholder="e.g., 'indian food'" value={editingOffer.hint} onChange={(e) => setEditingOffer({...editingOffer, hint: e.target.value})} />
+                            <div className="grid gap-2">
+                                <Label>Valid Until</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                    <Button
+                                        variant={"outline"}
+                                        className={cn(
+                                        "justify-start text-left font-normal",
+                                        !editValidUntil && "text-muted-foreground"
+                                        )}
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {editValidUntil ? format(editValidUntil, "PPP") : <span>Pick a date</span>}
+                                    </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar
+                                            mode="single"
+                                            selected={editValidUntil}
+                                            onSelect={setEditValidUntil}
+                                            initialFocus
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Offer Image</Label>
+                                <div className="flex items-center gap-4">
+                                    {imagePreview ? (
+                                        <Image src={imagePreview} alt="Offer preview" width={64} height={64} className="rounded-md aspect-square object-cover" />
+                                    ) : (
+                                        <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center">
+                                            <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                                        </div>
+                                    )}
+                                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                                        <Upload className="mr-2 h-4 w-4" /> Change
+                                    </Button>
+                                    <input type="file" className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
                                 </div>
                             </div>
                         </div>
@@ -389,3 +460,5 @@ export default function OffersPage() {
     </div>
   )
 }
+
+    
