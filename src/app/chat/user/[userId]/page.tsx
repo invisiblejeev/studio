@@ -39,7 +39,10 @@ export default function PersonalChatPage() {
         setCurrentUser(profile);
         const otherProfile = await getUserProfile(otherUserId);
         setOtherUser(otherProfile);
-        setRoomId(getPersonalChatRoomId(user.uid, otherUserId));
+        const personalRoomId = getPersonalChatRoomId(user.uid, otherUserId);
+        setRoomId(personalRoomId);
+        // Mark chat as read when opening
+        localStorage.setItem(`read_${personalRoomId}`, 'true');
       } else {
         router.push('/');
       }
@@ -200,3 +203,5 @@ export default function PersonalChatPage() {
     </div>
   );
 }
+
+    
