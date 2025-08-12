@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
 import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle } from "lucide-react"
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
@@ -17,10 +17,9 @@ import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-export default function ChatPage() {
+export default function ChatPage({ params }: { params: { state: string } }) {
   const router = useRouter();
-  const params = useParams();
-  const state = params.state as string;
+  const { state } = params;
   const { toast } = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -133,18 +132,20 @@ export default function ChatPage() {
 
                 return (
                   <div key={msg.id} className={cn('flex items-end gap-2', isYou ? 'justify-end' : 'justify-start')}>
-                     {!isYou && (
-                        <Avatar className={cn('h-8 w-8', !isLastInSequence && 'invisible')}>
+                     {!isYou && isLastInSequence && (
+                        <Avatar className={cn('h-8 w-8')}>
                             <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                             <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                      )}
+                     {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
+
                      <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
                         {!isYou && isFirstInSequence && <p className="text-xs text-muted-foreground mb-1 px-3">{msg.user.name}</p>}
                         <div className={cn('p-3 rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
                             isFirstInSequence && !isLastInSequence ? (isYou ? 'rounded-br-none' : 'rounded-bl-none')
-                            : !isFirstInSequence && !isLastInSequence ? 'rounded-none'
+                            : !isFirstInSequence && !isLastInSequence ? (isYou ? 'rounded-br-none rounded-bl-none' : 'rounded-tr-none rounded-tl-none')
                             : !isFirstInSequence && isLastInSequence ? (isYou ? 'rounded-tr-none' : 'rounded-tl-none')
                             : 'rounded-lg' // Default case for single messages
                         )}>
@@ -159,12 +160,14 @@ export default function ChatPage() {
                         </div>
                         {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                      </div>
-                     {isYou && (
-                         <Avatar className={cn('h-8 w-8', !isLastInSequence && 'invisible')}>
+                     {isYou && isLastInSequence && (
+                         <Avatar className={cn('h-8 w-8')}>
                             <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                             <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
                          </Avatar>
                      )}
+                     {isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
+
                   </div>
                 )
               })}
