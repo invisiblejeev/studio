@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock } from 'lucide-react';
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, orderBy, limit, doc, deleteDoc } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
@@ -14,6 +14,7 @@ import { allStates } from '@/lib/states';
 import { getCurrentUser } from '@/services/auth';
 import { useToast } from '@/hooks/use-toast';
 import { differenceInDays, formatDistanceToNowStrict } from 'date-fns';
+import { useRouter } from 'next/navigation';
 
 const categoryConfig: Record<Category, { icon: React.ElementType, color: string }> = {
     "Jobs": { icon: Briefcase, color: "bg-blue-100 text-blue-800" },
@@ -40,6 +41,7 @@ interface Requirement extends Message {
 const RequirementCard = ({ req, currentUser, onDelete }: { req: Requirement, currentUser: UserProfile | null, onDelete: (req: Requirement) => void }) => {
     const { icon: Icon, color } = categoryConfig[req.category] || categoryConfig["Other"];
     const stateName = allStates.find(s => s.value === req.userInfo?.state)?.label || req.userInfo?.state || '';
+    const router = useRouter();
 
     const getExpiryInfo = () => {
         if (!req.timestamp) return null;
@@ -52,10 +54,12 @@ const RequirementCard = ({ req, currentUser, onDelete }: { req: Requirement, cur
     };
     
     const expiryInfo = getExpiryInfo();
+    const isAuthor = currentUser?.uid === req.user.id;
+
 
     return (
-        <Card className="overflow-hidden shadow-md relative group">
-            <CardContent className="p-4">
+        <Card className="overflow-hidden shadow-md relative group flex flex-col">
+            <CardContent className="p-4 pb-2 flex-1">
                  {currentUser?.isAdmin && (
                     <Button 
                         variant="destructive" 
@@ -88,6 +92,18 @@ const RequirementCard = ({ req, currentUser, onDelete }: { req: Requirement, cur
                     </div>
                 </div>
             </CardContent>
+            {!isAuthor && req.userInfo && (
+                <CardFooter className="p-2 pt-0">
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full" 
+                        onClick={() => router.push(`/chat/user/${req.userInfo?.uid}`)}
+                    >
+                        <MessageSquare className="mr-2 h-4 w-4" /> Send Private Message
+                    </Button>
+                </CardFooter>
+            )}
         </Card>
     );
 };
