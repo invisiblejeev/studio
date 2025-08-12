@@ -117,7 +117,8 @@ export default function PersonalChatPage() {
     setIsUploading(false);
   };
 
-  const handleFileSelect = (file: File) => {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
       if (!file) return;
 
       if (file.size > 1024 * 1024) { // 1MB limit
@@ -266,7 +267,7 @@ export default function PersonalChatPage() {
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                   <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => fileInputRef.current?.click()} disabled={isUploading}><Paperclip className="w-5 h-5" /></Button>
-                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFileSelect(e.target.files[0])} disabled={isUploading} />
+                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading} />
                   <Button size="icon" onClick={handleSendMessage} disabled={!canSendMessage}>
                     {isUploading ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <SendHorizonal className="w-5 h-5" />}
                   </Button>

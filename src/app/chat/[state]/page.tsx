@@ -107,25 +107,26 @@ export default function ChatPage() {
     setIsUploading(false);
   };
 
-  const handleFileSelect = (file: File) => {
-      if (!file) return;
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-      if (file.size > 1024 * 1024 * 5) { // 5MB limit
-        toast({
-          title: "Image Too Large",
-          description: "Please select an image smaller than 5MB.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-          const dataUrl = reader.result as string;
-          setImagePreview(dataUrl);
-      }
+    if (file.size > 1024 * 1024 * 5) { // 5MB limit
+      toast({
+        title: "Image Too Large",
+        description: "Please select an image smaller than 5MB.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setImagePreview(dataUrl);
+    }
   };
   
   const clearImagePreview = () => {
@@ -248,7 +249,7 @@ export default function ChatPage() {
                    <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
                        <Paperclip className="w-5 h-5" />
                    </Button>
-                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFileSelect(e.target.files[0])} disabled={isUploading} />
+                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading} />
                   <Button size="icon" onClick={handleSendMessage} disabled={!canSendMessage}>
                       {isUploading ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <SendHorizonal className="w-5 h-5" />}
                   </Button>
