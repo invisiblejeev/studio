@@ -128,11 +128,6 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <Card className="mx-auto w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-             <div className="bg-primary text-primary-foreground rounded-full p-3">
-              <IndianRupee className="h-8 w-8" />
-             </div>
-          </div>
           <CardTitle className="text-2xl font-bold">Indian Community Chat</CardTitle>
           <CardDescription>
             Enter your credentials to access your account.

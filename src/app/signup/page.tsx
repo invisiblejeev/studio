@@ -157,11 +157,6 @@ export default function SignupPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <Card className="mx-auto w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-             <div className="bg-primary text-primary-foreground rounded-full p-3">
-              <IndianRupee className="h-8 w-8" />
-             </div>
-          </div>
           <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
           <CardDescription>
             Enter your details below to create your account.
