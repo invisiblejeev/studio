@@ -16,6 +16,17 @@ import { signUp } from "@/services/auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { allStates } from "@/lib/states";
 
+const formatPhoneNumber = (value: string) => {
+    if (!value) return value;
+    const phoneNumber = value.replace(/[^\d]/g, '');
+    const phoneNumberLength = phoneNumber.length;
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+      return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3)}`;
+    }
+    return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+};
+
 export default function SignupPage() {
   const { toast } = useToast();
   const router = useRouter();
@@ -75,7 +86,12 @@ export default function SignupPage() {
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    setFormData(prev => ({...prev, [id]: value}));
+    if (id === 'phone') {
+        setFormData(prev => ({...prev, phone: formatPhoneNumber(value)}));
+    } else {
+        setFormData(prev => ({...prev, [id]: value}));
+    }
+
     if (id === "username") {
       setUsernameStatus("checking");
     }
@@ -194,7 +210,7 @@ export default function SignupPage() {
             </div>
              <div className="grid gap-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input id="phone" placeholder="123-456-7890" required onChange={handleChange} value={formData.phone} disabled={isLoading} />
+              <Input id="phone" type="tel" placeholder="123-456-7890" required onChange={handleChange} value={formData.phone} disabled={isLoading} maxLength={12} />
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">

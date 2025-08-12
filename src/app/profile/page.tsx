@@ -17,8 +17,19 @@ import { getUserProfile, updateUserProfile, isIdentifierTaken, UserProfile, dele
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
 
+const formatPhoneNumber = (value: string) => {
+    if (!value) return value;
+    const phoneNumber = value.replace(/[^\d]/g, '');
+    const phoneNumberLength = phoneNumber.length;
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+      return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3)}`;
+    }
+    return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+};
 
-const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange }: { icon: React.ElementType, label: string, value: string, isEditing: boolean, onValueChange: (value: string) => void }) => (
+
+const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange, type = "text" }: { icon: React.ElementType, label: string, value: string, isEditing: boolean, onValueChange: (value: string) => void, type?: string }) => (
     <div className="flex items-start gap-4">
         <div className="bg-muted rounded-full p-2 mt-1">
             <Icon className="w-5 h-5 text-muted-foreground" />
@@ -38,7 +49,20 @@ const ProfileInfoItem = ({ icon: Icon, label, value, isEditing, onValueChange }:
                         </SelectContent>
                     </Select>
                  ) : (
-                    <Input id={label} value={value} onChange={(e) => onValueChange(e.target.value)} className="h-9 mt-1" />
+                    <Input 
+                        id={label} 
+                        value={value} 
+                        onChange={(e) => {
+                            if (type === 'tel') {
+                                onValueChange(formatPhoneNumber(e.target.value));
+                            } else {
+                                onValueChange(e.target.value);
+                            }
+                        }} 
+                        className="h-9 mt-1"
+                        type={type}
+                        maxLength={type === 'tel' ? 12 : undefined}
+                     />
                  )
             ) : (
                 <p className="font-medium pt-1">{label === "State" ? allStates.find(s => s.value === value)?.label || value : value}</p>
@@ -301,7 +325,7 @@ export default function ProfilePage() {
             <ProfileInfoItem icon={User} label="Last Name" value={profile.lastName} isEditing={isEditing} onValueChange={handleProfileChange('lastName')} />
             <ProfileInfoItem icon={User} label="Username" value={profile.username} isEditing={isEditing} onValueChange={handleProfileChange('username')} />
             <ProfileInfoItem icon={Mail} label="Email" value={profile.email} isEditing={false} onValueChange={() => {}} />
-            <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone || ''} isEditing={isEditing} onValueChange={handleProfileChange('phone')} />
+            <ProfileInfoItem icon={Phone} label="Phone Number" value={profile.phone || ''} isEditing={isEditing} onValueChange={handleProfileChange('phone')} type="tel" />
             <ProfileInfoItem icon={MapPin} label="State" value={profile.state || ''} isEditing={isEditing} onValueChange={handleProfileChange('state')} />
             <ProfileInfoItem icon={Globe} label="City" value={profile.city || ''} isEditing={isEditing} onValueChange={handleProfileChange('city')} />
           </CardContent>
