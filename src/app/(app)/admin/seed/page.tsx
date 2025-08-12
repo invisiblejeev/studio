@@ -19,7 +19,8 @@ const sampleUsers: Omit<UserProfile, 'uid'>[] = [
     state: "california",
     city: "San Francisco",
     phone: "123-456-7890",
-    avatar: "https://i.pravatar.cc/150?u=amitp"
+    avatar: "https://i.pravatar.cc/150?u=amitp",
+    isAdmin: false,
   },
   {
     firstName: "Priya",
@@ -29,7 +30,8 @@ const sampleUsers: Omit<UserProfile, 'uid'>[] = [
     state: "new-york",
     city: "New York City",
     phone: "234-567-8901",
-    avatar: "https://i.pravatar.cc/150?u=priyas"
+    avatar: "https://i.pravatar.cc/150?u=priyas",
+    isAdmin: false,
   },
   {
     firstName: "Rajesh",
@@ -39,7 +41,8 @@ const sampleUsers: Omit<UserProfile, 'uid'>[] = [
     state: "texas",
     city: "Houston",
     phone: "345-678-9012",
-    avatar: "https://i.pravatar.cc/150?u=rajk"
+    avatar: "https://i.pravatar.cc/150?u=rajk",
+    isAdmin: false,
   },
 ];
 

@@ -12,6 +12,7 @@ export interface UserProfile {
   state?: string;
   city?: string;
   avatar?: string;
+  isAdmin?: boolean;
 }
 
 export async function isIdentifierTaken(field: 'username' | 'email', value: string): Promise<boolean> {
@@ -30,6 +31,7 @@ export async function createUserProfile(uid: string, data: Omit<UserProfile, 'ui
         ...data,
         username: data.username.toLowerCase(),
         email: data.email.toLowerCase(),
+        isAdmin: false, // Default isAdmin to false for new users
     };
     await setDoc(doc(db, 'users', uid), userProfileData);
 }
