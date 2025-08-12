@@ -128,11 +128,15 @@ export default function SeedDataPage() {
                 description: `Added ${sampleSpamReports.length} spam reports and a daily summary.`,
                 action: <PartyPopper className="w-5 h-5 text-green-500" />,
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error seeding admin data:", error);
+            let description = "Could not add sample data. Check the console.";
+            if (error.code === 'permission-denied') {
+                description = "Permission Denied. Please check your Firestore security rules to allow writes to 'spam-reports' and 'daily-summaries' collections.";
+            }
             toast({
                 title: "Error Seeding Admin Data",
-                description: "Could not add sample data. Check the console.",
+                description: description,
                 variant: "destructive",
                 action: <AlertTriangle className="w-5 h-5" />,
             });
