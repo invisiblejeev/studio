@@ -62,38 +62,48 @@ export default function RequirementsPage() {
         const fetchRequirements = async () => {
             setIsLoading(true);
             try {
-                const q = query(
-                    collection(db, "chats", "california", "messages"), 
-                    where("category", "in", categories),
-                    orderBy("timestamp", "desc")
-                );
+                // Fetch for each category separately to avoid composite index requirement
+                const allReqs: Requirement[] = [];
+                const userIds = new Set<string>();
 
-                const querySnapshot = await getDocs(q);
-                const reqs: Requirement[] = [];
+                for (const category of categories) {
+                    const q = query(
+                        collection(db, "chats", "california", "messages"), 
+                        where("category", "==", category),
+                        orderBy("timestamp", "desc")
+                    );
+                    const querySnapshot = await getDocs(q);
+                    querySnapshot.forEach(doc => {
+                        const data = doc.data();
+                        const timestamp = data.timestamp?.toDate();
+                        if (timestamp) {
+                            userIds.add(data.user.id);
+                            allReqs.push({
+                                id: doc.id,
+                                ...data,
+                                time: timestamp ? timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+                                timestamp: timestamp,
+                            } as Requirement);
+                        }
+                    });
+                }
 
-                const userPromises = querySnapshot.docs.map(doc => getUserProfile(doc.data().user.id));
-                const users = await Promise.all(userPromises);
-                const userMap = new Map(users.map(u => [u?.uid, u]));
+                // Fetch user profiles for all unique users
+                const userPromises = Array.from(userIds).map(uid => getUserProfile(uid));
+                const users = (await Promise.all(userPromises)).filter(Boolean) as UserProfile[];
+                const userMap = new Map(users.map(u => [u.uid, u]));
 
-                querySnapshot.forEach(doc => {
-                    const data = doc.data();
-                    const timestamp = data.timestamp?.toDate();
-                    if(timestamp) {
-                        reqs.push({
-                            id: doc.id,
-                            user: data.user,
-                            text: data.text,
-                            time: timestamp ? timestamp.toLocaleTimeString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
-                            timestamp: timestamp,
-                            category: data.category,
-                            title: data.title,
-                            userInfo: userMap.get(data.user.id) || undefined
-                        } as Requirement);
-                    }
-                });
+                // Add userInfo to requirements
+                const reqsWithUsers = allReqs.map(req => ({
+                    ...req,
+                    userInfo: userMap.get(req.user.id)
+                }));
                 
-                setAllRequirements(reqs);
-                setFilteredRequirements(reqs);
+                // Sort combined results by timestamp
+                reqsWithUsers.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+                
+                setAllRequirements(reqsWithUsers);
+                setFilteredRequirements(reqsWithUsers);
             } catch (error) {
                 console.error("Error fetching requirements:", error);
             } finally {
@@ -159,4 +169,5 @@ export default function RequirementsPage() {
             )}
         </div>
     );
-}
+
+    
