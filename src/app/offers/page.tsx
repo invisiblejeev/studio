@@ -8,7 +8,7 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc, query, orderBy, addDoc, updateDoc } from 'firebase/firestore';
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil, Upload, Image as ImageIcon } from "lucide-react";
+import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil, Upload, Image as ImageIcon, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -21,12 +21,14 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+
 
 interface Offer {
   id: string;
   title: string;
   description: string;
-  image: string;
+  images: string[];
   code?: string;
   validUntil?: string;
   type?: string;
@@ -53,8 +55,8 @@ export default function OffersPage() {
   const [editValidUntil, setEditValidUntil] = useState<Date | undefined>();
 
   // State for Image Upload
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -87,24 +89,45 @@ export default function OffersPage() {
   }, [toast]);
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        setImagePreview(reader.result as string);
-      };
+    const files = e.target.files;
+    if (files) {
+        const newFiles = Array.from(files);
+        setImageFiles(prev => [...prev, ...newFiles]);
+
+        newFiles.forEach(file => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                setImagePreviews(prev => [...prev, reader.result as string]);
+            };
+        });
     }
   };
+  
+  const removeImage = (index: number, isEditing: boolean = false) => {
+    if (isEditing && editingOffer) {
+        const updatedImages = [...editingOffer.images];
+        updatedImages.splice(index, 1);
+        setEditingOffer({...editingOffer, images: updatedImages });
+    } else {
+        setImageFiles(prev => prev.filter((_, i) => i !== index));
+        setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    }
+  }
+  
+  const removeUploadedImage = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+  }
+
 
   const resetDialogState = () => {
     setNewOffer(initialNewOfferState);
     setEditingOffer(null);
     setAddValidUntil(undefined);
     setEditValidUntil(undefined);
-    setImageFile(null);
-    setImagePreview(null);
+    setImageFiles([]);
+    setImagePreviews([]);
   };
 
   const handleDeleteOffer = async (offerId: string) => {
@@ -121,6 +144,18 @@ export default function OffersPage() {
     }
   }
 
+  const uploadImages = async (files: File[]): Promise<string[]> => {
+      const uploadPromises = files.map(file => {
+          return new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.readAsDataURL(file);
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = (error) => reject(error);
+          });
+      });
+      return Promise.all(uploadPromises);
+  }
+
   const handleAddOffer = async () => {
       if (!newOffer.title || !newOffer.description) {
           toast({ title: "Missing Fields", description: "Please fill out title and description.", variant: "destructive" });
@@ -128,20 +163,15 @@ export default function OffersPage() {
       }
       setIsSaving(true);
       try {
-          let imageUrl = `https://placehold.co/600x400.png`;
-          if (imageFile) {
-            imageUrl = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.readAsDataURL(imageFile);
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = (error) => reject(error);
-            });
+          let imageUrls = await uploadImages(imageFiles);
+          if (imageUrls.length === 0) {
+              imageUrls.push(`https://placehold.co/600x400.png`);
           }
 
           await addDoc(collection(db, 'offers'), {
               ...newOffer,
               validUntil: addValidUntil ? format(addValidUntil, 'yyyy-MM-dd') : null,
-              image: imageUrl
+              images: imageUrls,
           });
 
           toast({ title: "Offer Added", description: "The new offer has been successfully created." });
@@ -164,19 +194,16 @@ export default function OffersPage() {
       setIsSaving(true);
       try {
           const offerRef = doc(db, 'offers', editingOffer.id);
-          const updateData: Partial<Offer> = {
+          
+          const newImageUrls = await uploadImages(imageFiles);
+          const finalImages = [...editingOffer.images, ...newImageUrls];
+
+          const updateData: Partial<Offer> & { [key: string]: any } = {
             ...editingOffer,
+            images: finalImages.length > 0 ? finalImages : ['https://placehold.co/600x400.png'],
             validUntil: editValidUntil ? format(editValidUntil, 'yyyy-MM-dd') : null,
           };
-
-          if (imageFile) {
-             updateData.image = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.readAsDataURL(imageFile);
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = (error) => reject(error);
-            });
-          }
+          delete updateData.id;
 
           await updateDoc(offerRef, updateData);
           toast({ title: "Offer Updated", description: "The offer has been successfully updated."});
@@ -194,7 +221,8 @@ export default function OffersPage() {
     resetDialogState();
     setEditingOffer(offer);
     setEditValidUntil(offer.validUntil ? parse(offer.validUntil, 'yyyy-MM-dd', new Date()) : undefined);
-    setImagePreview(offer.image);
+    setImagePreviews([]); // New previews for newly added files in edit mode
+    setImageFiles([]);
     setIsEditOfferOpen(true);
   }
 
@@ -228,10 +256,34 @@ export default function OffersPage() {
           {offers.map(offer => (
             <Card key={offer.id} className="overflow-hidden flex flex-col">
               <CardHeader className="p-0">
-                <div className="aspect-video relative">
-                  <Image src={offer.image} alt={offer.title} fill className="object-cover" />
-                  {offer.type && <Badge className="absolute top-2 right-2">{offer.type}</Badge>}
-                </div>
+                <Carousel className="w-full">
+                    <CarouselContent>
+                        {offer.images && offer.images.length > 0 ? (
+                            offer.images.map((image, index) => (
+                                <CarouselItem key={index}>
+                                    <div className="aspect-video relative">
+                                        <Image src={image} alt={`${offer.title} image ${index + 1}`} fill className="object-cover" />
+                                    </div>
+                                </CarouselItem>
+                            ))
+                        ) : (
+                             <CarouselItem>
+                                <div className="aspect-video relative">
+                                    <Image src="https://placehold.co/600x400.png" alt="Placeholder" fill className="object-cover" />
+                                </div>
+                            </CarouselItem>
+                        )}
+                    </CarouselContent>
+                     {offer.images && offer.images.length > 1 && (
+                        <>
+                            <CarouselPrevious className="absolute left-2" />
+                            <CarouselNext className="absolute right-2" />
+                        </>
+                    )}
+                </Carousel>
+                {offer.type && <Badge className="absolute top-2 right-2 z-10">{offer.type}</Badge>}
+                 {offer.images && offer.images.length > 1 && <Badge variant="secondary" className="absolute top-2 left-2 z-10">{offer.images.length} photos</Badge>}
+
               </CardHeader>
               <CardContent className="p-4 flex-1">
                 <CardTitle className="text-lg">{offer.title}</CardTitle>
@@ -278,7 +330,7 @@ export default function OffersPage() {
             {/* Add Offer Dialog */}
             <Dialog open={isAddOfferOpen} onOpenChange={setIsAddOfferOpen}>
                 <DialogTrigger asChild>
-                    <Button onClick={openAddDialog} className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg md:bottom-8 md:right-8 z-30">
+                    <Button onClick={openAddDialog} className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg z-30 md:bottom-8 md:right-8">
                         <Plus className="h-6 w-6" />
                     </Button>
                 </DialogTrigger>
@@ -287,7 +339,7 @@ export default function OffersPage() {
                         <DialogTitle>Add New Offer</DialogTitle>
                         <DialogDescription>Create a new coupon or offer for the community.</DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-4 py-4">
+                    <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
                         <div className="grid gap-2">
                             <Label htmlFor="title">Title</Label>
                             <Input id="title" value={newOffer.title} onChange={(e) => setNewOffer({...newOffer, title: e.target.value})} />
@@ -342,24 +394,27 @@ export default function OffersPage() {
                             </Popover>
                         </div>
                         <div className="grid gap-2">
-                            <Label>Offer Image</Label>
-                            <div className="flex items-center gap-4">
-                                {imagePreview ? (
-                                    <Image src={imagePreview} alt="Offer preview" width={64} height={64} className="rounded-md aspect-square object-cover" />
-                                ) : (
-                                    <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center">
-                                        <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                                    </div>
-                                )}
+                            <Label>Offer Images</Label>
+                             <div className="flex items-center gap-4">
                                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
                                     <Upload className="mr-2 h-4 w-4" /> Upload
                                 </Button>
-                                <input type="file" className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
+                                <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {imagePreviews.map((preview, index) => (
+                                     <div key={index} className="relative w-20 h-20">
+                                        <Image src={preview} alt={`preview ${index}`} layout="fill" className="rounded-md object-cover" />
+                                        <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeUploadedImage(index)}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsAddOfferOpen(false)} disabled={isSaving}>Cancel</Button>
+                        <Button variant="outline" onClick={() => { setIsAddOfferOpen(false); resetDialogState(); }} disabled={isSaving}>Cancel</Button>
                         <Button onClick={handleAddOffer} disabled={isSaving}>
                             {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Offer"}
                         </Button>
@@ -375,7 +430,7 @@ export default function OffersPage() {
                             <DialogTitle>Edit Offer</DialogTitle>
                             <DialogDescription>Update the details for this offer.</DialogDescription>
                         </DialogHeader>
-                        <div className="grid gap-4 py-4">
+                        <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
                             <div className="grid gap-2">
                                 <Label htmlFor="title-edit">Title</Label>
                                 <Input id="title-edit" value={editingOffer.title} onChange={(e) => setEditingOffer({...editingOffer, title: e.target.value})} />
@@ -430,24 +485,33 @@ export default function OffersPage() {
                                 </Popover>
                             </div>
                             <div className="grid gap-2">
-                                <Label>Offer Image</Label>
-                                <div className="flex items-center gap-4">
-                                    {imagePreview ? (
-                                        <Image src={imagePreview} alt="Offer preview" width={64} height={64} className="rounded-md aspect-square object-cover" />
-                                    ) : (
-                                        <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center">
-                                            <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                                <Label>Offer Images</Label>
+                                <div className="flex flex-wrap gap-2">
+                                    {editingOffer.images.map((image, index) => (
+                                        <div key={index} className="relative w-20 h-20">
+                                            <Image src={image} alt={`existing offer image ${index}`} layout="fill" className="rounded-md object-cover" />
+                                            <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeImage(index, true)}>
+                                                <X className="h-4 w-4" />
+                                            </Button>
                                         </div>
-                                    )}
-                                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                                        <Upload className="mr-2 h-4 w-4" /> Change
-                                    </Button>
-                                    <input type="file" className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
+                                    ))}
+                                    {imagePreviews.map((preview, index) => (
+                                        <div key={index} className="relative w-20 h-20">
+                                            <Image src={preview} alt={`new preview ${index}`} layout="fill" className="rounded-md object-cover" />
+                                            <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeUploadedImage(index)}>
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
                                 </div>
+                                <Button variant="outline" className="mt-2" onClick={() => fileInputRef.current?.click()}>
+                                    <Upload className="mr-2 h-4 w-4" /> Add More Images
+                                </Button>
+                                <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
                             </div>
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsEditOfferOpen(false)} disabled={isSaving}>Cancel</Button>
+                            <Button variant="outline" onClick={() => { setIsEditOfferOpen(false); resetDialogState(); }} disabled={isSaving}>Cancel</Button>
                             <Button onClick={handleEditOffer} disabled={isSaving}>
                                 {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Changes"}
                             </Button>

@@ -9,7 +9,7 @@ import { summarizeDailyActivity, SummarizeDailyActivityOutput } from '@/ai/flows
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, orderBy, limit, addDoc } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
-import { ShieldCheck, MessageCircleWarning, ListTodo, LoaderCircle, Plus, Upload, CalendarIcon, Image as ImageIcon } from 'lucide-react';
+import { ShieldCheck, MessageCircleWarning, ListTodo, LoaderCircle, Plus, Upload, CalendarIcon, Image as ImageIcon, X } from 'lucide-react';
 import { allStates } from '@/lib/states';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -51,8 +51,8 @@ export default function AdminDashboardPage() {
     const [validUntil, setValidUntil] = useState<Date | undefined>();
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
-    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+    const [imageFiles, setImageFiles] = useState<File[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
 
@@ -114,15 +114,24 @@ export default function AdminDashboardPage() {
     }, []);
 
     const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setImageFile(file);
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => {
-                setImagePreview(reader.result as string);
-            }
+        const files = e.target.files;
+        if (files) {
+            const newFiles = Array.from(files);
+            setImageFiles(prev => [...prev, ...newFiles]);
+
+            newFiles.forEach(file => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => {
+                    setImagePreviews(prev => [...prev, reader.result as string]);
+                };
+            });
         }
+    }
+
+    const removeImage = (index: number) => {
+        setImageFiles(prev => prev.filter((_, i) => i !== index));
+        setImagePreviews(prev => prev.filter((_, i) => i !== index));
     }
     
     const handleAddOffer = async () => {
@@ -132,28 +141,32 @@ export default function AdminDashboardPage() {
         }
         setIsSaving(true);
         try {
-            let imageUrl = `https://placehold.co/600x400.png`;
-
-            if (imageFile) {
-                 imageUrl = await new Promise((resolve, reject) => {
+            const uploadPromises = imageFiles.map(file => {
+                return new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
-                    reader.readAsDataURL(imageFile);
+                    reader.readAsDataURL(file);
                     reader.onload = () => resolve(reader.result as string);
                     reader.onerror = (error) => reject(error);
                 });
+            });
+
+            let imageUrls = await Promise.all(uploadPromises);
+
+            if (imageUrls.length === 0) {
+                 imageUrls.push(`https://placehold.co/600x400.png`);
             }
 
             await addDoc(collection(db, 'offers'), {
                 ...newOffer,
                 validUntil: validUntil ? format(validUntil, 'yyyy-MM-dd') : null,
-                image: imageUrl
+                images: imageUrls
             });
 
             toast({ title: "Offer Added", description: "The new offer has been successfully created." });
             setNewOffer(initialNewOfferState);
             setValidUntil(undefined);
-            setImageFile(null);
-            setImagePreview(null);
+            setImageFiles([]);
+            setImagePreviews([]);
             setIsAddOfferOpen(false);
         } catch (error) {
             console.error("Error adding offer: ", error);
@@ -263,7 +276,7 @@ export default function AdminDashboardPage() {
                     <DialogTitle>Add New Offer</DialogTitle>
                     <DialogDescription>Create a new coupon or offer for the community.</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
                     <div className="grid gap-2">
                         <Label htmlFor="title">Title</Label>
                         <Input id="title" value={newOffer.title} onChange={(e) => setNewOffer({...newOffer, title: e.target.value})} />
@@ -318,19 +331,22 @@ export default function AdminDashboardPage() {
                         </Popover>
                     </div>
                      <div className="grid gap-2">
-                        <Label>Offer Image</Label>
+                        <Label>Offer Images</Label>
                         <div className="flex items-center gap-4">
-                            {imagePreview ? (
-                                <Image src={imagePreview} alt="Offer preview" width={64} height={64} className="rounded-md aspect-square object-cover" />
-                            ) : (
-                                <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center">
-                                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                                </div>
-                            )}
                             <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
                                 <Upload className="mr-2 h-4 w-4" /> Upload
                             </Button>
-                            <input type="file" className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
+                            <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
+                        </div>
+                         <div className="flex flex-wrap gap-2 mt-2">
+                            {imagePreviews.map((preview, index) => (
+                                <div key={index} className="relative w-20 h-20">
+                                    <Image src={preview} alt={`preview ${index}`} layout="fill" className="rounded-md object-cover" />
+                                    <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeImage(index)}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
