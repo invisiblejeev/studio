@@ -69,12 +69,11 @@ export default function RequirementsPage() {
             setIsLoading(true);
             try {
                 // This is a collection group query. It queries all 'messages' collections.
-                // It requires a specific exemption in Firestore, but for this case, 
-                // we query all categorized messages and filter client-side.
+                // To avoid needing a custom composite index, we perform a simple query 
+                // and do the sorting and joining on the client side.
                 const q = query(
                     collectionGroup(db, "messages"),
-                    where("category", "in", categories),
-                    orderBy("timestamp", "desc")
+                    where("category", "in", categories)
                 );
 
                 const querySnapshot = await getDocs(q);
@@ -100,11 +99,11 @@ export default function RequirementsPage() {
                 const users = (await Promise.all(userPromises)).filter(Boolean) as UserProfile[];
                 const userMap = new Map(users.map(u => [u.uid, u]));
 
-                // Add userInfo to requirements
+                // Add userInfo to requirements and sort by date
                 const reqsWithUsers = reqs.map(req => ({
                     ...req,
                     userInfo: userMap.get(req.user.id)
-                }));
+                })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
                 
                 setAllRequirements(reqsWithUsers);
                 setFilteredRequirements(reqsWithUsers);
