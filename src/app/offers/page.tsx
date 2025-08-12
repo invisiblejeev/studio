@@ -9,12 +9,18 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc, query, orderBy, addDoc } from 'firebase/firestore';
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { Trash2, LoaderCircle, Plus } from "lucide-react";
+import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from "@/components/ui/badge";
 
 interface Offer {
   id: string;
@@ -22,14 +28,26 @@ interface Offer {
   description: string;
   image: string;
   hint: string;
+  code?: string;
+  validUntil?: string;
+  type?: string;
 }
+
+const initialNewOfferState = {
+    title: '',
+    description: '',
+    hint: '',
+    code: '',
+    type: ''
+};
 
 export default function OffersPage() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOfferOpen, setIsAddOfferOpen] = useState(false);
-  const [newOffer, setNewOffer] = useState({ title: '', description: '', hint: '' });
+  const [newOffer, setNewOffer] = useState(initialNewOfferState);
+  const [validUntil, setValidUntil] = useState<Date | undefined>();
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
@@ -75,17 +93,19 @@ export default function OffersPage() {
 
   const handleAddOffer = async () => {
       if (!newOffer.title || !newOffer.description || !newOffer.hint) {
-          toast({ title: "Missing Fields", description: "Please fill out all fields for the offer.", variant: "destructive" });
+          toast({ title: "Missing Fields", description: "Please fill out title, description, and hint for the offer.", variant: "destructive" });
           return;
       }
       setIsSaving(true);
       try {
           await addDoc(collection(db, 'offers'), {
               ...newOffer,
-              image: `https://placehold.co/600x400.png` // Placeholder, hint will be used by other component
+              validUntil: validUntil ? format(validUntil, 'yyyy-MM-dd') : null,
+              image: `https://placehold.co/600x400.png`
           });
           toast({ title: "Offer Added", description: "The new offer has been successfully created." });
-          setNewOffer({ title: '', description: '', hint: '' });
+          setNewOffer(initialNewOfferState);
+          setValidUntil(undefined);
           setIsAddOfferOpen(false);
       } catch (error) {
           console.error("Error adding offer: ", error);
@@ -121,11 +141,26 @@ export default function OffersPage() {
               <CardHeader className="p-0">
                 <div className="aspect-video relative">
                   <Image src={offer.image} alt={offer.title} fill className="object-cover" data-ai-hint={offer.hint} />
+                  {offer.type && <Badge className="absolute top-2 right-2">{offer.type}</Badge>}
                 </div>
               </CardHeader>
               <CardContent className="p-4 flex-1">
                 <CardTitle>{offer.title}</CardTitle>
                 <CardDescription className="mt-2">{offer.description}</CardDescription>
+                <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+                    {offer.code && (
+                        <div className="flex items-center gap-2">
+                            <Tag className="w-4 h-4"/>
+                            <span>Code: <span className="font-semibold text-foreground">{offer.code}</span></span>
+                        </div>
+                    )}
+                    {offer.validUntil && (
+                         <div className="flex items-center gap-2">
+                            <CalendarIcon className="w-4 h-4"/>
+                            <span>Valid Until: {format(new Date(offer.validUntil), "PPP")}</span>
+                        </div>
+                    )}
+                </div>
               </CardContent>
               <CardFooter className="p-4 pt-0">
                 {currentUser?.isAdmin ? (
@@ -134,7 +169,10 @@ export default function OffersPage() {
                         Delete Offer
                     </Button>
                 ) : (
-                    <Button className="w-full">View Deal</Button>
+                    <Button className="w-full">
+                       <Ticket className="mr-2 h-4 w-4" />
+                       View Deal
+                    </Button>
                 )}
               </CardFooter>
             </Card>
@@ -149,7 +187,7 @@ export default function OffersPage() {
                     <Plus className="h-6 w-6" />
                 </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
                     <DialogTitle>Add New Offer</DialogTitle>
                     <DialogDescription>Create a new coupon or offer for the community.</DialogDescription>
@@ -163,9 +201,56 @@ export default function OffersPage() {
                         <Label htmlFor="description">Description</Label>
                         <Textarea id="description" value={newOffer.description} onChange={(e) => setNewOffer({...newOffer, description: e.target.value})} />
                     </div>
-                     <div className="grid gap-2">
-                        <Label htmlFor="hint">Image Hint</Label>
-                        <Input id="hint" placeholder="e.g., 'indian food', 'samosas'" value={newOffer.hint} onChange={(e) => setNewOffer({...newOffer, hint: e.target.value})} />
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="code">Coupon Code</Label>
+                            <Input id="code" placeholder="e.g., DIWALI20" value={newOffer.code} onChange={(e) => setNewOffer({...newOffer, code: e.target.value})} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="type">Offer Type</Label>
+                            <Select onValueChange={(value) => setNewOffer({...newOffer, type: value})} value={newOffer.type}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select Type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Discount">Discount</SelectItem>
+                                    <SelectItem value="Deal">Deal</SelectItem>
+                                    <SelectItem value="Service">Service</SelectItem>
+                                    <SelectItem value="Other">Other</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label>Valid Until</Label>
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                    "justify-start text-left font-normal",
+                                    !validUntil && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {validUntil ? format(validUntil, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar
+                                        mode="single"
+                                        selected={validUntil}
+                                        onSelect={setValidUntil}
+                                        initialFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="hint">Image Hint</Label>
+                            <Input id="hint" placeholder="e.g., 'indian food'" value={newOffer.hint} onChange={(e) => setNewOffer({...newOffer, hint: e.target.value})} />
+                        </div>
                     </div>
                 </div>
                 <DialogFooter>
