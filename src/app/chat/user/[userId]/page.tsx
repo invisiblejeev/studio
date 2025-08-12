@@ -162,8 +162,9 @@ export default function PersonalChatPage() {
                      {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
                      <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
-                        <div className={cn('p-3 rounded-lg shadow-sm', 
+                        <div className={cn('rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
+                            !msg.text && msg.imageUrl ? 'p-1' : 'p-3',
                             isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
                             isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
                             !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
@@ -174,7 +175,7 @@ export default function PersonalChatPage() {
                             {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                             {msg.imageUrl && (
                               <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                                <div className="relative aspect-square mt-2 rounded-md overflow-hidden">
+                                <div className="relative aspect-square mt-2 rounded-md overflow-hidden max-w-[200px]">
                                   <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
                                 </div>
                               </Link>
@@ -196,7 +197,7 @@ export default function PersonalChatPage() {
               {isUploading && (
                 <div className="flex items-end gap-2 justify-end">
                     <div className="flex flex-col items-end">
-                      <div className="p-3 rounded-lg shadow-sm bg-primary text-primary-foreground rounded-br-none">
+                      <div className={cn('rounded-lg shadow-sm bg-primary text-primary-foreground', 'rounded-br-none p-1')}>
                           <div className="flex items-center justify-center h-24 w-24 bg-primary-foreground/20 rounded-md">
                              <LoaderCircle className="w-6 h-6 animate-spin" />
                           </div>
@@ -235,3 +236,5 @@ export default function PersonalChatPage() {
     </div>
   );
 }
+
+    

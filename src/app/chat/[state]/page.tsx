@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
 import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle } from "lucide-react"
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
@@ -144,6 +144,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                         {!isYou && isFirstInSequence && <p className="text-xs text-muted-foreground mb-1 px-3">{msg.user.name}</p>}
                         <div className={cn('p-3 rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
+                            !msg.text && msg.imageUrl ? 'p-1' : 'p-3',
                             isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
                             isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
                             !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
@@ -154,7 +155,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                             {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                             {msg.imageUrl && (
                                <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                                  <div className="relative aspect-square mt-2 rounded-md overflow-hidden">
+                                  <div className="relative aspect-square mt-2 rounded-md overflow-hidden max-w-[200px]">
                                     <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
                                   </div>
                                </Link>
@@ -176,7 +177,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                {isUploading && (
                 <div className="flex items-end gap-2 justify-end">
                     <div className="flex flex-col items-end">
-                      <div className="p-3 rounded-lg shadow-sm bg-primary text-primary-foreground rounded-br-none">
+                      <div className={cn('rounded-lg shadow-sm bg-primary text-primary-foreground', 'rounded-br-none p-1' )}>
                           <div className="flex items-center justify-center h-24 w-24 bg-primary-foreground/20 rounded-md">
                              <LoaderCircle className="w-6 h-6 animate-spin" />
                           </div>
@@ -217,3 +218,5 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     </div>
   );
 }
+
+    
