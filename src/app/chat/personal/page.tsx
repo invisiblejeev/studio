@@ -92,17 +92,17 @@ export default function PersonalChatsListPage() {
                                 <AvatarImage src={chat.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                                 <AvatarFallback>{chat.user.username.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            <div className="flex-1">
-                                <div className="flex justify-between">
+                            <div className="flex-1 flex justify-between items-start">
+                                <div className="flex-1">
                                     <p className="font-semibold">{chat.user.username}</p>
-                                    <p className="text-xs text-muted-foreground">{chat.time}</p>
-                                </div>
-                                <div className="flex justify-between mt-1 items-center">
-                                    <p className={cn("text-sm text-muted-foreground truncate", chat.unread > 0 && "font-bold text-foreground")}>
+                                    <p className={cn("text-sm text-muted-foreground truncate mt-1", chat.unread > 0 && "font-bold text-foreground")}>
                                         {chat.lastMessage}
                                     </p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                    <p className="text-xs text-muted-foreground">{chat.time}</p>
                                     {chat.unread > 0 && (
-                                        <div className="bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center shrink-0 ml-2">
+                                        <div className="bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center shrink-0">
                                             {chat.unread}
                                         </div>
                                     )}
