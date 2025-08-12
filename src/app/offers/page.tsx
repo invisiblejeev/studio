@@ -106,7 +106,7 @@ export default function OffersPage() {
   
   const removeImage = (index: number, isEditing: boolean = false) => {
     if (isEditing && editingOffer) {
-        const updatedImages = [...editingOffer.images];
+        const updatedImages = [...(editingOffer.images || [])];
         updatedImages.splice(index, 1);
         setEditingOffer({...editingOffer, images: updatedImages });
     } else {
@@ -255,7 +255,7 @@ export default function OffersPage() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {offers.map(offer => (
             <Card key={offer.id} className="overflow-hidden flex flex-col">
-              <CardHeader className="p-0">
+              <CardHeader className="p-0 relative">
                 <Carousel className="w-full">
                     <CarouselContent>
                         {offer.images && offer.images.length > 0 ? (
@@ -269,15 +269,15 @@ export default function OffersPage() {
                         ) : (
                              <CarouselItem>
                                 <div className="aspect-video relative">
-                                    <Image src="https://placehold.co/600x400.png" alt="Placeholder" fill className="object-cover" />
+                                    <Image src="https://placehold.co/600x400.png" data-ai-hint="deal offer" alt="Placeholder" fill className="object-cover" />
                                 </div>
                             </CarouselItem>
                         )}
                     </CarouselContent>
                      {offer.images && offer.images.length > 1 && (
                         <>
-                            <CarouselPrevious className="absolute left-2" />
-                            <CarouselNext className="absolute right-2" />
+                            <CarouselPrevious className="absolute left-2 z-10" />
+                            <CarouselNext className="absolute right-2 z-10" />
                         </>
                     )}
                 </Carousel>
@@ -401,7 +401,7 @@ export default function OffersPage() {
                                 </Button>
                                 <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
                             </div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2 mt-2">
                                 {imagePreviews.map((preview, index) => (
                                      <div key={index} className="relative w-20 h-20">
                                         <Image src={preview} alt={`preview ${index}`} layout="fill" className="rounded-md object-cover" />
@@ -487,8 +487,8 @@ export default function OffersPage() {
                             <div className="grid gap-2">
                                 <Label>Offer Images</Label>
                                 <div className="flex flex-wrap gap-2">
-                                    {editingOffer.images.map((image, index) => (
-                                        <div key={index} className="relative w-20 h-20">
+                                    {(editingOffer.images || []).map((image, index) => (
+                                        <div key={`existing-${index}`} className="relative w-20 h-20">
                                             <Image src={image} alt={`existing offer image ${index}`} layout="fill" className="rounded-md object-cover" />
                                             <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeImage(index, true)}>
                                                 <X className="h-4 w-4" />
@@ -496,7 +496,7 @@ export default function OffersPage() {
                                         </div>
                                     ))}
                                     {imagePreviews.map((preview, index) => (
-                                        <div key={index} className="relative w-20 h-20">
+                                        <div key={`new-${index}`} className="relative w-20 h-20">
                                             <Image src={preview} alt={`new preview ${index}`} layout="fill" className="rounded-md object-cover" />
                                             <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeUploadedImage(index)}>
                                                 <X className="h-4 w-4" />
@@ -524,3 +524,5 @@ export default function OffersPage() {
     </div>
   )
 }
+
+    
