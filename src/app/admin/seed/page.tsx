@@ -95,11 +95,15 @@ export default function SeedDataPage() {
                 description: `${sampleUsers.length} sample users have been added.`,
                 action: <PartyPopper className="w-5 h-5 text-green-500" />,
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error seeding users:", error);
+             let description = "Could not add sample users. Check the console.";
+            if (error.code === 'permission-denied') {
+                description = "Permission Denied. Please check your Firestore security rules to allow writes to the 'users' collection.";
+            }
             toast({
                 title: "Error Seeding Users",
-                description: "Could not add sample users. Check the console.",
+                description: description,
                 variant: "destructive",
                 action: <AlertTriangle className="w-5 h-5" />,
             });
@@ -132,7 +136,7 @@ export default function SeedDataPage() {
             console.error("Error seeding admin data:", error);
             let description = "Could not add sample data. Check the console.";
             if (error.code === 'permission-denied') {
-                description = "Permission Denied. Please check your Firestore security rules to allow writes to 'spam-reports' and 'daily-summaries' collections.";
+                description = "Permission Denied. Please check your Firestore security rules to allow writes to the 'spam-reports' and 'daily-summaries' collections.";
             }
             toast({
                 title: "Error Seeding Admin Data",
@@ -143,7 +147,7 @@ export default function SeedDataPage() {
         } finally {
             setIsAdminLoading(false);
         }
-    }
+    };
 
     return (
         <div className="p-4 space-y-8">
@@ -179,7 +183,7 @@ export default function SeedDataPage() {
                     </CardTitle>
                     <CardDescription>
                         Click the button below to add sample spam reports and an AI daily summary to your Firestore database.
-                    </CardDescription>
+                    </Description>
                 </CardHeader>
                 <CardContent>
                     <Button 
