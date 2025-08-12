@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
-import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle } from "lucide-react"
+import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle, X } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
@@ -29,6 +29,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -49,7 +50,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
       setMessages(newMessages);
       setTimeout(() => {
         if (scrollAreaRef.current) {
-            const viewport = scrollAreaRef.current.querySelector('div');
+            const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
             if (viewport) {
                 viewport.scrollTop = viewport.scrollHeight;
             }
@@ -61,19 +62,43 @@ export default function ChatPage({ params }: { params: { state: string } }) {
 
 
   const handleSendMessage = async () => {
-    if ((newMessage.trim() === "" && !imagePreview) || !currentUser) return;
-    
+    if ((newMessage.trim() === "" && !imageFile) || !currentUser) return;
+
     setIsUploading(true);
+
+    let imageUrl: string | undefined = undefined;
+    if (imageFile) {
+        try {
+            imageUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(imageFile);
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = (error) => reject(error);
+            });
+        } catch (error) {
+            console.error("Error converting image to Data URI:", error);
+            toast({
+                title: "Image Upload Failed",
+                description: "Could not process the image. Please try again.",
+                variant: "destructive"
+            });
+            setIsUploading(false);
+            return;
+        }
+    }
+
     await sendMessage(state, {
-      user: { 
-          id: currentUser.uid, 
-          name: currentUser.username, 
+      user: {
+          id: currentUser.uid,
+          name: currentUser.username,
           avatar: currentUser.avatar || ''
       },
       text: newMessage,
-      imageUrl: imagePreview || undefined,
+      imageUrl: imageUrl,
     });
+    
     setNewMessage("");
+    setImageFile(null);
     setImagePreview(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -81,27 +106,37 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     setIsUploading(false);
   };
 
-  const handleFileSelect = async (file: File) => {
+  const handleFileSelect = (file: File) => {
       if (!file) return;
+
+      if (file.size > 1024 * 1024) { // 1MB limit
+        toast({
+          title: "Image Too Large",
+          description: "Please select an image smaller than 1MB.",
+          variant: "destructive"
+        });
+        return;
+      }
       
+      setImageFile(file);
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
           const dataUrl = reader.result as string;
           setImagePreview(dataUrl);
       }
-      reader.onerror = (error) => {
-          console.error("Error reading file:", error);
-          toast({
-              title: "File Read Failed",
-              description: "Could not read the selected file. Please try again.",
-              variant: "destructive"
-          });
-      }
   };
+  
+  const clearImagePreview = () => {
+    setImagePreview(null);
+    setImageFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
 
   const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
-  const canSendMessage = (newMessage.trim() !== "" || !!imagePreview) && !isUploading;
+  const canSendMessage = (newMessage.trim() !== "" || !!imageFile) && !isUploading;
 
 
   return (
@@ -147,12 +182,12 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                         )}>
                             {msg.imageUrl && (
                                <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                                  <div className="relative aspect-square rounded-md overflow-hidden max-w-[200px]">
+                                  <div className="relative aspect-square rounded-md overflow-hidden max-w-[300px]">
                                     <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
                                   </div>
                                </Link>
                             )}
-                            {msg.text && <p className="text-sm whitespace-pre-wrap mt-2">{msg.text}</p>}
+                            {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                         </div>
                         {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                      </div>
@@ -188,7 +223,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
           {imagePreview && (
               <div className="mb-2 relative w-24 h-24">
                   <Image src={imagePreview} alt="Image preview" fill className="rounded-md object-cover" />
-                  <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => { setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}>
+                  <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={clearImagePreview}>
                       <X className="h-4 w-4" />
                   </Button>
               </div>

@@ -31,6 +31,7 @@ export default function PersonalChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export default function PersonalChatPage() {
       setMessages(newMessages);
        setTimeout(() => {
         if (scrollAreaRef.current) {
-            const viewport = scrollAreaRef.current.querySelector('div');
+            const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
             if (viewport) {
                 viewport.scrollTop = viewport.scrollHeight;
             }
@@ -72,9 +73,31 @@ export default function PersonalChatPage() {
 
 
   const handleSendMessage = async () => {
-    if ((newMessage.trim() === "" && !imagePreview) || !currentUser || !roomId) return;
+    if ((newMessage.trim() === "" && !imageFile) || !currentUser || !roomId) return;
     
     setIsUploading(true);
+
+    let imageUrl: string | undefined = undefined;
+    if (imageFile) {
+        try {
+            imageUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(imageFile);
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = (error) => reject(error);
+            });
+        } catch (error) {
+            console.error("Error converting image to Data URI:", error);
+            toast({
+                title: "Image Upload Failed",
+                description: "Could not process the image. Please try again.",
+                variant: "destructive"
+            });
+            setIsUploading(false);
+            return;
+        }
+    }
+    
     await sendMessage(roomId, {
       user: { 
           id: currentUser.uid, 
@@ -82,9 +105,11 @@ export default function PersonalChatPage() {
           avatar: currentUser.avatar || '' 
       },
       text: newMessage,
-      imageUrl: imagePreview || undefined,
+      imageUrl: imageUrl,
     });
+
     setNewMessage("");
+    setImageFile(null);
     setImagePreview(null);
      if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -92,25 +117,35 @@ export default function PersonalChatPage() {
     setIsUploading(false);
   };
 
-  const handleFileSelect = async (file: File) => {
+  const handleFileSelect = (file: File) => {
       if (!file) return;
-      
+
+      if (file.size > 1024 * 1024) { // 1MB limit
+        toast({
+          title: "Image Too Large",
+          description: "Please select an image smaller than 1MB.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setImageFile(file);
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
           const dataUrl = reader.result as string;
           setImagePreview(dataUrl);
       }
-      reader.onerror = (error) => {
-          console.error("Error reading file:", error);
-          toast({
-              title: "File Read Failed",
-              description: "Could not read the selected file. Please try again.",
-              variant: "destructive"
-          });
-      }
   };
   
+  const clearImagePreview = () => {
+    setImagePreview(null);
+    setImageFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
   if (!otherUser || !currentUser) {
       return (
          <div className="flex h-screen items-center justify-center">
@@ -119,7 +154,7 @@ export default function PersonalChatPage() {
       )
   }
 
-  const canSendMessage = (newMessage.trim() !== "" || !!imagePreview) && !isUploading;
+  const canSendMessage = (newMessage.trim() !== "" || !!imageFile) && !isUploading;
 
   return (
     <div className="flex flex-col h-screen bg-background rounded-xl border">
@@ -168,12 +203,12 @@ export default function PersonalChatPage() {
                         )}>
                             {msg.imageUrl && (
                               <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                                <div className="relative aspect-square rounded-md overflow-hidden max-w-[200px]">
+                                <div className="relative aspect-square rounded-md overflow-hidden max-w-[300px]">
                                   <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
                                 </div>
                               </Link>
                             )}
-                            {msg.text && <p className="text-sm whitespace-pre-wrap mt-2">{msg.text}</p>}
+                            {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                         </div>
                         {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                      </div>
@@ -209,7 +244,7 @@ export default function PersonalChatPage() {
            {imagePreview && (
               <div className="mb-2 relative w-24 h-24">
                   <Image src={imagePreview} alt="Image preview" fill className="rounded-md object-cover" />
-                  <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => { setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}>
+                  <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={clearImagePreview}>
                       <X className="h-4 w-4" />
                   </Button>
               </div>
