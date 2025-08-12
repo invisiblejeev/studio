@@ -6,7 +6,11 @@ import { BottomNav } from './BottomNav';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
-const showBottomNavRoutes = ['/chat', '/requirements', '/offers', '/profile', '/admin'];
+// Routes that should not show the bottom nav
+const noBottomNavRoutes = [
+    '/',
+    '/signup'
+];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -16,15 +20,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setIsMounted(true);
   }, []);
 
-  // A bit more complex logic to show nav for /chat, /chat/california, but not /chat/user/some-id or /chat/personal
-  const showNav = showBottomNavRoutes.some(route => {
-    if (pathname.startsWith('/chat/user/') || pathname === '/chat/personal') {
-        return false;
-    }
-    return pathname.startsWith(route)
-  });
-
+  const showNav = isMounted && !noBottomNavRoutes.includes(pathname) && !pathname.startsWith('/chat/user/');
+  
   if (!isMounted) {
+    // Return a placeholder or null on the server to avoid hydration mismatches
     return (
         <div className="flex flex-col h-screen">
             <main className="flex-1 overflow-y-auto">
