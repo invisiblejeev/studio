@@ -142,7 +142,7 @@ export default function PersonalChatPage() {
           </div>
       </header>
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-          <div className="space-y-2">
+          <div className="space-y-1">
               {messages.map((msg, index) => {
                 const isYou = msg.user.id === currentUser?.uid;
                 const prevMessage = messages[index - 1];
@@ -164,10 +164,12 @@ export default function PersonalChatPage() {
                      <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
                         <div className={cn('p-3 rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
-                           isFirstInSequence && !isLastInSequence ? (isYou ? 'rounded-br-none' : 'rounded-bl-none')
-                            : !isFirstInSequence && !isLastInSequence ? (isYou ? 'rounded-br-none rounded-bl-none' : 'rounded-tr-none rounded-tl-none')
-                            : !isFirstInSequence && isLastInSequence ? (isYou ? 'rounded-tr-none' : 'rounded-tl-none')
-                            : 'rounded-lg' // Default case for single messages
+                            isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
+                            isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
+                            !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
+                            !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
+                            !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
+                            'rounded-lg'
                         )}>
                             {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                             {msg.imageUrl && (

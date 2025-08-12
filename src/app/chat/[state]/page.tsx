@@ -17,10 +17,9 @@ import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-export default function ChatPage() {
+export default function ChatPage({ params }: { params: { state: string } }) {
   const router = useRouter();
-  const params = useParams();
-  const state = params.state as string;
+  const state = params.state;
   const { toast } = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -122,7 +121,7 @@ export default function ChatPage() {
           </Button>
       </header>
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-          <div className="space-y-2">
+          <div className="space-y-1">
               {messages.map((msg, index) => {
                 const isYou = msg.user.id === currentUser?.uid;
                 const prevMessage = messages[index - 1];
@@ -145,10 +144,12 @@ export default function ChatPage() {
                         {!isYou && isFirstInSequence && <p className="text-xs text-muted-foreground mb-1 px-3">{msg.user.name}</p>}
                         <div className={cn('p-3 rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
-                            isFirstInSequence && !isLastInSequence ? (isYou ? 'rounded-br-none' : 'rounded-bl-none')
-                            : !isFirstInSequence && !isLastInSequence ? (isYou ? 'rounded-br-none rounded-bl-none' : 'rounded-tr-none rounded-tl-none')
-                            : !isFirstInSequence && isLastInSequence ? (isYou ? 'rounded-tr-none' : 'rounded-tl-none')
-                            : 'rounded-lg' // Default case for single messages
+                            isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
+                            isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
+                            !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
+                            !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
+                            !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
+                            'rounded-lg'
                         )}>
                             {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                             {msg.imageUrl && (
