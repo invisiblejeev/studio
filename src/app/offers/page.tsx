@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
 
 
 interface Offer {
@@ -58,6 +59,9 @@ export default function OffersPage() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const autoplay = useRef(
+      Autoplay({ delay: 3000, stopOnInteraction: true })
+    );
 
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
@@ -256,7 +260,11 @@ export default function OffersPage() {
           {offers.map(offer => (
             <Card key={offer.id} className="overflow-hidden flex flex-col">
               <CardHeader className="p-0 relative">
-                <Carousel className="w-full">
+                <Carousel className="w-full"
+                    plugins={[autoplay.current]}
+                    onMouseEnter={autoplay.current.stop}
+                    onMouseLeave={autoplay.current.reset}
+                >
                     <CarouselContent>
                         {offer.images && offer.images.length > 0 ? (
                             offer.images.map((image, index) => (
@@ -274,12 +282,6 @@ export default function OffersPage() {
                             </CarouselItem>
                         )}
                     </CarouselContent>
-                     {offer.images && offer.images.length > 1 && (
-                        <>
-                            <CarouselPrevious className="absolute left-2 z-10" />
-                            <CarouselNext className="absolute right-2 z-10" />
-                        </>
-                    )}
                 </Carousel>
                 {offer.type && <Badge className="absolute top-2 right-2 z-10">{offer.type}</Badge>}
                  {offer.images && offer.images.length > 1 && <Badge variant="secondary" className="absolute top-2 left-2 z-10">{offer.images.length} photos</Badge>}
@@ -524,5 +526,3 @@ export default function OffersPage() {
     </div>
   )
 }
-
-    
