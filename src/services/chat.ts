@@ -48,8 +48,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     return;
   }
 
-  // 2. Save the simple message to Firestore.
-  // A backend trigger (`onMessageCreated` in src/ai/triggers.ts) will handle categorization.
+  // 2. Immediately save the message. AI processing is handled by a backend trigger.
   await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 
   // 3. Update the last message info on the parent chat document for chat lists.

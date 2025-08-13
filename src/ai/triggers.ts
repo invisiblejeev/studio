@@ -6,7 +6,7 @@
  */
 
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
-import { initializeApp } from 'firebase-admin/app';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { categorizeMessage } from '@/ai/flows/categorize-message';
 
