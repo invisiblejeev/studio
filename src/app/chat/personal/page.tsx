@@ -2,7 +2,7 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -28,82 +28,81 @@ export default function PersonalChatsListPage() {
     const router = useRouter();
     const [chats, setChats] = useState<ChatContact[]>([]);
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const fetchUser = async () => {
-            const user = await getCurrentUser();
-            if (user) {
-                const profile = await getUserProfile(user.uid);
-                setCurrentUser(profile);
-            } else {
-                router.push('/');
-            }
-        };
-        fetchUser();
-    }, [router]);
+        const fetchUserAndChats = async () => {
+          setIsLoading(true);
+          const user = await getCurrentUser();
+          if (user) {
+            const profile = await getUserProfile(user.uid);
+            setCurrentUser(profile);
+            
+            // Fetch chats after user is set
+            if (profile) {
+                const chatsCollectionRef = collection(db, "chats");
+                const chatsSnapshot = await getDocs(chatsCollectionRef);
+                const chatPromises: Promise<ChatContact | null>[] = [];
 
-    useEffect(() => {
-        if (!currentUser) return;
+                for (const chatDoc of chatsSnapshot.docs) {
+                    const roomId = chatDoc.id;
+                    if (roomId.includes(profile.uid) && roomId.includes('_')) {
+                        const otherUserId = roomId.replace(profile.uid, '').replace('_', '');
+                        if (!otherUserId) continue;
 
-        // This is a complex query. In a production app, this would be optimized.
-        // We query all chat room collections to find ones involving the current user.
-        const unsubscribe = onSnapshot(collection(db, "chats"), async (chatsSnapshot) => {
-            const chatPromises: Promise<ChatContact | null>[] = [];
+                        const promise = (async () => {
+                            const otherUser = await getUserProfile(otherUserId);
+                            if (!otherUser) return null;
 
-            for (const chatDoc of chatsSnapshot.docs) {
-                const roomId = chatDoc.id;
-                // Personal chats are identified by having an underscore in the room ID
-                if (roomId.includes(currentUser.uid) && roomId.includes('_')) {
-                    
-                    const otherUserId = roomId.replace(currentUser.uid, '').replace('_', '');
-                    if (!otherUserId) continue;
+                            const messagesCollection = collection(db, 'chats', roomId, 'messages');
+                            const q = query(messagesCollection, orderBy("timestamp", "desc"), limit(1));
+                            const messageSnapshot = await getDocs(q);
 
-                    const promise = (async () => {
-                        const otherUser = await getUserProfile(otherUserId);
-                        if (!otherUser) return null;
+                            if (messageSnapshot.empty) {
+                               return {
+                                    user: otherUser,
+                                    lastMessage: "No messages yet",
+                                    time: '',
+                                    unread: 0,
+                                    timestamp: null,
+                                    roomId: roomId
+                               };
+                            }
+                            
+                            const lastMessageDoc = messageSnapshot.docs[0];
+                            const lastMessage = lastMessageDoc.data() as Message;
+                            const timestamp = lastMessage.timestamp?.toDate ? lastMessage.timestamp.toDate() : new Date();
 
-                        const messagesCollection = collection(db, 'chats', roomId, 'messages');
-                        const q = query(messagesCollection, orderBy("timestamp", "desc"), limit(1));
-                        const messageSnapshot = await getDocs(q);
+                            const unread = 0; // Simplified unread logic
 
-                        if (messageSnapshot.empty) {
-                           return null;
-                        }
-                        
-                        const lastMessageDoc = messageSnapshot.docs[0];
-                        const lastMessage = lastMessageDoc.data() as Message;
-                        const timestamp = lastMessage.timestamp?.toDate ? lastMessage.timestamp.toDate() : new Date();
-
-                        // Placeholder for real unread logic
-                        const unread = localStorage.getItem(`read_${roomId}`) === 'true' ? 0 : Math.floor(Math.random() * 3);
-
-                        return {
-                            user: otherUser,
-                            lastMessage: lastMessage.text || (lastMessage.imageUrl ? "Image" : "No messages yet"),
-                            time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                            unread: unread,
-                            timestamp: timestamp,
-                            roomId: roomId
-                        };
-                    })();
-                    chatPromises.push(promise);
+                            return {
+                                user: otherUser,
+                                lastMessage: lastMessage.text || (lastMessage.imageUrl ? "Image" : "No messages yet"),
+                                time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+                                unread: unread,
+                                timestamp: timestamp,
+                                roomId: roomId
+                            };
+                        })();
+                        chatPromises.push(promise);
+                    }
                 }
+
+                const resolvedChats = (await Promise.all(chatPromises)).filter(Boolean) as ChatContact[];
+                resolvedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
+                setChats(resolvedChats);
             }
 
-            const resolvedChats = (await Promise.all(chatPromises)).filter(Boolean) as ChatContact[];
-            resolvedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
-            setChats(resolvedChats);
-        });
-
-        return () => unsubscribe();
-    }, [currentUser]);
+          } else {
+            router.push('/');
+          }
+          setIsLoading(false);
+        };
+        fetchUserAndChats();
+    }, [router]);
 
 
     const handleChatClick = (roomId: string) => {
-        // Simulate marking chat as read
-        localStorage.setItem(`read_${roomId}`, 'true');
-        const updatedChats = chats.map(c => c.roomId === roomId ? { ...c, unread: 0 } : c);
-        setChats(updatedChats);
         if (currentUser) {
             const otherUserId = roomId.replace(currentUser.uid, '').replace('_', '');
             router.push(`/chat/user/${otherUserId}`);
@@ -120,35 +119,41 @@ export default function PersonalChatsListPage() {
                 <h2 className="text-xl font-bold">Personal Chats</h2>
             </header>
             <div className="flex-1 overflow-y-auto">
-                {chats.map(chat => (
-                    <div key={chat.user.uid} onClick={() => handleChatClick(chat.roomId)} className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 cursor-pointer">
-                        <Avatar className="h-12 w-12">
-                            <AvatarImage src={chat.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
-                            <AvatarFallback>{chat.user.username.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 flex justify-between items-start">
-                            <div className="flex-1">
-                                <p className="font-semibold">{chat.user.username}</p>
-                                <p className={cn("text-sm text-muted-foreground truncate mt-1", chat.unread > 0 && "font-bold text-foreground")}>
-                                    {chat.lastMessage}
-                                </p>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                                <p className="text-xs text-muted-foreground">{chat.time}</p>
-                                {chat.unread > 0 && (
-                                    <div className="bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center shrink-0">
-                                        {chat.unread}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-full">
+                        <LoaderCircle className="w-6 h-6 animate-spin" />
+                        <p className="ml-2">Loading chats...</p>
                     </div>
-                ))}
-                 {chats.length === 0 && (
-                    <div className="text-center text-muted-foreground p-8">
+                ) : chats.length === 0 ? (
+                     <div className="text-center text-muted-foreground p-8">
                         <p>No personal chats yet.</p>
                         <p className="text-xs mt-2">Start a conversation from a user's post on the Requirements page.</p>
                     </div>
+                ) : (
+                    chats.map(chat => (
+                        <div key={chat.user.uid} onClick={() => handleChatClick(chat.roomId)} className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 cursor-pointer">
+                            <Avatar className="h-12 w-12">
+                                <AvatarImage src={chat.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                                <AvatarFallback>{chat.user.username.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 flex justify-between items-start">
+                                <div className="flex-1">
+                                    <p className="font-semibold">{chat.user.username}</p>
+                                    <p className={cn("text-sm text-muted-foreground truncate mt-1", chat.unread > 0 && "font-bold text-foreground")}>
+                                        {chat.lastMessage}
+                                    </p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                    <p className="text-xs text-muted-foreground">{chat.time}</p>
+                                    {chat.unread > 0 && (
+                                        <div className="bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center shrink-0">
+                                            {chat.unread}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))
                 )}
             </div>
         </div>
