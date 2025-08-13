@@ -62,8 +62,12 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
       const recipientId = users.find((uid: string) => uid !== message.user.id);
       if (recipientId) {
           const recipientChatRef = doc(db, `users/${recipientId}/personalChats`, message.user.id);
+          // Also update the last message info here so the personal chat list can be ordered by it
           await updateDoc(recipientChatRef, {
-              unreadCount: increment(1)
+              unreadCount: increment(1),
+              lastMessage: lastMessageContent,
+              lastMessageTimestamp: serverTimestamp(),
+              lastMessageSenderId: message.user.id
           }).catch(e => console.log("Recipient personal chat doc may not exist yet for unread count.", e));
       }
   }
@@ -90,14 +94,16 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
             await setDoc(user1ChatRef, { 
                 withUser: { uid: user2Profile.uid, username: user2Profile.username, avatar: user2Profile.avatar || '' }, 
                 roomId: roomId,
-                unreadCount: 0, // Initialize unread count
+                unreadCount: 0,
+                lastMessageTimestamp: serverTimestamp(),
             });
             
             const user2ChatRef = doc(db, `users/${uid2}/personalChats`, uid1);
             await setDoc(user2ChatRef, { 
                 withUser: { uid: user1Profile.uid, username: user1Profile.username, avatar: user1Profile.avatar || '' }, 
                 roomId: roomId,
-                unreadCount: 0, // Initialize unread count
+                unreadCount: 0,
+                lastMessageTimestamp: serverTimestamp(),
             });
         }
     }

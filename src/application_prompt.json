@@ -76,7 +76,11 @@
                 "uid": "string",
                 "username": "string",
                 "avatar": "string"
-              }
+              },
+              "lastMessage": "string (optional)",
+              "lastMessageTimestamp": "timestamp (optional)",
+              "lastMessageSenderId": "string (optional)",
+              "unreadCount": "number (optional)"
             }
           }
         ]

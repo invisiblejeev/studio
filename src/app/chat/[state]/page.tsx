@@ -201,12 +201,14 @@ export default function ChatPage() {
                 <span>{memberCount} {memberCount === 1 ? 'member' : 'members'}</span>
             </div>
           </div>
-          <Button variant="outline" onClick={() => router.push('/chat/personal')} className="relative">
+          <Button variant="outline" asChild className="relative">
+            <Link href="/chat/personal">
               <MessageSquare className="w-4 h-4 mr-2" />
               Personal Chats
               {totalUnread > 0 && (
                 <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full flex items-center justify-center p-0">{totalUnread}</Badge>
               )}
+            </Link>
           </Button>
       </header>
       <ScrollArea className="flex-1" ref={scrollAreaRef}>
