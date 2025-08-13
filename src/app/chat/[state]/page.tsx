@@ -9,7 +9,7 @@ import { allStates } from "@/lib/states";
 import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle, X } from "lucide-react"
 import { useRouter, useParams } from 'next/navigation';
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, use } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { getMessages, sendMessage, Message } from "@/services/chat";
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 export default function ChatPage() {
   const router = useRouter();
-  const params = useParams();
+  const params = use(useParams());
   const state = params.state as string;
   const { toast } = useToast();
 

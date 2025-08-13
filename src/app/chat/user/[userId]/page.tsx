@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Paperclip, SendHorizonal, ArrowLeft, LoaderCircle, X } from "lucide-react"
 import { useRouter, useParams } from 'next/navigation';
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, use } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { getMessages, sendMessage, Message, getPersonalChatRoomId } from "@/services/chat";
@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 export default function PersonalChatPage() {
   const router = useRouter();
-  const params = useParams();
+  const params = use(useParams());
   const otherUserId = params.userId as string;
   const { toast } = useToast();
   
