@@ -5,14 +5,14 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle, Flag } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot, where } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import type { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
 import { allStates } from '@/lib/states';
 import { getCurrentUser } from '@/services/auth';
 import { useToast } from '@/hooks/use-toast';
-import { differenceInDays, formatDistanceToNowStrict, isAfter } from 'date-fns';
+import { differenceInDays, formatDistanceToNowStrict, isAfter, subDays } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -74,11 +74,14 @@ export default function RequirementsPage() {
 
     useEffect(() => {
         setIsLoading(true);
-        const reqQuery = query(collection(db, 'requirements'), orderBy('timestamp', 'desc'));
+        const sevenDaysAgo = subDays(new Date(), 7);
+        const reqQuery = query(
+            collection(db, 'requirements'), 
+            where('timestamp', '>=', sevenDaysAgo),
+            orderBy('timestamp', 'desc')
+        );
 
         const unsubscribe = onSnapshot(reqQuery, (snapshot) => {
-            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            
             const reqsData = snapshot.docs
                 .map(doc => {
                     const data = doc.data();
@@ -89,8 +92,7 @@ export default function RequirementsPage() {
                         time: timestamp ? formatDistanceToNowStrict(timestamp, { addSuffix: true }) : '',
                         timestamp: timestamp,
                     } as Requirement;
-                })
-                .filter(req => req.timestamp && isAfter(req.timestamp, sevenDaysAgo));
+                });
 
             setAllRequirements(reqsData);
             setIsLoading(false);
@@ -349,3 +351,5 @@ export default function RequirementsPage() {
         </div>
     );
 }
+
+    
