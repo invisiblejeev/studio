@@ -1,100 +1,78 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions to improve readability
-    function isSignedIn() {
+    // Helper functions
+    function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isUser(uid) {
-      return isSignedIn() && request.auth.uid == uid;
+    function isUser(userId) {
+      return request.auth.uid == userId;
     }
 
-    // Users Collection:
+    // Users Collection
     // - Allow users to read their own profile.
-    // - Allow any signed-in user to read public profile data (needed for chat, etc.).
+    // - Allow any authenticated user to read public profile data (needed for chat, requirements).
     // - Allow users to create their own profile upon signup.
-    // - Allow users to update their own profile information.
-    // - Allow users to delete their own profile.
+    // - Allow users to update their own profile.
+    // - Allow users to delete their own account.
     match /users/{userId} {
-      allow read: if isSignedIn();
+      allow read: if isAuthenticated();
       allow create: if isUser(userId);
       allow update, delete: if isUser(userId);
-
-      // Personal Chats Subcollection:
-      // Allow users to read and write to their own list of personal chats.
+       // Personal chats list for a user
       match /personalChats/{otherUserId} {
         allow read, write: if isUser(userId);
       }
     }
 
-    // Chats Collection:
-    // This collection holds all chat rooms, both public state channels and private user-to-user chats.
-    match /chats/{roomId} {
-      // Public State Chats (e.g., 'california', 'texas')
-      // - Allow any signed-in user to read state chat documents.
-      // - Allow any signed-in user to update the `lastMessageTimestamp` for sorting purposes.
-      allow read, update: if isSignedIn() && !isPersonalChat(roomId);
-      
-      // Personal Chats (e.g., 'uid1_uid2')
-      // - Allow read and update only if the user is part of the chat.
-      allow read, update: if isUserInChat(roomId);
-      
-      // Messages Subcollection (applies to both public and private chats)
-      match /messages/{messageId} {
-        // Public State Chats
-        // - Allow any signed-in user to read and create messages.
-        allow read, create: if isSignedIn() && !isPersonalChat(roomId);
+    // Chats Collection (for both state and personal chats)
+    match /chats/{chatId} {
+        // Allow reads/writes to a chat document if the user is authenticated (for state chats)
+        // or if they are one of the two users in a personal chat.
+        allow read, update, delete: if isAuthenticated() && (
+            (get(/databases/$(database)/documents/chats/$(chatId)).data.users == null) || // Public state chat
+            (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.users)  // Personal chat
+        );
+        allow create: if isAuthenticated();
 
-        // Personal Chats
-        // - Allow read and create only if the user is a member of the chat.
-        allow read, create: if isUserInChat(roomId);
-        
-        // General Update/Delete Permissions
-        // Allow a user to update/delete their own message, or an admin to moderate.
-        allow update, delete: if isSignedIn() && (isAuthor(resource.data.user.id) || isAdmin());
-      }
+
+        // Messages Subcollection
+        match /messages/{messageId} {
+            // Allow users to read messages in a chat they have access to.
+            allow read: if isAuthenticated() && (
+                (get(/databases/$(database)/documents/chats/$(chatId)).data.users == null) || // Public state chat
+                (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.users)  // Personal chat
+            );
+
+            // Allow users to write (create/update) messages if they are authenticated and it's their message.
+            allow write: if isAuthenticated() && (request.resource.data.user.id == request.auth.uid);
+        }
     }
 
-    // Offers Collection:
-    // - Allow any signed-in user to read offers.
-    // - Only allow admins to create, update, or delete offers.
+    // Offers Collection
+    // - Allow any authenticated user to read offers.
+    // - Allow only admins to write/delete offers.
     match /offers/{offerId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && isAdmin();
+      allow read: if isAuthenticated();
+      allow write, delete: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
     
-    // Inappropriate Logs Collection:
-    // Allow any signed-in user to create a log entry (done via server-side moderation flow).
-    match /inappropriate_logs/{logId} {
-      allow create: if isSignedIn();
-      allow read, update, delete: if isSignedIn() && isAdmin();
-    }
-    
-    // Flagged Content Collection (for AI training):
-    // Only allow admins to read or write to this collection.
+    // Flagged Content (for admin training)
+    // - Only admins can read or write.
     match /flagged_content/{contentId} {
-       allow read, write: if isSignedIn() && isAdmin();
+        allow read, write: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // --- Helper Functions ---
-    
-    function isPersonalChat(roomId) {
-      return roomId.matches(".*_.*");
-    }
-
-    function isUserInChat(roomId) {
-      return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
-    }
-    
-    function isAuthor(authorId) {
-        return request.auth.uid == authorId;
-    }
-    
-    function isAdmin() {
-        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    // Inappropriate Content Logs
+    // - Allow any authenticated user to create a log entry (done via server-side function).
+    // - Only admins can read/delete them.
+    match /inappropriate_logs/{logId} {
+        allow create: if isAuthenticated();
+        allow read, delete: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
