@@ -3,54 +3,56 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
-    function isAuthed() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isAuthed() && request.auth.uid == userId;
-    }
-    
-    function isAdmin() {
-      // Check for auth first to prevent errors on unauthed requests.
-      return isAuthed() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Users Collection
-    // - Anyone authenticated can read user profiles (for displaying names, avatars, etc.).
-    // - Only the user themselves can edit their own profile.
+  
+    // USERS
+    // Users can be read by any authenticated user (for profile display)
+    // but can only be written to by the user themselves.
+    // The personalChats subcollection can only be accessed by its owner.
     match /users/{userId} {
-      allow read: if isAuthed();
-      allow write: if isOwner(userId);
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
+
+      match /personalChats/{otherUserId} {
+        allow read, write: if request.auth.uid == userId;
+      }
     }
 
-    // Chats & Messages Collections
-    // The client is responsible for querying the correct chats.
-    // These rules simply allow authenticated users to access the data they query.
-    // This model is simpler and avoids complex/racy `get()` calls in rules.
-    match /chats/{roomId}/{documents=**} {
-      allow read, write: if isAuthed();
+    // CHATS & MESSAGES
+    // A user can read a chat document if it's public or if they are a member.
+    // They can read messages under the same conditions.
+    // They can write messages if authenticated (server-side logic handles which rooms).
+    match /chats/{roomId} {
+      allow read: if request.auth != null && (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users);
+      allow write: if request.auth != null;
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null && (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users);
+        allow write: if request.auth != null;
+      }
+    }
+
+    // REQUIREMENTS
+    // Readable by any authenticated user.
+    // Writable (update/delete) only by admins.
+    // Cannot be created from the client (only by backend function).
+    match /requirements/{requirementId} {
+      allow read: if request.auth != null;
+      allow create: if false;
+      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // OFFERS
+    // Readable by any authenticated user.
+    // Writable (create/update/delete) only by admins.
+    match /offers/{offerId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
     
-    // Requirements Collection
-    // - Anyone can read the requirements list.
-    // - No one can create requirements from the client-side (only the backend AI trigger can).
-    // - Only admins can update or delete requirements.
-    match /requirements/{requirementId} {
-      allow read: if isAuthed();
-      allow create: if false; 
-      allow update, delete: if isAdmin();
+    // ADMIN-ONLY COLLECTION GROUP QUERIES
+    // This allows admins to perform collectionGroup queries (e.g., for spam logs)
+    match /{path=**}/messages/{messageId} {
+      allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-
-    // Offers Collection
-    // - Anyone can read offers.
-    // - Only admins can create, update, or delete offers.
-    match /offers/{offerId} {
-      allow read: if isAuthed();
-      allow write: if isAdmin();
-    }
-
   }
 }
