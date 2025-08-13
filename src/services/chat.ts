@@ -2,8 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { categorizeMessage } from '@/ai/flows/categorize-message';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -32,7 +31,8 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     user: message.user,
     timestamp: serverTimestamp(),
   };
-
+  
+  // Set state for public chats
   const isPersonalChat = roomId.includes('_');
   if (!isPersonalChat) {
     messagePayload.state = roomId;
@@ -53,7 +53,8 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   }
 
   // 2. Save the message to Firestore.
-  const messageRef = await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
+  // The onMessageCreated trigger will handle categorization in the background.
+  await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 
   // 3. Update the last message info on the parent chat document for chat lists.
   const chatDocRef = doc(db, 'chats', roomId);
@@ -64,33 +65,6 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
       lastMessageSenderId: message.user.id
   }, { merge: true }).catch(e => console.error("Failed to update chat timestamp:", e));
 
-
-  // 4. Run AI categorization in the background ONLY for non-personal chats.
-  if (messagePayload.text && !isPersonalChat) {
-    try {
-        const categorization = await categorizeMessage({ text: messagePayload.text });
-        if (categorization && categorization.category !== 'General Chat' && categorization.category !== 'Other') {
-            const requirementData = {
-              user: messagePayload.user,
-              text: messagePayload.text,
-              state: messagePayload.state,
-              timestamp: messagePayload.timestamp,
-              category: categorization.category,
-              title: categorization.title,
-              originalMessageId: messageRef.id,
-              originalRoomId: roomId
-            };
-            await addDoc(collection(db, 'requirements'), requirementData);
-            await updateDoc(messageRef, {
-              category: categorization.category,
-              title: categorization.title,
-            });
-        }
-    } catch (err) {
-        // Log the error but do not block or fail the message sending.
-        console.error("Error during background categorization:", err);
-    }
-  }
 };
 
 
