@@ -8,7 +8,7 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc, query, orderBy, addDoc, updateDoc } from 'firebase/firestore';
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil, Upload, Image as ImageIcon, X, Megaphone, MapPin, Globe, Check } from "lucide-react";
+import { Trash2, LoaderCircle, Plus, CalendarIcon, Ticket, Pencil, Upload, Image as ImageIcon, X, Megaphone, MapPin, Copy, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -63,6 +63,9 @@ export default function OffersPage() {
   const [editValidUntil, setEditValidUntil] = useState<Date | undefined>();
   const [isPromoteDialogOpen, setIsPromoteDialogOpen] = useState(false);
 
+  // State for card flip
+  const [flippedOffers, setFlippedOffers] = useState<Set<string>>(new Set());
+
   // State for Image Upload
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -104,24 +107,18 @@ export default function OffersPage() {
   useEffect(() => {
     if (isLoading) return;
 
-    if (currentUser?.state) {
-        const userState = currentUser.state;
-        const visibleOffers = allOffers.filter(offer => {
-            if (!offer.states || offer.states.length === 0) return true;
-            if (offer.states.includes('all')) return true;
-            if (offer.states.includes(userState)) return true;
-            return false;
-        });
-        setFilteredOffers(visibleOffers);
-    } else {
-        const visibleOffers = allOffers.filter(offer => {
-             if (!offer.states || offer.states.length === 0 || offer.states.includes('all')) {
-                return true;
-            }
-            return false;
-        });
-        setFilteredOffers(visibleOffers);
-    }
+    const userState = currentUser?.state;
+    const visibleOffers = allOffers.filter(offer => {
+        if (!offer.states || offer.states.length === 0 || offer.states.includes('all')) {
+            return true;
+        }
+        if (userState && offer.states.includes(userState)) {
+            return true;
+        }
+        return false;
+    });
+    setFilteredOffers(visibleOffers);
+
   }, [allOffers, currentUser, isLoading]);
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -267,7 +264,7 @@ export default function OffersPage() {
     setIsAddOfferOpen(true);
   }
 
-const handleStateSelection = (stateValue: string, isEditing: boolean) => {
+  const handleStateSelection = (stateValue: string, isEditing: boolean) => {
     const currentStates = (isEditing ? editingOffer?.states : newOffer.states) || [];
     const setStateAction = isEditing
         ? (states: string[]) => setEditingOffer(prev => prev ? { ...prev, states } : null)
@@ -276,7 +273,7 @@ const handleStateSelection = (stateValue: string, isEditing: boolean) => {
     let newStates: string[];
 
     if (stateValue === 'all') {
-        newStates = currentStates.includes('all') ? currentStates.filter(s => s !== 'all') : ['all'];
+        newStates = currentStates.includes('all') ? [] : ['all'];
     } else {
         let filteredStates = currentStates.filter(s => s !== 'all');
         if (filteredStates.includes(stateValue)) {
@@ -291,7 +288,27 @@ const handleStateSelection = (stateValue: string, isEditing: boolean) => {
     } else {
         setStateAction(newStates);
     }
-};
+  };
+
+  const toggleCardFlip = (offerId: string) => {
+    setFlippedOffers(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(offerId)) {
+            newSet.delete(offerId);
+        } else {
+            newSet.add(offerId);
+        }
+        return newSet;
+    });
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({
+        title: "Code Copied!",
+        description: `Coupon code "${code}" has been copied to your clipboard.`,
+    });
+  }
 
 
   return (
@@ -316,81 +333,105 @@ const handleStateSelection = (stateValue: string, isEditing: boolean) => {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredOffers.map(offer => (
-            <Card key={offer.id} className="overflow-hidden flex flex-col">
-              <CardHeader className="p-0 relative">
-                <Carousel className="w-full"
-                    plugins={[autoplay.current]}
-                    onMouseEnter={autoplay.current.stop}
-                    onMouseLeave={autoplay.current.reset}
-                >
-                    <CarouselContent>
-                        {offer.images && offer.images.length > 0 ? (
-                            offer.images.map((image, index) => (
-                                <CarouselItem key={index}>
-                                    <div className="aspect-video relative">
-                                        <Image src={image} alt={`${offer.title} image ${index + 1}`} fill className="object-cover" />
-                                    </div>
-                                </CarouselItem>
-                            ))
-                        ) : (
-                             <CarouselItem>
-                                <div className="aspect-video relative">
-                                    <Image src="https://placehold.co/600x400.png" data-ai-hint="deal offer" alt="Placeholder" fill className="object-cover" />
-                                </div>
-                            </CarouselItem>
-                        )}
-                    </CarouselContent>
-                </Carousel>
-                {offer.type && <Badge className="absolute top-2 right-2 z-10">{offer.type}</Badge>}
-                 {offer.images && offer.images.length > 1 && <Badge variant="secondary" className="absolute top-2 left-2 z-10">{offer.images.length} photos</Badge>}
+            <div key={offer.id} className="perspective-1000">
+              <div className={cn("relative h-full w-full transform-style-3d transition-transform duration-700", flippedOffers.has(offer.id) && "rotate-y-180")}>
+                {/* Card Front */}
+                <div className="backface-hidden w-full h-full">
+                    <Card className="overflow-hidden flex flex-col h-full">
+                    <CardHeader className="p-0 relative">
+                        <Carousel className="w-full"
+                            plugins={[autoplay.current]}
+                            onMouseEnter={autoplay.current.stop}
+                            onMouseLeave={autoplay.current.reset}
+                        >
+                            <CarouselContent>
+                                {offer.images && offer.images.length > 0 ? (
+                                    offer.images.map((image, index) => (
+                                        <CarouselItem key={index}>
+                                            <div className="aspect-video relative">
+                                                <Image src={image} alt={`${offer.title} image ${index + 1}`} fill className="object-cover" />
+                                            </div>
+                                        </CarouselItem>
+                                    ))
+                                ) : (
+                                    <CarouselItem>
+                                        <div className="aspect-video relative">
+                                            <Image src="https://placehold.co/600x400.png" data-ai-hint="deal offer" alt="Placeholder" fill className="object-cover" />
+                                        </div>
+                                    </CarouselItem>
+                                )}
+                            </CarouselContent>
+                        </Carousel>
+                        {offer.type && <Badge className="absolute top-2 right-2 z-10">{offer.type}</Badge>}
+                        {offer.images && offer.images.length > 1 && <Badge variant="secondary" className="absolute top-2 left-2 z-10">{offer.images.length} photos</Badge>}
 
-              </CardHeader>
-              <CardContent className="p-4 flex-1">
-                <CardTitle className="text-lg">{offer.title}</CardTitle>
-                <CardDescription className="mt-1 text-sm">{offer.description}</CardDescription>
-                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                    {offer.code && (
-                        <div className="flex items-center gap-2">
-                            <Tag className="w-4 h-4"/>
-                            <span>Code: <span className="font-semibold text-foreground">{offer.code}</span></span>
+                    </CardHeader>
+                    <CardContent className="p-4 flex-1">
+                        <CardTitle className="text-lg">{offer.title}</CardTitle>
+                        <CardDescription className="mt-1 text-sm">{offer.description}</CardDescription>
+                        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                            {offer.validUntil && (
+                                <div className="flex items-center gap-2">
+                                    <CalendarIcon className="w-4 h-4"/>
+                                    <span>Valid Until: {format(new Date(offer.validUntil), "PPP")}</span>
+                                </div>
+                            )}
+                            <div className="flex items-center gap-2 pt-1">
+                                <MapPin className="w-4 h-4" />
+                                {offer.states && offer.states.length > 0 && offer.states.includes('all') ? (
+                                    <Badge variant="outline">Nationwide</Badge>
+                                ) : (
+                                    <span className="capitalize">
+                                        {offer.states?.map(s => allStates.find(as => as.value === s)?.label || s).join(', ')}
+                                    </span>
+                                )}
+                            </div>
                         </div>
-                    )}
-                    {offer.validUntil && (
-                         <div className="flex items-center gap-2">
-                            <CalendarIcon className="w-4 h-4"/>
-                            <span>Valid Until: {format(new Date(offer.validUntil), "PPP")}</span>
-                        </div>
-                    )}
-                    <div className="flex items-center gap-2 pt-1">
-                        <MapPin className="w-4 h-4" />
-                        {offer.states && offer.states.length > 0 && offer.states.includes('all') ? (
-                            <Badge variant="outline">Nationwide</Badge>
+                    </CardContent>
+                    <CardFooter className="p-2 pt-0">
+                        {currentUser?.isAdmin ? (
+                            <div className="w-full flex gap-2">
+                                <Button className="w-full" variant="outline" size="sm" onClick={() => openEditDialog(offer)}>
+                                    <Pencil className="mr-2 h-4 w-4" /> Edit
+                                </Button>
+                                <Button className="w-full" variant="destructive" size="sm" onClick={() => handleDeleteOffer(offer.id)}>
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </Button>
+                            </div>
                         ) : (
-                            <span className="capitalize">
-                                {offer.states?.map(s => allStates.find(as => as.value === s)?.label || s).join(', ')}
-                            </span>
+                            <Button className="w-full" size="sm" onClick={() => offer.code ? toggleCardFlip(offer.id) : null}>
+                            <Ticket className="mr-2 h-4 w-4" />
+                            {offer.code ? "View Deal" : "See Details"}
+                            </Button>
                         )}
-                    </div>
+                    </CardFooter>
+                    </Card>
                 </div>
-              </CardContent>
-              <CardFooter className="p-2 pt-0">
-                {currentUser?.isAdmin ? (
-                    <div className="w-full flex gap-2">
-                        <Button className="w-full" variant="outline" size="sm" onClick={() => openEditDialog(offer)}>
-                            <Pencil className="mr-2 h-4 w-4" /> Edit
-                        </Button>
-                        <Button className="w-full" variant="destructive" size="sm" onClick={() => handleDeleteOffer(offer.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </Button>
-                    </div>
-                ) : (
-                    <Button className="w-full" size="sm">
-                       <Ticket className="mr-2 h-4 w-4" />
-                       View Deal
-                    </Button>
-                )}
-              </CardFooter>
-            </Card>
+                {/* Card Back */}
+                <div className="absolute top-0 left-0 w-full h-full backface-hidden rotate-y-180">
+                     <Card className="flex flex-col h-full items-center justify-center bg-muted">
+                        <CardHeader>
+                            <CardTitle>Coupon Code</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-center">
+                            <div className="border-2 border-dashed border-primary/50 bg-background rounded-md p-4 mb-4">
+                                <p className="text-2xl font-bold tracking-widest text-primary">{offer.code}</p>
+                            </div>
+                             <Button onClick={() => handleCopyCode(offer.code || '')}>
+                                <Copy className="mr-2 h-4 w-4"/>
+                                Copy Code
+                             </Button>
+                        </CardContent>
+                        <CardFooter>
+                             <Button variant="outline" onClick={() => toggleCardFlip(offer.id)}>
+                                <RotateCcw className="mr-2 h-4 w-4"/>
+                                Flip Back
+                             </Button>
+                        </CardFooter>
+                    </Card>
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -461,26 +502,26 @@ const handleStateSelection = (stateValue: string, isEditing: boolean) => {
                                 </PopoverContent>
                             </Popover>
                         </div>
-                        <div className="grid gap-2">
-                          <Label>Available States</Label>
-                           <Popover>
-                                <PopoverTrigger asChild>
+                         <div className="grid gap-2">
+                            <Label>Available States</Label>
+                             <Popover>
+                                 <PopoverTrigger asChild>
                                   <Button variant="outline" className="justify-start w-full">
-                                    {newOffer.states?.includes('all') ? 'All States' : `${newOffer.states?.length} states selected`}
+                                    {newOffer.states?.includes('all') ? 'All States' : `${newOffer.states?.length || 0} states selected`}
                                   </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-[300px] p-0">
-                                    <ScrollArea className="h-48">
-                                        <div className="p-4">
-                                            <div className="flex items-center space-x-2 mb-2">
-                                                <Checkbox
-                                                    id="all-states-add"
-                                                    checked={newOffer.states?.includes('all')}
-                                                    onCheckedChange={() => handleStateSelection('all', false)}
-                                                />
-                                                <Label htmlFor="all-states-add" className="font-semibold">All States</Label>
-                                            </div>
-                                            <hr className="my-2" />
+                                     <div className="p-4">
+                                        <div className="flex items-center space-x-2 mb-2">
+                                            <Checkbox
+                                                id="all-states-add"
+                                                checked={newOffer.states?.includes('all')}
+                                                onCheckedChange={() => handleStateSelection('all', false)}
+                                            />
+                                            <Label htmlFor="all-states-add" className="font-semibold">All States</Label>
+                                        </div>
+                                        <hr className="my-2" />
+                                        <ScrollArea className="h-40">
                                             {allStates.map(state => (
                                                 <div key={state.value} className="flex items-center space-x-2 mt-1">
                                                     <Checkbox
@@ -492,8 +533,8 @@ const handleStateSelection = (stateValue: string, isEditing: boolean) => {
                                                     <Label htmlFor={`add-${state.value}`}>{state.label}</Label>
                                                 </div>
                                             ))}
-                                        </div>
-                                    </ScrollArea>
+                                        </ScrollArea>
+                                    </div>
                                 </PopoverContent>
                            </Popover>
                         </div>
@@ -617,21 +658,21 @@ const handleStateSelection = (stateValue: string, isEditing: boolean) => {
                            <Popover>
                                <PopoverTrigger asChild>
                                 <Button variant="outline" className="justify-start w-full">
-                                    {editingOffer.states?.includes('all') ? 'All States' : `${editingOffer.states?.length} states selected`}
+                                    {editingOffer.states?.includes('all') ? 'All States' : `${editingOffer.states?.length || 0} states selected`}
                                 </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-[300px] p-0">
-                                    <ScrollArea className="h-48">
-                                        <div className="p-4">
-                                            <div className="flex items-center space-x-2 mb-2">
-                                                <Checkbox
-                                                    id="all-states-edit"
-                                                    checked={editingOffer.states?.includes('all')}
-                                                    onCheckedChange={() => handleStateSelection('all', true)}
-                                                />
-                                                <Label htmlFor="all-states-edit" className="font-semibold">All States</Label>
-                                            </div>
-                                            <hr className="my-2" />
+                                     <div className="p-4">
+                                        <div className="flex items-center space-x-2 mb-2">
+                                            <Checkbox
+                                                id="all-states-edit"
+                                                checked={editingOffer.states?.includes('all')}
+                                                onCheckedChange={() => handleStateSelection('all', true)}
+                                            />
+                                            <Label htmlFor="all-states-edit" className="font-semibold">All States</Label>
+                                        </div>
+                                        <hr className="my-2" />
+                                        <ScrollArea className="h-40">
                                             {allStates.map(state => (
                                                 <div key={state.value} className="flex items-center space-x-2 mt-1">
                                                     <Checkbox
@@ -643,8 +684,8 @@ const handleStateSelection = (stateValue: string, isEditing: boolean) => {
                                                     <Label htmlFor={`edit-${state.value}`}>{state.label}</Label>
                                                 </div>
                                             ))}
-                                        </div>
-                                    </ScrollArea>
+                                        </ScrollArea>
+                                    </div>
                                 </PopoverContent>
                            </Popover>
                         </div>
