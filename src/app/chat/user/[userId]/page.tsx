@@ -10,11 +10,12 @@ import { useRouter, useParams } from 'next/navigation';
 import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { getMessages, sendMessage, Message, getPersonalChatRoomId } from "@/services/chat";
+import { getMessages, sendMessage, getPersonalChatRoomId } from "@/services/chat";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Message } from "@/services/chat";
 
 export default function PersonalChatPage() {
   const router = useRouter();
@@ -34,23 +35,25 @@ export default function PersonalChatPage() {
 
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchUsersAndRoom = async () => {
       const user = await getCurrentUser() as any;
       if (user) {
         const profile = await getUserProfile(user.uid);
         setCurrentUser(profile);
         const otherProfile = await getUserProfile(otherUserId);
         setOtherUser(otherProfile);
-        const personalRoomId = getPersonalChatRoomId(user.uid, otherUserId);
-        setRoomId(personalRoomId);
-        // Mark chat as read when opening
-        localStorage.setItem(`read_${personalRoomId}`, 'true');
+
+        if (profile && otherProfile) {
+            const personalRoomId = await getPersonalChatRoomId(user.uid, otherUserId);
+            setRoomId(personalRoomId);
+        }
+        
       } else {
         router.push('/');
       }
     };
     if (otherUserId) {
-        fetchUsers();
+        fetchUsersAndRoom();
     }
   }, [router, otherUserId]);
 

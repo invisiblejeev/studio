@@ -16,7 +16,11 @@ import type { Message } from "@/services/chat";
 
 
 interface ChatContact {
-    user: UserProfile;
+    user: {
+        uid: string;
+        username: string;
+        avatar: string;
+    };
     lastMessage: string;
     time: string;
     unread: number;
@@ -29,6 +33,8 @@ export default function PersonalChatsListPage() {
     const [chats, setChats] = useState<ChatContact[]>([]);
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const messageListeners: (() => void)[] = [];
+
 
     useEffect(() => {
         const fetchUserAndChats = async () => {
@@ -38,75 +44,83 @@ export default function PersonalChatsListPage() {
             const profile = await getUserProfile(user.uid);
             setCurrentUser(profile);
             
-            // Fetch chats after user is set
             if (profile) {
-                const chatsCollectionRef = collection(db, "chats");
-                const chatsSnapshot = await getDocs(chatsCollectionRef);
-                const chatPromises: Promise<ChatContact | null>[] = [];
+                const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
+                const q = query(personalChatsRef);
 
-                for (const chatDoc of chatsSnapshot.docs) {
-                    const roomId = chatDoc.id;
-                    if (roomId.includes(profile.uid) && roomId.includes('_')) {
-                        const otherUserId = roomId.replace(profile.uid, '').replace('_', '');
-                        if (!otherUserId) continue;
-
-                        const promise = (async () => {
-                            const otherUser = await getUserProfile(otherUserId);
-                            if (!otherUser) return null;
-
-                            const messagesCollection = collection(db, 'chats', roomId, 'messages');
-                            const q = query(messagesCollection, orderBy("timestamp", "desc"), limit(1));
-                            const messageSnapshot = await getDocs(q);
-
-                            if (messageSnapshot.empty) {
-                               return {
-                                    user: otherUser,
-                                    lastMessage: "No messages yet",
-                                    time: '',
-                                    unread: 0,
-                                    timestamp: null,
-                                    roomId: roomId
-                               };
-                            }
-                            
-                            const lastMessageDoc = messageSnapshot.docs[0];
-                            const lastMessage = lastMessageDoc.data() as Message;
-                            const timestamp = lastMessage.timestamp?.toDate ? lastMessage.timestamp.toDate() : new Date();
-
-                            const unread = 0; // Simplified unread logic
-
-                            return {
-                                user: otherUser,
-                                lastMessage: lastMessage.text || (lastMessage.imageUrl ? "Image" : "No messages yet"),
-                                time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                                unread: unread,
-                                timestamp: timestamp,
-                                roomId: roomId
-                            };
-                        })();
-                        chatPromises.push(promise);
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    if (snapshot.empty) {
+                        setChats([]);
+                        setIsLoading(false);
+                        return;
                     }
+
+                    // Clear previous message listeners
+                    messageListeners.forEach(unsub => unsub());
+                    messageListeners.length = 0;
+
+                    const chatPromises = snapshot.docs.map(docData => {
+                        const chatInfo = docData.data();
+                        const roomId = chatInfo.roomId;
+                        
+                        return new Promise<ChatContact>(resolve => {
+                            const messagesCollection = collection(db, 'chats', roomId, 'messages');
+                            const q2 = query(messagesCollection, orderBy("timestamp", "desc"), limit(1));
+
+                            const messageUnsubscribe = onSnapshot(q2, messageSnapshot => {
+                                let lastMessage: Message | null = null;
+                                if (!messageSnapshot.empty) {
+                                    lastMessage = messageSnapshot.docs[0].data() as Message;
+                                }
+
+                                const timestamp = lastMessage?.timestamp?.toDate ? lastMessage.timestamp.toDate() : new Date(0);
+                                
+                                resolve({
+                                    user: chatInfo.withUser,
+                                    lastMessage: lastMessage?.text || (lastMessage?.imageUrl ? "Image" : "No messages yet"),
+                                    time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+                                    unread: 0, // Simplified
+                                    timestamp: timestamp,
+                                    roomId: roomId,
+                                });
+                            });
+                             messageListeners.push(messageUnsubscribe);
+                        });
+                    });
+
+                    Promise.all(chatPromises).then(resolvedChats => {
+                        resolvedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
+                        setChats(resolvedChats);
+                        setIsLoading(false);
+                    });
+                });
+                return () => {
+                    unsubscribe();
+                    messageListeners.forEach(unsub => unsub());
                 }
-
-                const resolvedChats = (await Promise.all(chatPromises)).filter(Boolean) as ChatContact[];
-                resolvedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
-                setChats(resolvedChats);
             }
-
           } else {
             router.push('/');
+            setIsLoading(false);
           }
-          setIsLoading(false);
         };
-        fetchUserAndChats();
+
+        const unsubscribe = fetchUserAndChats();
+        
+        return () => {
+             // @ts-ignore
+            if (unsubscribe && typeof unsubscribe === 'function') {
+                 // @ts-ignore
+                unsubscribe();
+            }
+            messageListeners.forEach(unsub => unsub());
+        }
+
     }, [router]);
 
 
-    const handleChatClick = (roomId: string) => {
-        if (currentUser) {
-            const otherUserId = roomId.replace(currentUser.uid, '').replace('_', '');
-            router.push(`/chat/user/${otherUserId}`);
-        }
+    const handleChatClick = (userId: string) => {
+        router.push(`/chat/user/${userId}`);
     }
 
 
@@ -131,7 +145,7 @@ export default function PersonalChatsListPage() {
                     </div>
                 ) : (
                     chats.map(chat => (
-                        <div key={chat.user.uid} onClick={() => handleChatClick(chat.roomId)} className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 cursor-pointer">
+                        <div key={chat.user.uid} onClick={() => handleChatClick(chat.user.uid)} className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 cursor-pointer">
                             <Avatar className="h-12 w-12">
                                 <AvatarImage src={chat.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                                 <AvatarFallback>{chat.user.username.charAt(0)}</AvatarFallback>
@@ -139,7 +153,7 @@ export default function PersonalChatsListPage() {
                             <div className="flex-1 flex justify-between items-start">
                                 <div className="flex-1">
                                     <p className="font-semibold">{chat.user.username}</p>
-                                    <p className={cn("text-sm text-muted-foreground truncate mt-1", chat.unread > 0 && "font-bold text-foreground")}>
+                                    <p className={cn("text-sm text-muted-foreground truncate mt-1 max-w-[200px] md:max-w-xs", chat.unread > 0 && "font-bold text-foreground")}>
                                         {chat.lastMessage}
                                     </p>
                                 </div>
