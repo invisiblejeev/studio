@@ -78,7 +78,6 @@ export default function AdminDashboardPage() {
                 const spamQuery = query(
                     collectionGroup(db, 'messages'), 
                     where('isSpam', '==', true), 
-                    orderBy('timestamp', 'desc'), 
                     limit(10)
                 );
                 
