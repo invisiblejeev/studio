@@ -13,6 +13,7 @@ import { collection, query, where, getDocs, orderBy, limit, onSnapshot, collecti
 import { getUserProfile, UserProfile } from "@/services/users";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/services/chat";
+import { format } from 'date-fns';
 
 
 interface ChatContact {
@@ -39,58 +40,58 @@ export default function PersonalChatsListPage() {
         const fetchUserAndChats = async () => {
           setIsLoading(true);
           const user = await getCurrentUser();
-          if (user) {
-            const profile = await getUserProfile(user.uid);
-            setCurrentUser(profile);
-            
-            if (profile) {
-                const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
-                const q = query(personalChatsRef);
-
-                const unsubscribe = onSnapshot(q, async (snapshot) => {
-                    const chatPromises = snapshot.docs.map(async (docData) => {
-                        const chatInfo = docData.data();
-                        const roomId = chatInfo.roomId;
-                        
-                        const messagesCollection = collection(db, 'chats', roomId, 'messages');
-                        const q2 = query(messagesCollection, orderBy("timestamp", "desc"), limit(1));
-                        
-                        const messageSnapshot = await getDocs(q2);
-                        let lastMessage: Message | null = null;
-                        if (!messageSnapshot.empty) {
-                            const doc = messageSnapshot.docs[0];
-                            const data = doc.data();
-                            const timestamp = data.timestamp?.toDate ? data.timestamp.toDate() : new Date(0);
-                            lastMessage = {
-                                ...data,
-                                id: doc.id,
-                                time: timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                                timestamp,
-                            } as Message;
-                        }
-
-                        const timestamp = lastMessage?.timestamp || new Date(0);
-                        
-                        return {
-                            user: chatInfo.withUser,
-                            lastMessage: lastMessage?.text || (lastMessage?.imageUrl ? "Image" : "No messages yet"),
-                            time: lastMessage ? lastMessage.time : '',
-                            unread: 0, // Simplified for now
-                            timestamp: timestamp,
-                            roomId: roomId,
-                        };
-                    });
-
-                    const resolvedChats = await Promise.all(chatPromises);
-                    resolvedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
-                    setChats(resolvedChats);
-                    setIsLoading(false);
-                });
-                return unsubscribe;
-            }
-          } else {
+          if (!user) {
             router.push('/');
             setIsLoading(false);
+            return;
+          }
+          
+          const profile = await getUserProfile(user.uid);
+          setCurrentUser(profile);
+            
+          if (profile) {
+              const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
+              const q = query(personalChatsRef);
+
+              const unsubscribe = onSnapshot(q, async (snapshot) => {
+                  const chatPromises = snapshot.docs.map(async (docData) => {
+                      const chatInfo = docData.data();
+                      const roomId = chatInfo.roomId;
+                      
+                      // Fetch the parent chat document which now contains last message info
+                      const chatDocRef = doc(db, 'chats', roomId);
+                      const chatDocSnap = await getDoc(chatDocRef);
+                      
+                      let lastMessageText = "No messages yet";
+                      let lastMessageTimestamp: Date | null = null;
+                      
+                      if (chatDocSnap.exists()) {
+                          const chatData = chatDocSnap.data();
+                          lastMessageText = chatData.lastMessage || (chatData.lastMessageSenderId ? "Image" : "No messages yet");
+                          lastMessageTimestamp = chatData.lastMessageTimestamp?.toDate() || new Date(0);
+                      }
+                      
+                      return {
+                          user: chatInfo.withUser,
+                          lastMessage: lastMessageText,
+                          time: lastMessageTimestamp ? format(lastMessageTimestamp, 'p') : '',
+                          unread: 0, // Simplified for now
+                          timestamp: lastMessageTimestamp,
+                          roomId: roomId,
+                      };
+                  });
+
+                  const resolvedChats = await Promise.all(chatPromises);
+                  resolvedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
+                  setChats(resolvedChats);
+                  setIsLoading(false);
+              }, (error) => {
+                  console.error("Error fetching personal chats:", error);
+                  toast({ title: "Error", description: "Could not fetch personal chats. Check permissions.", variant: "destructive"});
+                  setIsLoading(false);
+              });
+
+              return unsubscribe;
           }
         };
 
