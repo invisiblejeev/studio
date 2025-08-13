@@ -12,7 +12,8 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile, getUserCountByState } from "@/services/users";
-import { getMessages, sendMessage, Message } from "@/services/chat";
+import { sendMessage, Message } from "@/services/chat";
+import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -271,5 +272,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
-    
