@@ -8,7 +8,7 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc, query, orderBy, addDoc, updateDoc } from 'firebase/firestore';
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil, Upload, Image as ImageIcon, X } from "lucide-react";
+import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil, Upload, Image as ImageIcon, X, Megaphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,7 @@ export default function OffersPage() {
   const [isEditOfferOpen, setIsEditOfferOpen] = useState(false);
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
   const [editValidUntil, setEditValidUntil] = useState<Date | undefined>();
+  const [isPromoteDialogOpen, setIsPromoteDialogOpen] = useState(false);
 
   // State for Image Upload
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -327,10 +328,8 @@ export default function OffersPage() {
         </div>
       )}
 
-      {currentUser?.isAdmin && (
-        <>
-            {/* Add Offer Dialog */}
-            <Dialog open={isAddOfferOpen} onOpenChange={setIsAddOfferOpen}>
+        {currentUser?.isAdmin ? (
+             <Dialog open={isAddOfferOpen} onOpenChange={setIsAddOfferOpen}>
                 <DialogTrigger asChild>
                     <Button onClick={openAddDialog} className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg z-30 md:bottom-8 md:right-8">
                         <Plus className="h-6 w-6" />
@@ -423,106 +422,130 @@ export default function OffersPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+        ) : (
+            <Dialog open={isPromoteDialogOpen} onOpenChange={setIsPromoteDialogOpen}>
+                <DialogTrigger asChild>
+                     <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg z-30 md:bottom-8 md:right-8 flex items-center justify-center">
+                        <Megaphone className="h-6 w-6" />
+                    </Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Promote Your Business</DialogTitle>
+                        <DialogDescription>
+                            Want to feature your coupon or offer here? Contact an administrator to get it listed.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p>To have your offer or coupon added to the Indian Community Chat app, please send an email with the details of your offer to:</p>
+                        <p className="font-semibold my-2 text-center text-lg">admin@indiancommunity.com</p>
+                        <p>An administrator will review your submission and add it to the page if it's a good fit for our community.</p>
+                    </div>
+                    <DialogFooter>
+                        <Button onClick={() => setIsPromoteDialogOpen(false)}>Close</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        )}
 
-            {/* Edit Offer Dialog */}
-            {editingOffer && (
-                 <Dialog open={isEditOfferOpen} onOpenChange={setIsEditOfferOpen}>
-                    <DialogContent className="sm:max-w-[480px]">
-                        <DialogHeader>
-                            <DialogTitle>Edit Offer</DialogTitle>
-                            <DialogDescription>Update the details for this offer.</DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
-                            <div className="grid gap-2">
-                                <Label htmlFor="title-edit">Title</Label>
-                                <Input id="title-edit" value={editingOffer.title} onChange={(e) => setEditingOffer({...editingOffer, title: e.target.value})} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="description-edit">Description</Label>
-                                <Textarea id="description-edit" value={editingOffer.description} onChange={(e) => setEditingOffer({...editingOffer, description: e.target.value})} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="code-edit">Coupon Code</Label>
-                                    <Input id="code-edit" placeholder="e.g., DIWALI20" value={editingOffer.code || ''} onChange={(e) => setEditingOffer({...editingOffer, code: e.target.value})} />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="type-edit">Offer Type</Label>
-                                    <Select onValueChange={(value) => setEditingOffer({...editingOffer, type: value})} value={editingOffer.type || ''}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select Type" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Discount">Discount</SelectItem>
-                                            <SelectItem value="Deal">Deal</SelectItem>
-                                            <SelectItem value="Service">Service</SelectItem>
-                                            <SelectItem value="Other">Other</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label>Valid Until</Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                    <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                        "justify-start text-left font-normal",
-                                        !editValidUntil && "text-muted-foreground"
-                                        )}
-                                    >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {editValidUntil ? format(editValidUntil, "PPP") : <span>Pick a date</span>}
-                                    </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
-                                        <Calendar
-                                            mode="single"
-                                            selected={editValidUntil}
-                                            onSelect={setEditValidUntil}
-                                            initialFocus
-                                        />
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label>Offer Images</Label>
-                                <div className="flex flex-wrap gap-2">
-                                    {(editingOffer.images || []).map((image, index) => (
-                                        <div key={`existing-${index}`} className="relative w-20 h-20">
-                                            <Image src={image} alt={`existing offer image ${index}`} layout="fill" className="rounded-md object-cover" />
-                                            <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeImage(index, true)}>
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                    {imagePreviews.map((preview, index) => (
-                                        <div key={`new-${index}`} className="relative w-20 h-20">
-                                            <Image src={preview} alt={`new preview ${index}`} layout="fill" className="rounded-md object-cover" />
-                                            <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeUploadedImage(index)}>
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                                <Button variant="outline" className="mt-2" onClick={() => fileInputRef.current?.click()}>
-                                    <Upload className="mr-2 h-4 w-4" /> Add More Images
-                                </Button>
-                                <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => { setIsEditOfferOpen(false); resetDialogState(); }} disabled={isSaving}>Cancel</Button>
-                            <Button onClick={handleEditOffer} disabled={isSaving}>
-                                {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Changes"}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            )}
-        </>
-      )}
+      {currentUser?.isAdmin && editingOffer && (
+            <Dialog open={isEditOfferOpen} onOpenChange={setIsEditOfferOpen}>
+              <DialogContent className="sm:max-w-[480px]">
+                  <DialogHeader>
+                      <DialogTitle>Edit Offer</DialogTitle>
+                      <DialogDescription>Update the details for this offer.</DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
+                      <div className="grid gap-2">
+                          <Label htmlFor="title-edit">Title</Label>
+                          <Input id="title-edit" value={editingOffer.title} onChange={(e) => setEditingOffer({...editingOffer, title: e.target.value})} />
+                      </div>
+                      <div className="grid gap-2">
+                          <Label htmlFor="description-edit">Description</Label>
+                          <Textarea id="description-edit" value={editingOffer.description} onChange={(e) => setEditingOffer({...editingOffer, description: e.target.value})} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                              <Label htmlFor="code-edit">Coupon Code</Label>
+                              <Input id="code-edit" placeholder="e.g., DIWALI20" value={editingOffer.code || ''} onChange={(e) => setEditingOffer({...editingOffer, code: e.target.value})} />
+                          </div>
+                          <div className="grid gap-2">
+                              <Label htmlFor="type-edit">Offer Type</Label>
+                              <Select onValueChange={(value) => setEditingOffer({...editingOffer, type: value})} value={editingOffer.type || ''}>
+                                  <SelectTrigger>
+                                      <SelectValue placeholder="Select Type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                      <SelectItem value="Discount">Discount</SelectItem>
+                                      <SelectItem value="Deal">Deal</SelectItem>
+                                      <SelectItem value="Service">Service</SelectItem>
+                                      <SelectItem value="Other">Other</SelectItem>
+                                  </SelectContent>
+                              </Select>
+                          </div>
+                      </div>
+                      <div className="grid gap-2">
+                          <Label>Valid Until</Label>
+                          <Popover>
+                              <PopoverTrigger asChild>
+                              <Button
+                                  variant={"outline"}
+                                  className={cn(
+                                  "justify-start text-left font-normal",
+                                  !editValidUntil && "text-muted-foreground"
+                                  )}
+                              >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {editValidUntil ? format(editValidUntil, "PPP") : <span>Pick a date</span>}
+                              </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                  <Calendar
+                                      mode="single"
+                                      selected={editValidUntil}
+                                      onSelect={setEditValidUntil}
+                                      initialFocus
+                                  />
+                              </PopoverContent>
+                          </Popover>
+                      </div>
+                      <div className="grid gap-2">
+                          <Label>Offer Images</Label>
+                          <div className="flex flex-wrap gap-2">
+                              {(editingOffer.images || []).map((image, index) => (
+                                  <div key={`existing-${index}`} className="relative w-20 h-20">
+                                      <Image src={image} alt={`existing offer image ${index}`} layout="fill" className="rounded-md object-cover" />
+                                      <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeImage(index, true)}>
+                                          <X className="h-4 w-4" />
+                                      </Button>
+                                  </div>
+                              ))}
+                              {imagePreviews.map((preview, index) => (
+                                  <div key={`new-${index}`} className="relative w-20 h-20">
+                                      <Image src={preview} alt={`new preview ${index}`} layout="fill" className="rounded-md object-cover" />
+                                      <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeUploadedImage(index)}>
+                                          <X className="h-4 w-4" />
+                                      </Button>
+                                  </div>
+                              ))}
+                          </div>
+                          <Button variant="outline" className="mt-2" onClick={() => fileInputRef.current?.click()}>
+                              <Upload className="mr-2 h-4 w-4" /> Add More Images
+                          </Button>
+                          <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
+                      </div>
+                  </div>
+                  <DialogFooter>
+                      <Button variant="outline" onClick={() => { setIsEditOfferOpen(false); resetDialogState(); }} disabled={isSaving}>Cancel</Button>
+                      <Button onClick={handleEditOffer} disabled={isSaving}>
+                          {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Changes"}
+                      </Button>
+                  </DialogFooter>
+              </DialogContent>
+            </Dialog>
+        )}
     </div>
   )
 }
+
+    
