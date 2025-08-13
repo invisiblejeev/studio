@@ -96,12 +96,12 @@ export const onPersonalMessageCreated = onDocumentCreated(
         
         // Use FieldValue.increment to atomically update the count.
         // Also update the last message details for the recipient's chat list.
-        await recipientChatRef.update({
+        await recipientChatRef.set({
             unreadCount: FieldValue.increment(1),
             lastMessage: message.text || (message.imageUrl ? "Image" : ""),
             lastMessageTimestamp: message.timestamp,
             lastMessageSenderId: senderId
-        }).catch(err => {
+        }, { merge: true }).catch(err => {
             // It's possible the document doesn't exist yet if this is the very first message.
             // In a production app, we might use a transaction to create if not exists.
             // For now, we log the error if it's not a 'not-found' error.
@@ -112,7 +112,7 @@ export const onPersonalMessageCreated = onDocumentCreated(
 
         console.log(`Updated unread count and last message for user ${recipientId} in chat with ${senderId}`);
       }
-    } catch (err) {
+    } catch (err)      {
       console.error('Error during personal message trigger:', err);
     }
   }

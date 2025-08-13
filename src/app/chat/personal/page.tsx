@@ -3,10 +3,9 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ArrowLeft, LoaderCircle } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { db } from "@/lib/firebase";
 import { collection, query, onSnapshot, doc, updateDoc, orderBy, Unsubscribe } from "firebase/firestore";
@@ -52,7 +51,7 @@ export default function PersonalChatsListPage() {
                 const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
                 const q = query(personalChatsRef, orderBy("lastMessageTimestamp", "desc"));
 
-                const unsubscribe = onSnapshot(q, async (snapshot) => {
+                const unsubscribe = onSnapshot(q, (snapshot) => {
                     const chatsData = snapshot.docs.map(docSnap => {
                         const chatInfo = docSnap.data();
                         const lastMessageTimestamp = chatInfo.lastMessageTimestamp?.toDate() || null;
@@ -76,6 +75,8 @@ export default function PersonalChatsListPage() {
                 });
                 
                 unsubscriberRef.current = unsubscribe;
+            } else {
+                setIsLoading(false);
             }
         };
 
