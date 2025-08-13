@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle } from 'lucide-react';
+import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle, Flag } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { flagContent } from '@/services/admin';
 
 const categoryConfig: Record<Category, { icon: React.ElementType, color: string }> = {
     "Jobs": { icon: Briefcase, color: "bg-blue-100 text-blue-800" },
@@ -42,7 +43,7 @@ interface Requirement extends Message {
     userInfo?: UserProfile;
 }
 
-const RequirementCard = ({ req, currentUser, onDelete, onEdit }: { req: Requirement, currentUser: UserProfile | null, onDelete: (req: Requirement) => void, onEdit: (req: Requirement) => void }) => {
+const RequirementCard = ({ req, currentUser, onDelete, onEdit, onFlag }: { req: Requirement, currentUser: UserProfile | null, onDelete: (req: Requirement) => void, onEdit: (req: Requirement) => void, onFlag: (req: Requirement) => void }) => {
     const { icon: Icon, color } = categoryConfig[req.category] || categoryConfig["Other"];
     const stateName = allStates.find(s => s.value === req.userInfo?.state)?.label || req.userInfo?.state || '';
     const router = useRouter();
@@ -66,6 +67,14 @@ const RequirementCard = ({ req, currentUser, onDelete, onEdit }: { req: Requirem
             <CardContent className="p-4 pb-2 flex-1">
                  {currentUser?.isAdmin && (
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-7 w-7 bg-white"
+                            onClick={() => onFlag(req)}
+                        >
+                            <Flag className="h-4 w-4 text-orange-500" />
+                        </Button>
                         <Button 
                             variant="outline" 
                             size="icon" 
@@ -245,6 +254,24 @@ export default function RequirementsPage() {
         }
     }
 
+    const handleFlagRequirement = async (reqToFlag: Requirement) => {
+        if (!currentUser?.isAdmin || !reqToFlag.text) return;
+        try {
+            await flagContent(reqToFlag.text, currentUser.uid);
+            toast({
+                title: 'Content Flagged',
+                description: 'This content has been flagged for AI training.',
+            });
+        } catch (error) {
+            console.error('Error flagging requirement:', error);
+            toast({
+                title: 'Error',
+                description: 'Could not flag the content. Please try again.',
+                variant: 'destructive',
+            });
+        }
+    };
+
     const openEditDialog = (req: Requirement) => {
         setEditingRequirement(req);
         setIsEditDialogOpen(true);
@@ -313,7 +340,7 @@ export default function RequirementsPage() {
             ) : (
                 filteredRequirements.length > 0 ? (
                     <div className="space-y-4">
-                        {filteredRequirements.map(req => <RequirementCard key={req.id} req={req} currentUser={currentUser} onDelete={handleDeleteRequirement} onEdit={openEditDialog} />)}
+                        {filteredRequirements.map(req => <RequirementCard key={req.id} req={req} currentUser={currentUser} onDelete={handleDeleteRequirement} onEdit={openEditDialog} onFlag={handleFlagRequirement} />)}
                     </div>
                 ) : (
                     <div className="text-center text-muted-foreground py-10">

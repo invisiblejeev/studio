@@ -2,6 +2,8 @@
 import { db } from '@/lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { categorizeMessage } from '@/ai/flows/categorize-message';
+import { moderateMessage } from '@/ai/flows/moderate-message';
+import { getFlaggedContent } from '@/services/admin';
 
 export interface Message {
   id: string;
@@ -37,12 +39,40 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     console.log("Attempted to send an empty message. Aborting.");
     return;
   }
+  
+  // Moderation check before sending
+  const isPersonalChat = roomId.includes('_');
+  if (messagePayload.text && !isPersonalChat) {
+      try {
+          const flaggedContent = await getFlaggedContent();
+          const examples = flaggedContent.map(item => item.text);
+
+          const moderationResult = await moderateMessage({
+              message: messagePayload.text,
+              examples: examples,
+          });
+
+          if (moderationResult.is_inappropriate) {
+              console.log("Message flagged as inappropriate and not sent:", messagePayload.text);
+              // Log the inappropriate message for admin review
+              await addDoc(collection(db, 'inappropriate_logs'), {
+                  ...messagePayload,
+                  reason: moderationResult.reason,
+                  timestamp: serverTimestamp(),
+              });
+              // Optionally, inform the user their message was blocked
+              return; // Stop the message from being sent
+          }
+      } catch (e) {
+          console.error("Error during message moderation, sending message anyway.", e);
+      }
+  }
+
 
   // 1. Immediately add the message to the database for a fast user experience.
   const messageRef = await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 
   // 2. For public channels (not personal chats), categorize in the background if there's text.
-  const isPersonalChat = roomId.includes('_');
   if (messagePayload.text && !isPersonalChat) {
       // Don't await this, let it run in the background
       categorizeMessage({ text: messagePayload.text })
