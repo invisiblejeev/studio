@@ -10,7 +10,10 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { categorizeMessage } from '@/ai/flows/categorize-message';
 
-initializeApp();
+// Initialize the Admin SDK if it hasn't been already.
+if (!getApps().length) {
+  initializeApp();
+}
 const db = getFirestore();
 
 // This trigger runs whenever a new message is created in any chat room.
@@ -26,7 +29,7 @@ export const onMessageCreated = onDocumentCreated(
     const message = snap.data();
     const roomId = event.params.roomId;
 
-    // Do not process messages from personal chats or messages without text.
+    // Do not process messages from personal chats (which contain an underscore) or messages without text.
     if (roomId.includes('_') || !message.text) {
       return;
     }
@@ -50,6 +53,7 @@ export const onMessageCreated = onDocumentCreated(
           originalMessageId: snap.id,
           originalRoomId: roomId,
         };
+        // This write is performed with admin privileges via the Cloud Function, bypassing client-side security rules.
         await db.collection('requirements').add(requirementData);
         console.log(`Created requirement: ${categorization.title}`);
       }
