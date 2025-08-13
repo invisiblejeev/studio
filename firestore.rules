@@ -1,59 +1,80 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users:
-    // - Anyone can read public user data (for displaying names, avatars etc.)
-    // - A user can only write to their own profile.
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId;
+    // Helper function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
 
-      // Personal Chats Subcollection:
-      // - A user can only access their own list of personal chats.
+    // Helper function to check if the user is an admin
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Users can only read/write their own profile. Admins can read any profile.
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if request.auth.uid == userId || isAdmin();
+
+      // Rules for the personalChats subcollection
       match /personalChats/{otherUserId} {
-        allow read, write: if request.auth.uid == userId;
+        // Allow creating a chat reference if the user is part of the chat.
+        // The resource.data is the data that WILL exist after the write.
+        allow create: if isAuthenticated() && request.auth.uid == userId;
+
+        // Allow reading own chat list
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+
+        // No updates or deletes for now to keep it simple
+        allow update, delete: if false;
       }
     }
+    
+    // Chat rooms
+    match /chats/{roomId} {
+        allow read: if isAuthenticated();
+        // Allow writing to a chat room if it's a state chat and the user is an admin or belongs to that state,
+        // or if it's a personal chat and the user is one of the two participants.
+        allow write: if isAuthenticated() && 
+                    (
+                      (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.state == roomId && !roomId.includes('_')) ||
+                      (roomId.includes(request.auth.uid)) ||
+                      isAdmin()
+                    );
+        
+        match /messages/{messageId} {
+            allow read: if isAuthenticated();
+            // Allow creating messages if the user has write access to the parent chat room.
+            allow create: if isAuthenticated() && 
+                    (
+                      (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.state == roomId && !roomId.includes('_')) ||
+                      (roomId.includes(request.auth.uid)) ||
+                      isAdmin()
+                    );
 
-    // Chats:
-    // - Any authenticated user can read from any chat room. This is necessary for the
-    //   Requirements page and for fetching user info across chats.
-    // - Write access is controlled:
-    //   - For state chats (e.g., /chats/california), you must be in that state or be an admin.
-    //   - For personal chats (e.g., /chats/uid1_uid2), you must be one of the two users in the chat.
-    match /chats/{roomId}/{message=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && (
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.state == roomId) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true) ||
-        (request.auth.uid in roomId.split('_'))
-      );
+            // Only admins can update/delete messages.
+            allow update, delete: if isAdmin();
+        }
+    }
+
+    // Offers can be read by anyone, but only modified by admins.
+    match /offers/{offerId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Flagged content can be read by any authenticated user for moderation checks, but only written by admins.
+    match /flagged_content/{contentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
-    // Offers:
-    // - Anyone can read offers.
-    // - Only admins can create, update, or delete offers.
-    match /offers/{offerId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Flagged Content (for AI moderation training):
-    // - Any authenticated user can read this list (for moderation checks).
-    // - Only admins can write to this list.
-    match /flagged_content/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Inappropriate Logs:
-    // - Only admins can read or write these logs.
+     // Inappropriate logs can only be created by the server-side logic (which runs with admin-like privileges) or admins, and read only by admins.
     match /inappropriate_logs/{logId} {
-      allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        allow read, write: if isAdmin();
     }
   }
 }
