@@ -21,13 +21,15 @@ export interface Message {
   timestamp: any;
   category?: string;
   title?: string;
+  isSpam?: boolean;
+  reason?: string;
 }
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
-  // Base payload with user and timestamp.
+  // 1. Construct the basic message payload
   const messagePayload: any = {
-      user: message.user,
-      timestamp: serverTimestamp(),
+    user: message.user,
+    timestamp: serverTimestamp(),
   };
 
   if (message.text && message.text.trim() !== '') {
@@ -37,66 +39,62 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   if (message.imageUrl) {
     messagePayload.imageUrl = message.imageUrl;
   }
-  
+
+  // Abort if the message is empty
   if (!messagePayload.text && !messagePayload.imageUrl) {
     console.log("Attempted to send an empty message. Aborting.");
     return;
   }
-  
-  // Moderation check before sending
-  const isPersonalChat = roomId.includes('_');
-  if (messagePayload.text && !isPersonalChat) {
-      try {
-          const flaggedContent = await getFlaggedContent();
-          const examples = flaggedContent.map(item => item.text);
 
-          const moderationResult = await moderateMessage({
-              message: messagePayload.text,
-              examples: examples,
-          });
-
-          if (moderationResult.is_inappropriate) {
-              console.log("Message flagged as inappropriate and not sent:", messagePayload.text);
-              // Log the inappropriate message for admin review
-              await addDoc(collection(db, 'inappropriate_logs'), {
-                  ...messagePayload,
-                  reason: moderationResult.reason,
-                  timestamp: serverTimestamp(),
-              });
-              // Optionally, inform the user their message was blocked
-              return; // Stop the message from being sent
-          }
-      } catch (e) {
-          console.error("Error during message moderation, sending message anyway.", e);
-      }
-  }
-
-
-  // 1. Immediately add the message to the database for a fast user experience.
+  // 2. Save the message to Firestore immediately for a responsive user experience.
   const messageRef = await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
-  
-  // Also update the last message timestamp on the root chat document for sorting
+
+  // 3. Update the last message timestamp on the parent chat document for sorting chat lists.
   const chatRef = doc(db, 'chats', roomId);
   await updateDoc(chatRef, { lastMessageTimestamp: serverTimestamp() });
 
-
-  // 2. For public channels (not personal chats), categorize in the background if there's text.
+  // 4. Run AI processes in the background without blocking the UI.
+  const isPersonalChat = roomId.includes('_');
   if (messagePayload.text && !isPersonalChat) {
-      // Don't await this, let it run in the background
+    // Run categorization and moderation in parallel.
+    Promise.all([
+      // Categorization Flow
       categorizeMessage({ text: messagePayload.text })
         .then(categorization => {
-            if (categorization) {
-                // 3. Update the message document with the category info.
-                updateDoc(messageRef, {
-                    category: categorization.category,
-                    title: categorization.title,
-                });
-            }
+          if (categorization) {
+            // Update the message document with the category info.
+            updateDoc(messageRef, {
+              category: categorization.category,
+              title: categorization.title,
+            });
+          }
         })
-        .catch(e => {
-            console.error("Failed to categorize message in the background.", e);
-            // The message is already sent, so we just log the error.
-        });
+        .catch(e => console.error("Failed to categorize message:", e)),
+
+      // Moderation Flow
+      getFlaggedContent().then(flaggedContent => {
+        const examples = flaggedContent.map(item => item.text);
+        return moderateMessage({ message: messagePayload.text, examples });
+      }).then(moderationResult => {
+        if (moderationResult.is_inappropriate) {
+          // If inappropriate, update the message to be 'spam' and log the reason.
+          updateDoc(messageRef, {
+              isSpam: true,
+              reason: moderationResult.reason || 'Inappropriate content',
+          });
+          // Also log it to a separate collection for admin review.
+          addDoc(collection(db, 'inappropriate_logs'), {
+              originalMessageId: messageRef.id,
+              ...messagePayload,
+              reason: moderationResult.reason,
+              checkedAt: serverTimestamp(),
+          });
+        }
+      }).catch(e => console.error("Error during message moderation:", e))
+
+    ]).catch(err => {
+        console.error("Error in background AI processing:", err);
+    });
   }
 };
 
