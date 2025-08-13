@@ -18,6 +18,9 @@ import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
+import { db } from "@/lib/firebase";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { Badge } from "@/components/ui/badge";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -34,6 +37,7 @@ export default function ChatPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [memberCount, setMemberCount] = useState(0);
+  const [totalUnread, setTotalUnread] = useState(0);
 
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -70,7 +74,23 @@ export default function ChatPage() {
         }
       }, 0);
     });
-    return () => unsubscribe();
+    
+    // Listen for total unread count
+    const personalChatsRef = collection(db, `users/${currentUser.uid}/personalChats`);
+    const unreadQuery = query(personalChatsRef, where('unreadCount', '>', 0));
+    const unsubscribeUnread = onSnapshot(unreadQuery, (snapshot) => {
+        let total = 0;
+        snapshot.docs.forEach(doc => {
+            total += doc.data().unreadCount || 0;
+        });
+        setTotalUnread(total);
+    });
+
+
+    return () => {
+        unsubscribe();
+        unsubscribeUnread();
+    };
   }, [state, currentUser]);
 
   const handleShowProfile = async (userId: string) => {
@@ -181,9 +201,12 @@ export default function ChatPage() {
                 <span>{memberCount} {memberCount === 1 ? 'member' : 'members'}</span>
             </div>
           </div>
-          <Button variant="outline" onClick={() => router.push('/chat/personal')}>
+          <Button variant="outline" onClick={() => router.push('/chat/personal')} className="relative">
               <MessageSquare className="w-4 h-4 mr-2" />
               Personal Chats
+              {totalUnread > 0 && (
+                <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full flex items-center justify-center p-0">{totalUnread}</Badge>
+              )}
           </Button>
       </header>
       <ScrollArea className="flex-1" ref={scrollAreaRef}>

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, doc, getDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, onSnapshot, Unsubscribe, updateDoc, orderBy } from "firebase/firestore";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from 'date-fns';
@@ -23,7 +23,7 @@ interface ChatContact {
     };
     lastMessage: string;
     time: string;
-    unread: number;
+    unreadCount: number;
     timestamp: Date | null;
     roomId: string;
 }
@@ -34,6 +34,7 @@ export default function PersonalChatsListPage() {
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const unsubscribersRef = useRef<Unsubscribe[]>([]);
 
     useEffect(() => {
         const fetchUserAndChats = async () => {
@@ -50,34 +51,46 @@ export default function PersonalChatsListPage() {
             if (profile) {
                 const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
                 const q = query(personalChatsRef);
-                const querySnapshot = await getDocs(q);
 
-                const chatPromises = querySnapshot.docs.map(async (docSnap) => {
-                    const chatInfo = docSnap.data();
-                    const chatDocRef = doc(db, 'chats', chatInfo.roomId);
-                    const chatDocSnap = await getDoc(chatDocRef);
-                    if (chatDocSnap.exists()) {
-                        const chatData = chatDocSnap.data();
-                        const lastMessageTimestamp = chatData.lastMessageTimestamp?.toDate() || null;
-                        return {
-                            user: chatInfo.withUser,
-                            lastMessage: chatData.lastMessage || (chatData.lastMessageSenderId ? "Image" : "No messages yet"),
-                            time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp) : '',
-                            unread: 0, // Placeholder for unread count logic
-                            timestamp: lastMessageTimestamp,
-                            roomId: chatInfo.roomId,
-                        };
-                    }
-                    return null;
+                const unsubscribe = onSnapshot(q, async (snapshot) => {
+                    const chatPromises = snapshot.docs.map(async (docSnap) => {
+                        const chatInfo = docSnap.data();
+                        const chatDocRef = doc(db, 'chats', chatInfo.roomId);
+                        
+                        // Set up a listener for each chat document
+                        const chatUnsubscribe = onSnapshot(chatDocRef, (chatDoc) => {
+                            if (chatDoc.exists()) {
+                                const chatData = chatDoc.data();
+                                const lastMessageTimestamp = chatData.lastMessageTimestamp?.toDate() || null;
+                                
+                                setChats(prevChats => {
+                                    const newChat = {
+                                        user: chatInfo.withUser,
+                                        lastMessage: chatData.lastMessage || (chatData.lastMessageSenderId ? "Image" : "No messages yet"),
+                                        time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp) : '',
+                                        unreadCount: chatInfo.unreadCount || 0,
+                                        timestamp: lastMessageTimestamp,
+                                        roomId: chatInfo.roomId,
+                                    };
+                                    const existingIndex = prevChats.findIndex(c => c.roomId === newChat.roomId);
+                                    if (existingIndex > -1) {
+                                        const updatedChats = [...prevChats];
+                                        updatedChats[existingIndex] = newChat;
+                                        return updatedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
+                                    } else {
+                                        return [...prevChats, newChat].sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
+                                    }
+                                });
+                            }
+                        });
+                        unsubscribersRef.current.push(chatUnsubscribe);
+                    });
+                    
+                    await Promise.all(chatPromises);
+                    setIsLoading(false);
                 });
-
-                const resolvedChats = (await Promise.all(chatPromises))
-                    .filter((c): c is ChatContact => c !== null)
-                    .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
-
-                setChats(resolvedChats);
+                unsubscribersRef.current.push(unsubscribe);
             }
-            setIsLoading(false);
         };
 
         fetchUserAndChats().catch(error => {
@@ -86,11 +99,21 @@ export default function PersonalChatsListPage() {
             setIsLoading(false);
         });
 
+        return () => {
+            unsubscribersRef.current.forEach(unsub => unsub());
+        }
+
     }, [router, toast]);
 
 
-    const handleChatClick = (userId: string) => {
-        router.push(`/chat/user/${userId}`);
+    const handleChatClick = async (chat: ChatContact) => {
+        if (!currentUser) return;
+        // Reset unread count when user clicks on the chat
+        if (chat.unreadCount > 0) {
+            const chatRef = doc(db, `users/${currentUser.uid}/personalChats`, chat.user.uid);
+            await updateDoc(chatRef, { unreadCount: 0 });
+        }
+        router.push(`/chat/user/${chat.user.uid}`);
     }
 
     return (
@@ -114,7 +137,7 @@ export default function PersonalChatsListPage() {
                     </div>
                 ) : (
                     chats.map(chat => (
-                        <div key={chat.roomId} onClick={() => handleChatClick(chat.user.uid)} className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 cursor-pointer">
+                        <div key={chat.roomId} onClick={() => handleChatClick(chat)} className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 cursor-pointer">
                             <Avatar className="h-12 w-12">
                                 <AvatarImage src={chat.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                                 <AvatarFallback>{chat.user.username.charAt(0)}</AvatarFallback>
@@ -122,15 +145,15 @@ export default function PersonalChatsListPage() {
                             <div className="flex-1 flex justify-between items-start">
                                 <div className="flex-1">
                                     <p className="font-semibold">{chat.user.username}</p>
-                                    <p className={cn("text-sm text-muted-foreground truncate mt-1 max-w-[200px] md:max-w-xs", chat.unread > 0 && "font-bold text-foreground")}>
+                                    <p className={cn("text-sm text-muted-foreground truncate mt-1 max-w-[200px] md:max-w-xs", chat.unreadCount > 0 && "font-bold text-foreground")}>
                                         {chat.lastMessage}
                                     </p>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
                                     <p className="text-xs text-muted-foreground">{chat.time}</p>
-                                    {chat.unread > 0 && (
+                                    {chat.unreadCount > 0 && (
                                         <div className="bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center shrink-0">
-                                            {chat.unread}
+                                            {chat.unreadCount}
                                         </div>
                                     )}
                                 </div>

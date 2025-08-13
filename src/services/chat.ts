@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -49,14 +49,24 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   const chatDocRef = doc(db, 'chats', roomId);
   const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
   
-  // Use setDoc with merge:true to create the document if it doesn't exist, or update it if it does.
-  // This prevents the "No document to update" error for new chat rooms.
   await setDoc(chatDocRef, { 
       lastMessageTimestamp: serverTimestamp(),
       lastMessage: lastMessageContent,
       lastMessageSenderId: message.user.id
   }, { merge: true }).catch(e => console.error("Failed to update chat timestamp:", e));
 
+  // If this is a personal chat, increment the unread count for the recipient.
+  const chatSnap = await getDoc(chatDocRef);
+  if (chatSnap.exists() && chatSnap.data().isPersonal) {
+      const users = chatSnap.data().users;
+      const recipientId = users.find((uid: string) => uid !== message.user.id);
+      if (recipientId) {
+          const recipientChatRef = doc(db, `users/${recipientId}/personalChats`, message.user.id);
+          await updateDoc(recipientChatRef, {
+              unreadCount: increment(1)
+          }).catch(e => console.log("Recipient personal chat doc may not exist yet for unread count.", e));
+      }
+  }
 };
 
 
@@ -80,12 +90,14 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
             await setDoc(user1ChatRef, { 
                 withUser: { uid: user2Profile.uid, username: user2Profile.username, avatar: user2Profile.avatar || '' }, 
                 roomId: roomId,
+                unreadCount: 0, // Initialize unread count
             });
             
             const user2ChatRef = doc(db, `users/${uid2}/personalChats`, uid1);
             await setDoc(user2ChatRef, { 
                 withUser: { uid: user1Profile.uid, username: user1Profile.username, avatar: user1Profile.avatar || '' }, 
                 roomId: roomId,
+                unreadCount: 0, // Initialize unread count
             });
         }
     }
@@ -98,8 +110,6 @@ export const ensurePublicChatRoomExists = async (state: string) => {
     const chatSnap = await getDoc(chatRef);
 
     if (!chatSnap.exists()) {
-        // By creating a document with isPersonal: false and an empty users array,
-        // we make its shape consistent with personal chats, simplifying security rules.
         await setDoc(chatRef, {
             isPersonal: false,
             users: [],
