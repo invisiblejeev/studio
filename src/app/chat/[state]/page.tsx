@@ -195,20 +195,16 @@ export default function ChatPage() {
                 return (
                   <div key={msg.id} className={cn('flex items-end gap-2', isYou ? 'justify-end' : 'justify-start')}>
                     {!isYou && isLastInSequence && (
-                        <button onClick={() => handleShowProfile(msg.user.id)} className="shrink-0">
-                            <Avatar className={cn('h-8 w-8')}>
-                                <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
-                                <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                        </button>
+                        <Avatar className={cn('h-8 w-8 cursor-pointer')} onClick={() => handleShowProfile(msg.user.id)}>
+                            <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                            <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
                     )}
                     {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
                     <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
                         {!isYou && isFirstInSequence && (
-                            <button onClick={() => handleShowProfile(msg.user.id)}>
-                                <p className="text-xs text-muted-foreground mb-1 px-3 hover:underline">{msg.user.name}</p>
-                            </button>
+                            <p className="text-xs text-muted-foreground mb-1 px-3 cursor-pointer hover:underline" onClick={() => handleShowProfile(msg.user.id)}>{msg.user.name}</p>
                         )}
                         <div className={cn('p-3 rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
@@ -232,12 +228,10 @@ export default function ChatPage() {
                         {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                     </div>
                     {isYou && isLastInSequence && (
-                        <button onClick={() => router.push('/profile')} className="shrink-0">
-                            <Avatar className={cn('h-8 w-8')}>
-                                <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
-                                <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                        </button>
+                        <Avatar className={cn('h-8 w-8 cursor-pointer')} onClick={() => router.push('/profile')}>
+                            <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                            <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
+                        </Avatar>
                     )}
                     {isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 

@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {

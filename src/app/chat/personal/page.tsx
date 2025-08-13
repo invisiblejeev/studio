@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { db } from "@/lib/firebase";
-import { collection, query, doc, onSnapshot, Unsubscribe } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from 'date-fns';
@@ -34,25 +34,9 @@ export default function PersonalChatsListPage() {
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
-    const chatListeners = useRef<Record<string, Unsubscribe>>({});
-
-    const updateAndSortChats = useCallback((newOrUpdatedChat: ChatContact) => {
-        setChats(prevChats => {
-            const existingChatIndex = prevChats.findIndex(c => c.roomId === newOrUpdatedChat.roomId);
-            let newChats: ChatContact[];
-            if (existingChatIndex > -1) {
-                newChats = [...prevChats];
-                newChats[existingChatIndex] = newOrUpdatedChat;
-            } else {
-                newChats = [...prevChats, newOrUpdatedChat];
-            }
-            newChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
-            return newChats;
-        });
-    }, []);
 
     useEffect(() => {
-        const fetchUserAndInitiateListeners = async () => {
+        const fetchUserAndChats = async () => {
             setIsLoading(true);
             const user = await getCurrentUser();
             if (!user) {
@@ -66,65 +50,44 @@ export default function PersonalChatsListPage() {
             if (profile) {
                 const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
                 const q = query(personalChatsRef);
+                const querySnapshot = await getDocs(q);
 
-                const mainUnsubscribe = onSnapshot(q, (snapshot) => {
-                    setIsLoading(false);
-                    snapshot.docChanges().forEach((change) => {
-                        const chatInfo = change.doc.data();
-                        const roomId = chatInfo.roomId;
-
-                        if (change.type === "added") {
-                            if (!chatListeners.current[roomId]) {
-                                const chatDocRef = doc(db, 'chats', roomId);
-                                const chatUnsubscribe = onSnapshot(chatDocRef, (chatDocSnap) => {
-                                    if (chatDocSnap.exists()) {
-                                        const chatData = chatDocSnap.data();
-                                        const lastMessageTimestamp = chatData.lastMessageTimestamp?.toDate() || new Date(0);
-                                        const updatedContact: ChatContact = {
-                                            user: chatInfo.withUser,
-                                            lastMessage: chatData.lastMessage || (chatData.lastMessageSenderId ? "Image" : "No messages yet"),
-                                            time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp) : '',
-                                            unread: 0, // Placeholder
-                                            timestamp: lastMessageTimestamp,
-                                            roomId: roomId,
-                                        };
-                                        updateAndSortChats(updatedContact);
-                                    }
-                                });
-                                chatListeners.current[roomId] = chatUnsubscribe;
-                            }
-                        }
-                        if (change.type === "removed") {
-                            const unsubscribe = chatListeners.current[roomId];
-                            if (unsubscribe) {
-                                unsubscribe();
-                                delete chatListeners.current[roomId];
-                            }
-                            setChats(prev => prev.filter(c => c.roomId !== roomId));
-                        }
-                    });
-                     if (snapshot.empty) {
-                        setIsLoading(false);
+                const chatPromises = querySnapshot.docs.map(async (docSnap) => {
+                    const chatInfo = docSnap.data();
+                    const chatDocRef = doc(db, 'chats', chatInfo.roomId);
+                    const chatDocSnap = await getDoc(chatDocRef);
+                    if (chatDocSnap.exists()) {
+                        const chatData = chatDocSnap.data();
+                        const lastMessageTimestamp = chatData.lastMessageTimestamp?.toDate() || null;
+                        return {
+                            user: chatInfo.withUser,
+                            lastMessage: chatData.lastMessage || (chatData.lastMessageSenderId ? "Image" : "No messages yet"),
+                            time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp) : '',
+                            unread: 0, // Placeholder for unread count logic
+                            timestamp: lastMessageTimestamp,
+                            roomId: chatInfo.roomId,
+                        };
                     }
-                }, (error) => {
-                    console.error("Error fetching personal chats list:", error);
-                    toast({ title: "Error", description: "Could not fetch personal chats list.", variant: "destructive" });
-                    setIsLoading(false);
+                    return null;
                 });
 
-                return mainUnsubscribe;
+                const resolvedChats = (await Promise.all(chatPromises))
+                    .filter((c): c is ChatContact => c !== null)
+                    .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
+
+                setChats(resolvedChats);
             }
+            setIsLoading(false);
         };
 
-        let unsubscribe: Unsubscribe | undefined;
-        fetchUserAndInitiateListeners().then(unsub => { unsubscribe = unsub; });
+        fetchUserAndChats().catch(error => {
+            console.error("Failed to fetch personal chats:", error);
+            toast({ title: "Error", description: "Could not fetch personal chats.", variant: "destructive" });
+            setIsLoading(false);
+        });
 
-        return () => {
-            if (unsubscribe) unsubscribe();
-            Object.values(chatListeners.current).forEach(unsub => unsub());
-            chatListeners.current = {};
-        };
-    }, [router, toast, updateAndSortChats]);
+    }, [router, toast]);
+
 
     const handleChatClick = (userId: string) => {
         router.push(`/chat/user/${userId}`);

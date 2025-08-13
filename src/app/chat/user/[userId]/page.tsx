@@ -185,13 +185,13 @@ export default function PersonalChatPage() {
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <button onClick={() => handleShowProfile(otherUser.uid)} className="flex items-center gap-3">
+          <div onClick={() => handleShowProfile(otherUser.uid)} className="flex items-center gap-3 cursor-pointer">
             <Avatar>
                 <AvatarImage src={otherUser.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                 <AvatarFallback>{otherUser.username.charAt(0)}</AvatarFallback>
             </Avatar>
             <h2 className="text-xl font-bold">{otherUser.username}</h2>
-          </button>
+          </div>
       </header>
        <ScrollArea className="flex-1" ref={scrollAreaRef}>
             <div className="p-4 space-y-1">
@@ -206,12 +206,10 @@ export default function PersonalChatPage() {
                   return (
                     <div key={msg.id} className={cn('flex items-end gap-2', isYou ? 'justify-end' : 'justify-start')}>
                       {!isYou && isLastInSequence && (
-                          <button onClick={() => handleShowProfile(msg.user.id)} className="shrink-0">
-                            <Avatar className={cn('h-8 w-8')}>
-                                <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
-                                <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                          </button>
+                          <Avatar className={cn('h-8 w-8 cursor-pointer')} onClick={() => handleShowProfile(msg.user.id)}>
+                            <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                            <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
                       )}
                       {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
@@ -239,12 +237,10 @@ export default function PersonalChatPage() {
                       </div>
 
                       {isYou && isLastInSequence && (
-                           <button onClick={() => router.push('/profile')} className="shrink-0">
-                              <Avatar className={cn('h-8 w-8')}>
-                                  <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
-                                  <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
-                              </Avatar>
-                          </button>
+                           <Avatar className={cn('h-8 w-8 cursor-pointer')} onClick={() => router.push('/profile')}>
+                              <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                              <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
+                          </Avatar>
                       )}
                         {isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
                     </div>
