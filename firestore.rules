@@ -3,54 +3,50 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
+    
+    // This rule governs the collectionGroup query used on the Admin dashboard to find spam.
+    // It allows a read *only if* the user is authenticated AND their profile has isAdmin: true.
+    match /{path=**}/messages/{messageId} {
+        allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
     // Rules for the 'users' collection
     match /users/{userId} {
-      // Allow any authenticated user to read any user's profile.
-      // This is necessary for displaying user info (like avatars, usernames) throughout the app
-      // and for features like counting members in a state.
+      // Any authenticated user can read any profile. Needed for member counts, profile dialogs, etc.
       allow read: if request.auth != null;
-
-      // Only the user themselves can update their own profile.
+      // Only the user themselves can write to their own profile.
       allow write: if request.auth.uid == userId;
     }
-    
-    // Rules for the 'chats' collection and 'messages' subcollection
-    match /chats/{roomId}/messages/{messageId} {
-        // Any authenticated user can read messages.
-        // The client application logic is responsible for showing the user only the chats they should see.
-        // This simplifies the rules to prevent race conditions and permission errors.
+
+    // Rules for individual chat rooms
+    match /chats/{roomId} {
+        // Any authenticated user can read the chat document itself (which contains metadata).
         allow read: if request.auth != null;
         
-        // An authenticated user can write a message.
-        // Further validation (e.g., ensuring message.user.id matches request.auth.uid) can be added here
-        // for enhanced security, but is handled client-side for now.
+        // A user can write a message if they are authenticated. The client logic ensures they only
+        // write to rooms they have access to.
         allow write: if request.auth != null;
     }
-    
+
     // Rules for the 'requirements' collection
     match /requirements/{requirementId} {
-      // Any authenticated user can read requirements.
+      // Any authenticated user can read the requirements list.
       allow read: if request.auth != null;
-      
-      // Only admins can update or delete requirements. Client-side creation is denied.
-      allow create: if false;
-      allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
 
+      // IMPORTANT: Clients cannot create requirements. This is done by the backend AI trigger.
+      allow create: if false;
+
+      // Only admins can update or delete requirements.
+      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    
     // Rules for the 'offers' collection
     match /offers/{offerId} {
-       // Any authenticated user can read offers.
-      allow read: if request.auth != null;
-      
-      // Only admins can create, update, or delete offers.
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // This rule is specifically for collectionGroup queries on 'messages' (e.g., for the admin spam log)
-    match /{path=**}/messages/{messageId} {
-      // Only an admin can read from the 'messages' collection group.
-      allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        // Any authenticated user can read offers.
+        allow read: if request.auth != null;
+        
+        // Only admins can create, update, or delete offers.
+        allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
