@@ -98,8 +98,11 @@ export const ensurePublicChatRoomExists = async (state: string) => {
     const chatSnap = await getDoc(chatRef);
 
     if (!chatSnap.exists()) {
+        // By creating a document with isPersonal: false and an empty users array,
+        // we make its shape consistent with personal chats, simplifying security rules.
         await setDoc(chatRef, {
             isPersonal: false,
+            users: [],
         });
     }
 };
