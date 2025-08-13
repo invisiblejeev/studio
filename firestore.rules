@@ -8,57 +8,48 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper function to check if a user is an admin
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Users can only read their own profile, but any authenticated user can read public-facing data (name, avatar, state).
-    // Admins can read/write any user profile.
+    // Rules for user profiles
     match /users/{userId} {
+      // Any authenticated user can read public profile info.
       allow read: if isAuthenticated();
-      allow write: if request.auth.uid == userId || isAdmin();
-      
-      // A user can read their own personalChats subcollection
-      match /personalChats/{otherUserId} {
-         allow read, write: if request.auth.uid == userId;
-      }
-    }
-
-    // Chat rooms
-    match /chats/{roomId} {
-      // Allow a user to list chats they are a part of.
-      allow list: if isAuthenticated() && request.auth.uid in resource.data.users;
-      // Allow read/write access to a chat room if the user is part of it or is an admin.
-      allow read, write: if isAuthenticated() && (request.auth.uid in resource.data.users || isAdmin());
-
-      // Messages within a chat room
-      match /messages/{messageId} {
-        // Any user in the chat room (or an admin) can read messages.
-        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users || isAdmin());
-        // A user can only create (write) messages if they are part of the chat room.
-        allow create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
-        // Only admins can update or delete messages (for moderation).
-        allow update, delete: if isAdmin();
-      }
-    }
-
-    // Offers can be read by anyone, but only written/deleted by admins.
-    match /offers/{offerId} {
-      allow read: if true;
-      allow write, delete: if isAdmin();
+      // Only the user themselves or an admin can update or delete their profile.
+      allow write: if isAuthenticated() && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
     }
     
-    // Flagged content can only be accessed by admins
-    match /flagged_content/{contentId} {
-      allow read, write, delete: if isAdmin();
+    match /users/{userId}/personalChats/{otherUserId} {
+        // A user can read and write to their own list of personal chats.
+        // This is also used for creating new chat entries.
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Inappropriate logs can only be created by the system (via server-side logic which runs with admin privileges)
-    // and read by admins.
+    // Rules for chat rooms (both state-based and personal)
+    match /chats/{roomId}/{document=**} {
+        // A user can read messages if they are part of the chat room's user list.
+        // A user can write messages if they are part of the chat room's user list.
+        // This covers reading/listing messages and sending new ones.
+        allow read, write: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
+    }
+
+    // Rules for offers
+    match /offers/{offerId} {
+      // Anyone can read offers.
+      allow read: if true;
+      // Only admins can create, update, or delete offers.
+      allow write: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Rules for flagged content (for AI training)
+    match /flagged_content/{contentId} {
+        // Only admins can write to the flagged content list.
+        allow write: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        // Nobody should read this directly, it is used by backend AI flows.
+        allow read: if false;
+    }
+    
+     // Rules for inappropriate content logs
     match /inappropriate_logs/{logId} {
-      allow read: if isAdmin();
-      allow write: if false; // Only backend can write here
+        // The backend service can write to this log, but users cannot read or write.
+        allow read, write: if false;
     }
   }
 }
