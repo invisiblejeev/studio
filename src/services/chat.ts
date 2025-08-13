@@ -29,7 +29,6 @@ export interface Message {
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
   // 1. Construct the basic message payload the client is allowed to send.
-  // The client should not set fields like isSpam, category, title, etc.
   const messagePayload: any = {
     user: message.user,
     timestamp: serverTimestamp(),
