@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -9,68 +8,70 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper function to check if a user is the owner of a document
+    // Helper function to check if the requesting user is the owner of the document
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
-    // Helper function to check if a user is an admin
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    // Rules for the 'users' collection
+    match /users/{userId} {
+      // Any authenticated user can read public profile information
+      allow get: if isAuthenticated();
+      // Only the owner of the profile can update it
+      allow update: if isOwner(userId);
+      // Only the owner of the profile can delete it
+      allow delete: if isOwner(userId);
+      // Anyone can create a user profile (during signup)
+      allow create: if true;
+
+      // Rules for the 'personalChats' subcollection within a user's document
+      match /personalChats/{otherUserId} {
+        // A user can read and write to their own list of personal chats
+        allow read, write: if isOwner(userId);
+        // Allow another user to create a chat reference if they are the one being added
+        allow create: if isAuthenticated() && request.auth.uid == otherUserId;
+      }
     }
 
-    // Users can read their own profile, and other users can read public profiles
-    match /users/{userId} {
-      // Any authenticated user can read public profile data.
-      allow read: if isAuthenticated();
-      // Only the user themselves can create, update, or delete their profile.
-      allow write: if isOwner(userId);
+    // Rules for the 'chats' collection
+    match /chats/{roomId} {
+      // Allow read access to a chat room if the user is a member of it
+      allow get: if isAuthenticated() && request.auth.uid in resource.data.users;
+      // Allow users to list their own chat rooms
+      allow list: if isAuthenticated() && request.auth.uid in request.query.where.users;
 
-      // Rules for the personalChats subcollection
-      match /personalChats/{otherUserId} {
-        // A user can read and list their own personal chat references.
-        allow read: if isOwner(userId);
-        // A user can create a chat reference in their own list, and another user
-        // can create one if they are part of the chat being referenced.
-        allow write: if isOwner(userId) || (isAuthenticated() && request.auth.uid == otherUserId);
+      // Rules for the 'messages' subcollection within a chat room
+      match /messages/{messageId} {
+        // Allow creating a message if the user is authenticated
+        allow create: if isAuthenticated();
+        // Allow reading/listing messages if the user is part of the chat room
+        allow read, list: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
+        // Allow updating/deleting messages only for admins for now
+        allow update, delete: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
       }
     }
     
-    // Offers are public to all authenticated users for reading.
-    match /offers/{offerId} {
-        allow read: if isAuthenticated();
-        // Only admins can create, update, or delete offers.
-        allow write: if isAuthenticated() && isAdmin();
-    }
-    
-    // Flagged content can only be accessed by admins
-    match /flagged_content/{contentId} {
-        allow read, write: if isAuthenticated() && isAdmin();
-    }
-    
-    // Inappropriate logs can only be written to, not read back by clients.
-    match /inappropriate_logs/{logId} {
-        allow read: if false; // No one can read these logs from the client
-        allow write: if isAuthenticated(); // The server-side logic handles this
-    }
+    // Public state-based chat rooms
+    match /chats/{stateId} {
+        // Any authenticated user can read public chat rooms
+        allow get: if isAuthenticated();
 
-    match /chats/{roomId} {
-        // A chat room's metadata (like user list) can be read if the user is in the chat.
-        allow get: if isAuthenticated() && request.auth.uid in resource.data.users;
-        // Anyone can create a chat room (done via a server-side function), 
-        // and users can update the last message timestamp.
-        allow write: if isAuthenticated();
-
-        // Rules for messages within any chat room (public or personal)
         match /messages/{messageId} {
-            // Allow reading messages if it's a public state chat (not containing '_'),
-            // or if it's a personal chat and the user is one of the two participants.
-            allow read: if isAuthenticated() && (!roomId.matches('.*_.*') || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users);
-            
-            // Allow writing messages if it's a public state chat
-            // or if it's a personal chat and the user is a participant.
-            allow write: if isAuthenticated() && (!roomId.matches('.*_.*') || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users);
+            // Any authenticated user can read messages in public rooms
+            allow read: if isAuthenticated();
+            // Any authenticated user can create messages in public rooms
+            allow create: if isAuthenticated();
+            // Only admins can update/delete messages in public rooms
+            allow update, delete: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
         }
+    }
+
+    // Rules for 'offers', 'flagged_content', 'inappropriate_logs'
+    match /{collection}/{docId} {
+      // Any authenticated user can read offers
+      allow read: if collection == 'offers' && isAuthenticated();
+      // Only admins can write to these collections
+      allow write: if (collection == 'offers' || collection == 'flagged_content' || collection == 'inappropriate_logs') && isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
