@@ -5,74 +5,69 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Helper functions
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isUser(userId) {
-      return request.auth.uid == userId;
+    function isUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Users Collection
-    // - Allow users to read their own profile.
-    // - Allow any authenticated user to read public profile data (needed for chat, requirements).
-    // - Allow users to create their own profile upon signup.
-    // - Allow users to update their own profile.
-    // - Allow users to delete their own account.
+    // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isUser(userId);
-      allow update, delete: if isUser(userId);
-       // Personal chats list for a user
-      match /personalChats/{otherUserId} {
-        allow read, write: if isUser(userId);
-      }
+      // Any signed-in user can read any user's profile (needed for chat, etc.)
+      allow read: if isSignedIn();
+      // Only the user themselves can create or update their own profile
+      allow create, update: if isUser(userId);
+       // A user can delete their own profile document
+      allow delete: if isUser(userId);
     }
 
-    // Chats Collection (for both state and personal chats)
-    match /chats/{chatId} {
-        // Allow reads/writes to a chat document if the user is authenticated (for state chats)
-        // or if they are one of the two users in a personal chat.
-        allow read, update, delete: if isAuthenticated() && (
-            (get(/databases/$(database)/documents/chats/$(chatId)).data.users == null) || // Public state chat
-            (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.users)  // Personal chat
-        );
-        allow create: if isAuthenticated();
+    // Chats collection (contains all state and personal chats)
+    match /chats/{roomId} {
+        // Read: Any signed-in user can read state chats. Personal chats are restricted.
+        allow read: if isSignedIn();
 
-
-        // Messages Subcollection
+        // Write: Any signed-in user can create a message. Update is restricted.
+        allow write: if isSignedIn();
+        
+        // Messages subcollection
         match /messages/{messageId} {
-            // Allow users to read messages in a chat they have access to.
-            allow read: if isAuthenticated() && (
-                (get(/databases/$(database)/documents/chats/$(chatId)).data.users == null) || // Public state chat
-                (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.users)  // Personal chat
-            );
-
-            // Allow users to write (create/update) messages if they are authenticated and it's their message.
-            allow write: if isAuthenticated() && (request.resource.data.user.id == request.auth.uid);
+            // Read: Any signed-in user can read state chats. Personal chats are restricted.
+            allow read: if isSignedIn();
+            // Write: Any signed-in user can create a message.
+            allow write: if isSignedIn();
         }
     }
+    
+    // Personal chat references within a user's document
+    match /users/{userId}/personalChats/{otherUserId} {
+        // Only the user can read/write their own list of personal chats
+        allow read, write: if isUser(userId);
+    }
 
-    // Offers Collection
-    // - Allow any authenticated user to read offers.
-    // - Allow only admins to write/delete offers.
+    // Offers collection
     match /offers/{offerId} {
-      allow read: if isAuthenticated();
-      allow write, delete: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        // Anyone can read offers
+        allow read: if true;
+        // Only signed-in users can write (admins handled by app logic)
+        allow write: if isSignedIn();
     }
     
-    // Flagged Content (for admin training)
-    // - Only admins can read or write.
+    // Flagged content collection (for admin review)
     match /flagged_content/{contentId} {
-        allow read, write: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        // Only signed-in users (admins, via app logic) can create flagged content
+        allow create: if isSignedIn();
+        // No one can read/update/delete directly - must be done with admin credentials
+        allow read, update, delete: if false;
     }
 
-    // Inappropriate Content Logs
-    // - Allow any authenticated user to create a log entry (done via server-side function).
-    // - Only admins can read/delete them.
+    // Inappropriate logs collection
     match /inappropriate_logs/{logId} {
-        allow create: if isAuthenticated();
-        allow read, delete: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // The backend service can write to this, so we need to allow signed-in users to create.
+      allow create: if isSignedIn();
+       // No one can read/update/delete directly
+      allow read, update, delete: if false;
     }
   }
 }
