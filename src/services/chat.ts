@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -54,11 +54,13 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   // 3. Update the last message info on the parent chat document for chat lists.
   const chatDocRef = doc(db, 'chats', roomId);
   const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
-  await setDoc(chatDocRef, { 
+  // Use updateDoc instead of setDoc with merge to ensure the document exists.
+  // This is now safe because getPersonalChatRoomId guarantees the doc exists.
+  await updateDoc(chatDocRef, { 
       lastMessageTimestamp: serverTimestamp(),
       lastMessage: lastMessageContent,
       lastMessageSenderId: message.user.id
-  }, { merge: true }).catch(e => console.error("Failed to update chat timestamp:", e));
+  }).catch(e => console.error("Failed to update chat timestamp:", e));
 
 };
 
@@ -68,12 +70,16 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
     const chatRef = doc(db, 'chats', roomId);
     const chatSnap = await getDoc(chatRef);
 
+    // If the chat document doesn't exist, create it with initial fields.
+    // This prevents the "phantom document" issue.
     if (!chatSnap.exists()) {
         await setDoc(chatRef, { 
             users: [uid1, uid2], 
+            isPersonal: true, // Add a field to distinguish private chats
             lastMessageTimestamp: serverTimestamp() 
         });
         
+        // Also create the references in each user's personalChats subcollection
         const user1Profile = await getUserProfile(uid1);
         const user2Profile = await getUserProfile(uid2);
 
