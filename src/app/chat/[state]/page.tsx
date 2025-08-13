@@ -9,7 +9,7 @@ import { allStates } from "@/lib/states";
 import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle, X, Users } from "lucide-react"
 import { useRouter, useParams } from 'next/navigation';
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile, getUserCountByState } from "@/services/users";
 import { sendMessage, Message } from "@/services/chat";
@@ -84,7 +84,7 @@ export default function ChatPage() {
   }
 
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     if ((newMessage.trim() === "" && !imageFile) || !currentUser) return;
 
     if (imageFile) {
@@ -130,7 +130,7 @@ export default function ChatPage() {
       fileInputRef.current.value = "";
     }
     setIsUploading(false);
-  };
+  }, [newMessage, imageFile, currentUser, state, toast]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

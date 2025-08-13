@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Paperclip, SendHorizonal, ArrowLeft, LoaderCircle, X } from "lucide-react"
 import { useRouter, useParams } from 'next/navigation';
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { sendMessage, getPersonalChatRoomId } from "@/services/chat";
@@ -75,7 +75,7 @@ export default function PersonalChatPage() {
   }, [roomId]);
 
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     if ((newMessage.trim() === "" && !imageFile) || !currentUser || !roomId) return;
     
     if (imageFile) {
@@ -120,7 +120,7 @@ export default function PersonalChatPage() {
       fileInputRef.current.value = "";
     }
     setIsUploading(false);
-  };
+  }, [newMessage, imageFile, currentUser, roomId, toast]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
