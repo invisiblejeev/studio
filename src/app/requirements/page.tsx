@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle, Flag } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot, where } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import type { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
@@ -74,14 +74,10 @@ export default function RequirementsPage() {
 
     useEffect(() => {
         setIsLoading(true);
-        const sevenDaysAgo = subDays(new Date(), 7);
-        const reqQuery = query(
-            collection(db, 'requirements'), 
-            where('timestamp', '>=', sevenDaysAgo),
-            orderBy('timestamp', 'desc')
-        );
+        const reqQuery = query(collection(db, 'requirements'), orderBy('timestamp', 'desc'));
 
         const unsubscribe = onSnapshot(reqQuery, (snapshot) => {
+            const sevenDaysAgo = subDays(new Date(), 7);
             const reqsData = snapshot.docs
                 .map(doc => {
                     const data = doc.data();
@@ -92,7 +88,8 @@ export default function RequirementsPage() {
                         time: timestamp ? formatDistanceToNowStrict(timestamp, { addSuffix: true }) : '',
                         timestamp: timestamp,
                     } as Requirement;
-                });
+                })
+                .filter(req => req.timestamp && isAfter(req.timestamp, sevenDaysAgo));
 
             setAllRequirements(reqsData);
             setIsLoading(false);
@@ -351,5 +348,3 @@ export default function RequirementsPage() {
         </div>
     );
 }
-
-    

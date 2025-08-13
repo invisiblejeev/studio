@@ -76,7 +76,11 @@
                 "uid": "string",
                 "username": "string",
                 "avatar": "string"
-              }
+              },
+              "lastMessage": "string (optional)",
+              "lastMessageTimestamp": "timestamp (optional)",
+              "lastMessageSenderId": "string (optional)",
+              "unreadCount": "number (optional)"
             }
           }
         ]
@@ -138,7 +142,8 @@
           "images": "array<string> (URLs)",
           "code": "string (optional)",
           "validUntil": "string (yyyy-MM-dd, optional)",
-          "type": "string (e.g., 'Discount', 'Deal', optional)"
+          "type": "string (e.g., 'Discount', 'Deal', optional)",
+          "states": "array<string> (list of state values, e.g., ['california', 'texas'], or ['all'])"
         }
       }
     ]
