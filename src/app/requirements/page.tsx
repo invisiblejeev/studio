@@ -73,7 +73,7 @@ export default function RequirementsPage() {
 
     useEffect(() => {
         setIsLoading(true);
-        // Simplified query to avoid needing a composite index.
+        // This query should only run once when the component mounts.
         const reqQuery = query(collection(db, 'requirements'), orderBy('timestamp', 'desc'));
 
         const unsubscribe = onSnapshot(reqQuery, (snapshot) => {
@@ -92,12 +92,6 @@ export default function RequirementsPage() {
                 .filter(req => req.timestamp && isAfter(req.timestamp, sevenDaysAgo)); // Filter client-side
 
             setAllRequirements(reqsData);
-            // We need to re-apply the active filter to the newly fetched data
-            if (activeFilter === 'All') {
-                setFilteredRequirements(reqsData);
-            } else {
-                setFilteredRequirements(reqsData.filter(r => r.category === activeFilter));
-            }
             setIsLoading(false);
         }, (error) => {
              console.error("Error fetching requirements:", error);
@@ -106,16 +100,19 @@ export default function RequirementsPage() {
         });
 
         return () => unsubscribe();
-    }, [toast, activeFilter]);
+    }, [toast]);
+    
+    useEffect(() => {
+        if (activeFilter === 'All') {
+            setFilteredRequirements(allRequirements);
+        } else {
+            setFilteredRequirements(allRequirements.filter(r => r.category === activeFilter));
+        }
+    }, [activeFilter, allRequirements]);
 
 
     const handleFilter = (category: Category | 'All') => {
         setActiveFilter(category);
-        if (category === 'All') {
-            setFilteredRequirements(allRequirements);
-        } else {
-            setFilteredRequirements(allRequirements.filter(r => r.category === category));
-        }
     };
     
     const handleDeleteRequirement = async (reqToDelete: Requirement) => {
