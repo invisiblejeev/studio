@@ -3,7 +3,6 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle, Flag } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot, where } from 'firebase/firestore';
@@ -20,6 +19,10 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { flagContent } from '@/services/admin';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+
 
 const categoryConfig: Record<Category, { icon: React.ElementType, color: string }> = {
     "Jobs": { icon: Briefcase, color: "bg-blue-100 text-blue-800" },
@@ -43,94 +46,6 @@ interface Requirement extends Message {
     state: string;
 }
 
-const RequirementCard = ({ req, currentUser, onDelete, onEdit, onFlag }: { req: Requirement, currentUser: UserProfile | null, onDelete: (req: Requirement) => void, onEdit: (req: Requirement) => void, onFlag: (req: Requirement) => void }) => {
-    const { icon: Icon, color } = categoryConfig[req.category] || categoryConfig["Other"];
-    const stateName = allStates.find(s => s.value === req.state)?.label || req.state || '';
-    const router = useRouter();
-
-    const getExpiryInfo = () => {
-        if (!req.timestamp) return null;
-        const daysOld = differenceInDays(new Date(), req.timestamp);
-        const daysLeft = 7 - daysOld;
-        if (daysLeft <= 1) {
-            return "Expires soon";
-        }
-        return `Expires in ${daysLeft} days`;
-    };
-    
-    const expiryInfo = getExpiryInfo();
-    const isAuthor = currentUser?.uid === req.user.id;
-
-
-    return (
-        <Card className="overflow-hidden shadow-md relative group flex flex-col">
-            <CardContent className="p-4 pb-2 flex-1">
-                 {currentUser?.isAdmin && (
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-7 w-7 bg-white"
-                            onClick={() => onFlag(req)}
-                        >
-                            <Flag className="h-4 w-4 text-orange-500" />
-                        </Button>
-                        <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-7 w-7 bg-white"
-                            onClick={() => onEdit(req)}
-                        >
-                            <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                            variant="destructive" 
-                            size="icon" 
-                            className="h-7 w-7"
-                            onClick={() => onDelete(req)}
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                    </div>
-                )}
-                <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-full ${color}`}>
-                        <Icon className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-bold text-lg">{req.title}</h3>
-                        <p className="text-sm text-muted-foreground">
-                            {req.user.name} &middot; {stateName}
-                        </p>
-                        <p className="mt-2 text-foreground">{req.text}</p>
-                         <div className="flex justify-between items-center mt-3 text-xs text-muted-foreground">
-                            <span>{req.time}</span>
-                            {expiryInfo && (
-                                <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3"/>
-                                    {expiryInfo}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </CardContent>
-            {!isAuthor && (
-                <CardFooter className="p-2 pt-0">
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="w-full" 
-                        onClick={() => router.push(`/chat/user/${req.user.id}`)}
-                    >
-                        <MessageSquare className="mr-2 h-4 w-4" /> Send Private Message
-                    </Button>
-                </CardFooter>
-            )}
-        </Card>
-    );
-};
-
 export default function RequirementsPage() {
     const [allRequirements, setAllRequirements] = useState<Requirement[]>([]);
     const [filteredRequirements, setFilteredRequirements] = useState<Requirement[]>([]);
@@ -138,6 +53,7 @@ export default function RequirementsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const { toast } = useToast();
+    const router = useRouter();
 
     // Edit State
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -317,11 +233,74 @@ export default function RequirementsPage() {
                 </div>
             ) : (
                 filteredRequirements.length > 0 ? (
-                    <div className="space-y-4">
-                        {filteredRequirements.map(req => <RequirementCard key={req.id} req={req} currentUser={currentUser} onDelete={handleDeleteRequirement} onEdit={openEditDialog} onFlag={handleFlagRequirement} />)}
+                     <div className="border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Title</TableHead>
+                                    <TableHead>Category</TableHead>
+                                    <TableHead>User</TableHead>
+                                    <TableHead>State</TableHead>
+                                    <TableHead>Posted</TableHead>
+                                    {currentUser?.isAdmin && <TableHead className="text-right">Actions</TableHead>}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredRequirements.map(req => {
+                                    const { icon: Icon } = categoryConfig[req.category] || categoryConfig["Other"];
+                                    const stateName = allStates.find(s => s.value === req.state)?.label || req.state || '';
+                                    const isAuthor = currentUser?.uid === req.user.id;
+                                    
+                                    return (
+                                        <TableRow key={req.id}>
+                                            <TableCell className="font-medium max-w-xs truncate">
+                                                <p className="font-semibold">{req.title}</p>
+                                                <p className="text-xs text-muted-foreground truncate">{req.text}</p>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="secondary" className="flex items-center gap-1.5 w-fit">
+                                                    <Icon className="w-3.5 h-3.5" />
+                                                    {req.category}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2">
+                                                    <Avatar className="h-8 w-8">
+                                                        <AvatarImage src={req.user.avatar} data-ai-hint="person avatar" />
+                                                        <AvatarFallback>{req.user.name.charAt(0)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <p className="font-medium">{req.user.name}</p>
+                                                         {!isAuthor && (
+                                                            <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => router.push(`/chat/user/${req.user.id}`)}>
+                                                                Send Message
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="capitalize">{stateName}</TableCell>
+                                            <TableCell>{req.time}</TableCell>
+                                             {currentUser?.isAdmin && (
+                                                <TableCell className="text-right">
+                                                    <div className="flex gap-1 justify-end">
+                                                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(req)}>
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteRequirement(req)}>
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            )}
+                                        </TableRow>
+                                    )
+                                })}
+                            </TableBody>
+                        </Table>
                     </div>
                 ) : (
-                    <div className="text-center text-muted-foreground py-10">
+                    <div className="text-center text-muted-foreground py-10 border rounded-md">
                         <FileQuestion className="mx-auto w-12 h-12 mb-4" />
                         <h3 className="text-lg font-semibold">No Requirements Found</h3>
                         <p className="text-sm">There are currently no items in this category.</p>
@@ -370,3 +349,5 @@ export default function RequirementsPage() {
         </div>
     );
 }
+
+    
