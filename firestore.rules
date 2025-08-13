@@ -2,7 +2,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
+    
     // Helper function to check for authentication
     function isAuthenticated() {
       return request.auth != null;
@@ -12,84 +12,53 @@ service cloud.firestore {
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-    
-    // Helper function to check if the user is part of a personal chat
-    function isUserInPersonalChat(roomId) {
-      return isAuthenticated() && request.auth.uid in string(roomId).split('_');
-    }
 
-    // Users collection
+    // Users can only read their own profile, but any authenticated user can read public-facing data (name, avatar, state).
+    // Admins can read/write any user profile.
     match /users/{userId} {
-      // Any authenticated user can read any user's public profile data.
-      allow get: if isAuthenticated();
-      // Only the user themselves or an admin can update their profile.
-      allow update: if request.auth.uid == userId || isAdmin();
-      // A user can only create their own profile document (not used after signup).
-      allow create: if request.auth.uid == userId;
-       // Users can only delete their own profiles.
-      allow delete: if request.auth.uid == userId;
-
-        // personalChats subcollection
-        match /personalChats/{otherUserId} {
-            // Allow a user to create a chat reference in another user's subcollection
-            // only if they are one of the two parties creating the chat.
-            allow create: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == otherUserId);
-            // Allow a user to read their own personal chat list.
-            allow read: if request.auth.uid == userId;
-            // No one can update or delete these references for now.
-            allow update, delete: if false;
-        }
-    }
-
-    // Chats collection (both group and personal)
-    match /chats/{roomId} {
-        // Allow read access if it's a personal chat the user is part of.
-        // For public state chats, allow any authenticated user to read.
-        allow read: if isUserInPersonalChat(roomId) || (isAuthenticated() && !(string(roomId).matches('.*_.*')));
-
-        // Allow list access for queries across rooms (like for the requirements page).
-        // It relies on the read rule to secure access to individual documents.
-        allow list: if isAuthenticated();
-
-        // No one can create or delete a chat room document directly this way.
-        allow create, delete: if false;
-        // Updates to the chat doc (like lastMessageTimestamp) are handled by server-side logic,
-        // so we don't need to allow client updates here.
-        allow update: if false;
-
-        // Messages subcollection
-        match /messages/{messageId} {
-            // For personal chats, only members can read/write.
-            // For public state chats, any authenticated user can read,
-            // but only users from that state or admins can write.
-            allow read: if isUserInPersonalChat(roomId) || (isAuthenticated() && !(string(roomId).matches('.*_.*')));
-            allow create: if (isUserInPersonalChat(roomId)) ||
-                           (isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.state == roomId) ||
-                           isAdmin();
-            
-            // Allow admins to update/delete any message. Users can't.
-            allow update, delete: if isAdmin();
-        }
-    }
-
-    // Offers collection: Admins can do anything, others can only read.
-    match /offers/{offerId} {
-        allow read: if isAuthenticated();
-        allow write: if isAdmin();
-    }
-    
-    // Flagged content collection for AI moderation training
-    match /flagged_content/{contentId} {
-      // Any authenticated user can read this list to perform client-side moderation checks.
       allow read: if isAuthenticated();
-      // Only admins can add new flagged content.
-      allow write: if isAdmin();
+      allow write: if request.auth.uid == userId || isAdmin();
+      
+      // A user can read their own personalChats subcollection
+      match /personalChats/{otherUserId} {
+         allow read, write: if request.auth.uid == userId;
+      }
+    }
+
+    // Chat rooms
+    match /chats/{roomId} {
+      // Allow a user to list chats they are a part of.
+      allow list: if isAuthenticated() && request.auth.uid in resource.data.users;
+      // Allow read/write access to a chat room if the user is part of it or is an admin.
+      allow read, write: if isAuthenticated() && (request.auth.uid in resource.data.users || isAdmin());
+
+      // Messages within a chat room
+      match /messages/{messageId} {
+        // Any user in the chat room (or an admin) can read messages.
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users || isAdmin());
+        // A user can only create (write) messages if they are part of the chat room.
+        allow create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
+        // Only admins can update or delete messages (for moderation).
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // Offers can be read by anyone, but only written/deleted by admins.
+    match /offers/{offerId} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
     }
     
-    // Inappropriate logs collection for admin review
+    // Flagged content can only be accessed by admins
+    match /flagged_content/{contentId} {
+      allow read, write, delete: if isAdmin();
+    }
+
+    // Inappropriate logs can only be created by the system (via server-side logic which runs with admin privileges)
+    // and read by admins.
     match /inappropriate_logs/{logId} {
-        // Only admins can read or write to the inappropriate message logs.
-        allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if false; // Only backend can write here
     }
   }
 }
