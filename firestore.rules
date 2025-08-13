@@ -3,37 +3,33 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can read/write their own profile, but admins can read any profile.
+    // Users can write to their own profile. Any authenticated user can read public profile info.
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
-      allow get: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
     }
 
-    // Authenticated users can read/write to chat rooms.
-    match /chats/{state}/{document=**} {
+    // Chat messages can be read or written by any authenticated user.
+    // In a production app, you would likely add more specific rules here.
+    match /chats/{roomId}/{document=**} {
       allow read, write: if request.auth != null;
     }
-
-    // Admins can update/delete specific requirement messages.
-    match /chats/{state}/messages/{messageId} {
-       allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Offers are readable by any authenticated user, but only admins can modify them.
+    
+    // Offers are public read, but only admins can write/delete
     match /offers/{offerId} {
       allow read: if request.auth != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-    
-    // Flagged content is readable by any authenticated user for moderation checks, but only writable by admins.
-    match /flagged_content/{docId} {
-      allow read: if request.auth != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow write, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Inappropriate logs are only accessible by admins.
-    match /inappropriate_logs/{docId} {
-      allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    // Flagged content can be read by any authenticated user for moderation checks, but only written by admins.
+    match /flagged_content/{contentId} {
+        allow read: if request.auth != null;
+        allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    
+    // Inappropriate message logs are only readable/writeable by admins
+    match /inappropriate_logs/{logId} {
+        allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
