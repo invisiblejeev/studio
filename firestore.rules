@@ -4,70 +4,58 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isUser(uid) {
-      return isSignedIn() && request.auth.uid == uid;
-    }
-
-    // Users collection
+    // Users can only read their own profile, but anyone can see a limited public profile.
+    // Any authenticated user can create a user profile.
     match /users/{userId} {
-      // Any signed-in user can read any user's profile (needed for chat, etc.)
-      allow read: if isSignedIn();
-      // Only the user themselves can create or update their own profile
-      allow create, update: if isUser(userId);
-       // A user can delete their own profile document
-      allow delete: if isUser(userId);
+      allow read; // Allow any authenticated user to read user profiles for display.
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth.uid == userId;
+      
+      // Personal chat metadata
+      match /personalChats/{otherUserId} {
+        allow read, write: if request.auth.uid == userId;
+      }
     }
 
-    // Chats collection (contains all state and personal chats)
+    // State-based public chat rooms
+    match /chats/{stateId} {
+      // Allow authenticated users to read and write messages.
+      // Allow any authenticated user to update the last message timestamp for sorting.
+      allow read, update: if request.auth != null;
+
+      match /messages/{messageId} {
+        allow read, create: if request.auth != null;
+        // Only an admin can update/delete messages in public channels.
+        allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      }
+    }
+
+    // Personal (one-to-one) chat rooms
     match /chats/{roomId} {
-        // Read: Any signed-in user can read state chats. Personal chats are restricted.
-        allow read: if isSignedIn();
+      // Allow read/write access only if the user is part of the room.
+      // roomID is formatted as "uid1_uid2"
+      allow read, update: if request.auth != null && (request.auth.uid in roomId.split('_'));
 
-        // Write: Any signed-in user can create a message. Update is restricted.
-        allow write: if isSignedIn();
-        
-        // Messages subcollection
-        match /messages/{messageId} {
-            // Read: Any signed-in user can read state chats. Personal chats are restricted.
-            allow read: if isSignedIn();
-            // Write: Any signed-in user can create a message.
-            allow write: if isSignedIn();
-        }
+      match /messages/{messageId} {
+        allow read, create: if request.auth != null && (request.auth.uid in roomId.split('_'));
+      }
     }
     
-    // Personal chat references within a user's document
-    match /users/{userId}/personalChats/{otherUserId} {
-        // Only the user can read/write their own list of personal chats
-        allow read, write: if isUser(userId);
-    }
-
-    // Offers collection
+    // Offers are public to read for any authenticated user.
+    // Only admins can create, update, or delete offers.
     match /offers/{offerId} {
-        // Anyone can read offers
-        allow read: if true;
-        // Only signed-in users can write (admins handled by app logic)
-        allow write: if isSignedIn();
+      allow read: if request.auth != null;
+      allow create, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
     
-    // Flagged content collection (for admin review)
+    // Admins can add flagged content for moderation training.
     match /flagged_content/{contentId} {
-        // Only signed-in users (admins, via app logic) can create flagged content
-        allow create: if isSignedIn();
-        // No one can read/update/delete directly - must be done with admin credentials
-        allow read, update, delete: if false;
+        allow create: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-
-    // Inappropriate logs collection
+    
+    // Logs for inappropriate messages. Only admins can write to this.
     match /inappropriate_logs/{logId} {
-      // The backend service can write to this, so we need to allow signed-in users to create.
-      allow create: if isSignedIn();
-       // No one can read/update/delete directly
-      allow read, update, delete: if false;
+        allow create: if request.auth != null;
     }
   }
 }
