@@ -52,7 +52,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     return;
   }
 
-  // 2. Save the message to Firestore. This is the primary function.
+  // 2. Save the message to Firestore.
   const messageRef = await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 
   // 3. Update the last message info on the parent chat document for chat lists.
@@ -66,7 +66,6 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
 
 
   // 4. Run AI categorization in the background ONLY for non-personal chats.
-  // This is a non-blocking operation and will not cause permission errors.
   if (messagePayload.text && !isPersonalChat) {
     try {
         const categorization = await categorizeMessage({ text: messagePayload.text });
