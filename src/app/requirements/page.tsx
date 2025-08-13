@@ -22,6 +22,7 @@ import { flagContent } from '@/services/admin';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import Link from 'next/link';
 
 
 const categoryConfig: Record<Category, { icon: React.ElementType, color: string }> = {
@@ -269,8 +270,10 @@ export default function RequirementsPage() {
                                                     <div>
                                                         <p className="font-medium">{req.user.name}</p>
                                                          {!isAuthor && (
-                                                            <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => router.push(`/chat/user/${req.user.id}`)}>
-                                                                Send Message
+                                                            <Button variant="link" size="sm" className="h-auto p-0 text-xs" asChild>
+                                                                <Link href={`/chat/user/${req.user.id}`}>
+                                                                    Send Message
+                                                                </Link>
                                                             </Button>
                                                         )}
                                                     </div>

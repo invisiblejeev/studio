@@ -8,6 +8,7 @@ import { Mail, MapPin, Globe, MessageSquare } from "lucide-react";
 import { allStates } from "@/lib/states";
 import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface UserProfileDialogProps {
   isOpen: boolean;
@@ -58,9 +59,11 @@ export function UserProfileDialog({ isOpen, onOpenChange, user, currentUser }: U
         </div>
         {!isOwnProfile && (
             <DialogFooter>
-                <Button className="w-full" onClick={handleSendMessage}>
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    Send Message
+                <Button className="w-full" asChild>
+                    <Link href={`/chat/user/${user.uid}`} onClick={() => onOpenChange(false)}>
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        Send Message
+                    </Link>
                 </Button>
             </DialogFooter>
         )}
