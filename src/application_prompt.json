@@ -1,0 +1,200 @@
+
+{
+  "appName": "Indian Community Chat App (USA)",
+  "appDescription": "A mobile-first chat application designed to connect the Indian community within different states in the USA. It features state-specific public chat rooms, private messaging, and AI-powered content moderation and categorization to identify community needs.",
+  "techStack": [
+    "Next.js (App Router)",
+    "React",
+    "TypeScript",
+    "Tailwind CSS",
+    "ShadCN UI",
+    "Firebase (Firestore, Authentication, Storage)",
+    "Genkit (for AI functionality)"
+  ],
+  "coreFeatures": [
+    {
+      "feature": "Authentication",
+      "description": "User registration and login via email and password. Session persistence is handled by Firebase Auth. Includes password reset functionality."
+    },
+    {
+      "feature": "User Profiles",
+      "description": "Users have profiles with first name, last name, username, email, phone, city, state, and a profile picture. Profiles are editable."
+    },
+    {
+      "feature": "Public Chat",
+      "description": "State-specific public group chat rooms (e.g., 'california', 'texas'). Users join based on their profile's state. Supports text and image messages."
+    },
+    {
+      "feature": "Private Chat",
+      "description": "Users can initiate one-on-one private chats with other users. Private chat history is accessible from a dedicated 'Personal Chats' screen."
+    },
+    {
+      "feature": "AI-Powered Requirement Detection",
+      "description": "An AI flow automatically analyzes messages in public chats to detect user needs. It categorizes messages into types like 'Jobs', 'Housing', 'Marketplace', etc., and creates a structured 'requirement' post."
+    },
+    {
+      "feature": "Requirements Page",
+      "description": "A dedicated page that displays all AI-detected requirements. Users can filter requirements by category. This page serves as a community needs board."
+    },
+    {
+      "feature": "Coupons & Offers Page",
+      "description": "A page displaying special deals and offers for the community. Admins can add, edit, and delete offers. Non-admin users see a CTA to contact an admin to post an offer."
+    },
+    {
+      "feature": "Admin Dashboard",
+      "description": "A protected page for administrators. It displays a log of detected spam messages and a feed of the latest AI-classified community requirements. Admins can also add new offers directly from this dashboard."
+    },
+    {
+      "feature": "Navigation",
+      "description": "A mobile-friendly bottom navigation bar provides easy access to Chat, Requirements, Offers, and Profile. An Admin link appears for authorized users."
+    }
+  ],
+  "dataModels": {
+    "firestore": [
+      {
+        "collection": "users",
+        "documentId": "{userId}",
+        "schema": {
+          "uid": "string",
+          "firstName": "string",
+          "lastName": "string",
+          "username": "string (lowercase)",
+          "email": "string (lowercase)",
+          "phone": "string (optional)",
+          "state": "string (optional, e.g., 'california')",
+          "city": "string (optional)",
+          "avatar": "string (URL to image, optional)",
+          "isAdmin": "boolean"
+        },
+        "subcollections": [
+          {
+            "collection": "personalChats",
+            "documentId": "{otherUserId}",
+            "schema": {
+              "roomId": "string",
+              "withUser": {
+                "uid": "string",
+                "username": "string",
+                "avatar": "string"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "collection": "chats",
+        "documentId": "{roomId}",
+        "description": "Room ID is the state name for public chats (e.g., 'hawaii') or a composite ID ('uid1_uid2') for private chats.",
+        "schema": {
+          "lastMessage": "string (optional)",
+          "lastMessageSenderId": "string (optional)",
+          "lastMessageTimestamp": "timestamp (optional)",
+          "users": "array<string> (for private chats)",
+          "isPersonal": "boolean (for private chats)"
+        },
+        "subcollections": [
+          {
+            "collection": "messages",
+            "documentId": "{messageId}",
+            "schema": {
+              "user": {
+                "id": "string",
+                "name": "string",
+                "avatar": "string"
+              },
+              "text": "string (optional)",
+              "imageUrl": "string (URL, optional)",
+              "timestamp": "timestamp",
+              "isSpam": "boolean (optional)",
+              "reason": "string (optional)"
+            }
+          }
+        ]
+      },
+      {
+        "collection": "requirements",
+        "documentId": "{requirementId}",
+        "schema": {
+          "user": {
+            "id": "string",
+            "name": "string",
+            "avatar": "string"
+          },
+          "text": "string",
+          "state": "string",
+          "timestamp": "timestamp",
+          "category": "string (e.g., 'Jobs', 'Housing')",
+          "title": "string",
+          "originalMessageId": "string",
+          "originalRoomId": "string"
+        }
+      },
+      {
+        "collection": "offers",
+        "documentId": "{offerId}",
+        "schema": {
+          "title": "string",
+          "description": "string",
+          "images": "array<string> (URLs)",
+          "code": "string (optional)",
+          "validUntil": "string (yyyy-MM-dd, optional)",
+          "type": "string (e.g., 'Discount', 'Deal', optional)"
+        }
+      }
+    ]
+  },
+  "aiFunctionality": {
+    "genkitFlows": [
+      {
+        "name": "categorizeMessageFlow",
+        "path": "src/ai/flows/categorize-message.ts",
+        "description": "Analyzes a user's chat message to determine if it represents a specific need or requirement.",
+        "input": {
+          "text": "string (The user's message)"
+        },
+        "output": {
+          "category": "enum ('Jobs', 'Housing', 'Marketplace', 'Events', 'Plumber', 'Babysitter', 'Pet Care', 'Doctor', 'Lawyer', 'General Chat', 'Other')",
+          "title": "string (A concise title for the post, e.g., 'Roommate Needed')",
+          "reason": "string (optional, explanation for the categorization)"
+        },
+        "trigger": "A Firestore trigger on document creation in `chats/{roomId}/messages/{messageId}`. It processes messages from public chats and creates a new document in the `requirements` collection if the category is not 'General Chat' or 'Other'."
+      }
+    ]
+  },
+  "securityRules": {
+    "file": "firestore.rules",
+    "description": "Defines access control for the Firestore database.",
+    "rules": [
+      {
+        "path": "/users/{userId}",
+        "permissions": {
+          "read": "Allow if user is authenticated.",
+          "write": "Allow only if the user is modifying their own document (request.auth.uid == userId)."
+        }
+      },
+      {
+        "path": "/chats/{roomId}/messages/{messageId}",
+        "permissions": {
+          "read": "Allow if the user's UID is in the `users` array of the parent chat document (for private chats) or if it's a public chat.",
+          "write": "Allow if the user is authenticated and the message belongs to them."
+        }
+      },
+      {
+        "path": "/requirements/{requirementId}",
+        "permissions": {
+          "read": "Allow if user is authenticated.",
+          "create": "Deny client-side creation (only cloud functions can create).",
+          "update": "Allow if user is an admin.",
+          "delete": "Allow if user is an admin."
+        }
+      },
+      {
+        "path": "/offers/{offerId}",
+        "permissions": {
+          "read": "Allow if user is authenticated.",
+          "write": "Allow if user is an admin."
+        }
+      }
+    ]
+  }
+}
