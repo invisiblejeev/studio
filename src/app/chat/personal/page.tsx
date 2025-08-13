@@ -47,39 +47,44 @@ export default function PersonalChatsListPage() {
                 const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
                 const q = query(personalChatsRef);
 
-                const unsubscribe = onSnapshot(q, (snapshot) => {
-                    const chatPromises = snapshot.docs.map(docData => {
+                const unsubscribe = onSnapshot(q, async (snapshot) => {
+                    const chatPromises = snapshot.docs.map(async (docData) => {
                         const chatInfo = docData.data();
                         const roomId = chatInfo.roomId;
                         
-                        return new Promise<ChatContact>(async (resolve) => {
-                            const messagesCollection = collection(db, 'chats', roomId, 'messages');
-                            const q2 = query(messagesCollection, orderBy("timestamp", "desc"), limit(1));
-                            
-                            const messageSnapshot = await getDocs(q2);
-                            let lastMessage: Message | null = null;
-                            if (!messageSnapshot.empty) {
-                                lastMessage = messageSnapshot.docs[0].data() as Message;
-                            }
+                        const messagesCollection = collection(db, 'chats', roomId, 'messages');
+                        const q2 = query(messagesCollection, orderBy("timestamp", "desc"), limit(1));
+                        
+                        const messageSnapshot = await getDocs(q2);
+                        let lastMessage: Message | null = null;
+                        if (!messageSnapshot.empty) {
+                            const doc = messageSnapshot.docs[0];
+                            const data = doc.data();
+                            const timestamp = data.timestamp?.toDate ? data.timestamp.toDate() : new Date(0);
+                            lastMessage = {
+                                ...data,
+                                id: doc.id,
+                                time: timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                                timestamp,
+                            } as Message;
+                        }
 
-                            const timestamp = lastMessage?.timestamp?.toDate ? lastMessage.timestamp.toDate() : new Date(0);
-                            
-                            resolve({
-                                user: chatInfo.withUser,
-                                lastMessage: lastMessage?.text || (lastMessage?.imageUrl ? "Image" : "No messages yet"),
-                                time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                                unread: 0, // Simplified for now
-                                timestamp: timestamp,
-                                roomId: roomId,
-                            });
-                        });
+                        const timestamp = lastMessage?.timestamp || new Date(0);
+                        
+                        return {
+                            user: chatInfo.withUser,
+                            lastMessage: lastMessage?.text || (lastMessage?.imageUrl ? "Image" : "No messages yet"),
+                            time: lastMessage ? lastMessage.time : '',
+                            unread: 0, // Simplified for now
+                            timestamp: timestamp,
+                            roomId: roomId,
+                        };
                     });
 
-                    Promise.all(chatPromises).then(resolvedChats => {
-                        resolvedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
-                        setChats(resolvedChats);
-                        setIsLoading(false);
-                    });
+                    const resolvedChats = await Promise.all(chatPromises);
+                    resolvedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
+                    setChats(resolvedChats);
+                    setIsLoading(false);
                 });
                 return unsubscribe;
             }
