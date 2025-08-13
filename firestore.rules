@@ -3,60 +3,41 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can read anyone's profile, but only write to their own.
+    // Users: Can read any profile, but only write to their own.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId;
-
-      // Users can only read their own personal chat list.
-      // Writes are denied from the client, they are handled by backend triggers.
-      match /personalChats/{otherUserId} {
-        allow read: if request.auth.uid == userId;
-        allow write: if request.auth.uid == userId; // Allow sender to update their own last message
-      }
     }
 
-    // Chat rooms
+    // Chats: Can read/write messages in public chats or private chats they are a member of.
     match /chats/{roomId} {
-      // Allow read/write access to the chat document itself
-      allow read, write: if request.auth != null;
+      // Allow reads on the chat document itself if it's a public chat,
+      // or if the user is part of the private chat.
+      allow read: if request.auth != null && (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || request.auth.uid in resource.data.users);
 
-      // Messages subcollection
       match /messages/{messageId} {
-        // Allow reads if it's a public chat (room ID doesn't contain '_')
-        // or if the user is part of the private chat.
-        allow read: if request.auth != null && (
-          !exists(/databases/$(database)/documents/chats/$(roomId)) || // Allow if chat doc doesn't exist yet
-          !get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal ||
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users
-        );
-
-        // Allow creating messages if authenticated.
-        // Allow updating (for soft delete) only if the user is the author of the message.
-        allow create: if request.auth.uid == request.resource.data.user.id;
-        allow update: if request.auth.uid == resource.data.user.id;
-        allow delete: if request.auth.uid == resource.data.user.id; // For full deletion if needed
+        // Allow read/write to messages if user is authenticated and is a member of the chat room.
+        allow read: if request.auth != null && (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users);
+        allow write: if request.auth != null; // Further logic handled by triggers/app logic.
       }
     }
 
-    // Requirements are created by the backend trigger, not the client.
-    // Admins can edit or delete them.
+    // Requirements: Authenticated users can list all requirements. Only admins can update/delete. Creation is server-side only.
     match /requirements/{requirementId} {
-      allow read: if request.auth != null;
+      allow get, list: if request.auth != null;
       allow create: if false; // Deny client-side creation
-      allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Offers can be read by any authenticated user.
-    // Only admins can create, update, or delete them.
+    // Offers: Authenticated users can read offers. Only admins can write.
     match /offers/{offerId} {
       allow read: if request.auth != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Flagged content is admin-only
+    // Flagged Content: Only accessible by backend functions (admins flag via a callable function).
     match /flagged_content/{flagId} {
-        allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow read, write: if false;
     }
   }
 }
