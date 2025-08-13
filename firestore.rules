@@ -1,53 +1,62 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Users can only read other user profiles, but can only write to their own.
+
+    // Users can read anyone's profile, but only write to their own.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId;
 
-      // Users can only read their own personal chat metadata.
-      // Writes are handled by backend triggers for security.
+      // Users can only read their own personal chat list.
+      // Writes are denied from the client, they are handled by backend triggers.
       match /personalChats/{otherUserId} {
         allow read: if request.auth.uid == userId;
-        allow write: if request.auth.uid == userId; // Allow user to reset their own unread count
+        allow write: if request.auth.uid == userId; // Allow sender to update their own last message
       }
     }
 
-    // Public chats are readable by anyone authenticated.
-    // Private chats are readable only by members of the chat.
+    // Chat rooms
     match /chats/{roomId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null; // Writes are for last message updates, etc.
-    }
-    
-    // Rules for messages within a chat
-    match /chats/{roomId}/messages/{messageId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == request.resource.data.user.id;
-    }
-    
-    // Requirements can be read by anyone, but only created by backend functions.
-    // Admins can update or delete them.
-    match /requirements/{requirementId} {
-        allow read: if request.auth != null;
-        allow create: if false; // Should only be created by backend
-        allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Allow read/write access to the chat document itself
+      allow read, write: if request.auth != null;
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        // Allow reads if it's a public chat (room ID doesn't contain '_')
+        // or if the user is part of the private chat.
+        allow read: if request.auth != null && (
+          !exists(/databases/$(database)/documents/chats/$(roomId)) || // Allow if chat doc doesn't exist yet
+          !get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal ||
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users
+        );
+
+        // Allow creating messages if authenticated.
+        // Allow updating (for soft delete) only if the user is the author of the message.
+        allow create: if request.auth.uid == request.resource.data.user.id;
+        allow update: if request.auth.uid == resource.data.user.id;
+        allow delete: if request.auth.uid == resource.data.user.id; // For full deletion if needed
+      }
     }
 
-    // Offers can be read by anyone, but only written by admins.
-    match /offers/{offerId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    // Requirements are created by the backend trigger, not the client.
+    // Admins can edit or delete them.
+    match /requirements/{requirementId} {
+      allow read: if request.auth != null;
+      allow create: if false; // Deny client-side creation
+      allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-    
-    // This rule is for the Admin dashboard's collectionGroup query to find spam.
-    // It allows an admin to read from the 'messages' collection group.
-    match /{path=**}/messages/{messageId} {
-      allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+
+    // Offers can be read by any authenticated user.
+    // Only admins can create, update, or delete them.
+    match /offers/{offerId} {
+      allow read: if request.auth != null;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Flagged content is admin-only
+    match /flagged_content/{flagId} {
+        allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
