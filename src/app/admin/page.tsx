@@ -75,7 +75,6 @@ export default function AdminDashboardPage() {
 
                 // Fetch Spam Messages using a collectionGroup query.
                 // This requires a composite index on (isSpam, timestamp) in Firestore.
-                // The console will prompt you to create this index automatically.
                 const spamQuery = query(
                     collectionGroup(db, 'messages'), 
                     where('isSpam', '==', true), 
@@ -86,9 +85,13 @@ export default function AdminDashboardPage() {
                 const spamSnapshot = await getDocs(spamQuery);
                 const spamData = spamSnapshot.docs.map(doc => {
                     const data = doc.data();
+                    const parentPath = doc.ref.parent.parent?.path;
+                    const state = parentPath ? parentPath.split('/')[1] : 'unknown';
+
                     return {
                         id: doc.id,
                         ...data,
+                        state: state, // Extract state from document path
                         time: data.timestamp?.toDate().toLocaleString() ?? '',
                     } as SpamMessage
                 });
@@ -97,7 +100,7 @@ export default function AdminDashboardPage() {
 
             } catch (error) {
                 console.error("Failed to fetch admin dashboard data:", error);
-                 toast({ title: "Error", description: "Could not fetch dashboard data. You may need to create Firestore indexes.", variant: "destructive" });
+                 toast({ title: "Error", description: "Could not fetch dashboard data. Check Firestore rules and indexes.", variant: "destructive" });
             } finally {
                 setIsLoading(false);
             }
@@ -348,5 +351,3 @@ export default function AdminDashboardPage() {
       </div>
     )
 }
-
-    

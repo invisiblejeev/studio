@@ -16,27 +16,24 @@ export interface Message {
   imageUrl?: string;
   time: string; 
   timestamp: any;
+  // Fields below are added by backend triggers, not set by client
   category?: string;
   title?: string;
   isSpam?: boolean;
   reason?: string;
+  // Fields used for 'requirements' collection
   state?: string; 
   originalMessageId?: string;
   originalRoomId?: string;
 }
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
-  // 1. Construct the basic message payload
+  // 1. Construct the basic message payload the client is allowed to send.
+  // The client should not set fields like isSpam, category, title, etc.
   const messagePayload: any = {
     user: message.user,
     timestamp: serverTimestamp(),
   };
-  
-  // Set state for public chats
-  const isPersonalChat = roomId.includes('_');
-  if (!isPersonalChat) {
-    messagePayload.state = roomId;
-  }
 
   if (message.text && message.text.trim() !== '') {
     messagePayload.text = message.text;
@@ -46,14 +43,14 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     messagePayload.imageUrl = message.imageUrl;
   }
 
-  // Abort if the message is empty
+  // Abort if the message is empty (no text and no image)
   if (!messagePayload.text && !messagePayload.imageUrl) {
     console.log("Attempted to send an empty message. Aborting.");
     return;
   }
 
-  // 2. Save the message to Firestore.
-  // The onMessageCreated trigger will handle categorization in the background.
+  // 2. Save the simple message to Firestore.
+  // A backend trigger (`onMessageCreated`) will handle categorization/moderation.
   await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 
   // 3. Update the last message info on the parent chat document for chat lists.
