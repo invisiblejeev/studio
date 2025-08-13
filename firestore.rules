@@ -2,34 +2,45 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Users can write to their own profile. Any authenticated user can read public profile info.
+    
+    // Users can read public profile info, but only write to their own.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId;
     }
 
-    // Chat messages can be read or written by any authenticated user.
-    // In a production app, you would likely add more specific rules here.
-    match /chats/{roomId}/{document=**} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Offers are public read, but only admins can write/delete
-    match /offers/{offerId} {
-      allow read: if request.auth != null;
-      allow write, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Flagged content can be read by any authenticated user for moderation checks, but only written by admins.
-    match /flagged_content/{contentId} {
+    // Admins can read/write flagged content, authenticated users can read it.
+    match /flagged_content/{docId} {
         allow read: if request.auth != null;
         allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
     
-    // Inappropriate message logs are only readable/writeable by admins
-    match /inappropriate_logs/{logId} {
-        allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    // Admins can read/write inappropriate message logs.
+    match /inappropriate_logs/{docId} {
+      allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Anyone authenticated can read offers, but only admins can create/edit/delete them.
+    match /offers/{offerId} {
+      allow read: if request.auth != null;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    
+    // Rules for all chat messages, including public state channels and private user chats.
+    match /chats/{roomId}/{documents=**} {
+      // Any authenticated user can read any message. This is required for the 
+      // cross-state Requirements page and the personal chat list to work.
+      allow read: if request.auth != null;
+
+      // Write permissions are more restrictive. A user can only write to a chat room if:
+      // 1. They are an admin.
+      // 2. It's a public state channel and it matches their profile's state.
+      // 3. It's a personal chat room and their UID is part of the room ID.
+      allow write: if request.auth != null && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.state == roomId ||
+          request.auth.uid in roomId.split('_')
+      );
     }
   }
 }
