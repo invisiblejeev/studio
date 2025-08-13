@@ -17,6 +17,7 @@ import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { UserProfileDialog } from "@/components/UserProfileDialog";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -32,6 +33,9 @@ export default function ChatPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [memberCount, setMemberCount] = useState(0);
+
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -64,6 +68,20 @@ export default function ChatPage() {
     });
     return () => unsubscribe();
   }, [state]);
+
+  const handleShowProfile = async (userId: string) => {
+    if (userId === currentUser?.uid) {
+        router.push('/profile');
+        return;
+    }
+    const userProfile = await getUserProfile(userId);
+    if (userProfile) {
+        setSelectedUser(userProfile);
+        setIsProfileDialogOpen(true);
+    } else {
+        toast({ title: "Error", description: "Could not fetch user profile.", variant: "destructive" });
+    }
+  }
 
 
   const handleSendMessage = async () => {
@@ -149,6 +167,7 @@ export default function ChatPage() {
 
 
   return (
+    <>
     <div className="flex flex-col h-full bg-background rounded-xl border">
       <header className="flex items-center justify-between p-4 border-b">
           <div>
@@ -176,10 +195,12 @@ export default function ChatPage() {
                 return (
                   <div key={msg.id} className={cn('flex items-end gap-2', isYou ? 'justify-end' : 'justify-start')}>
                      {!isYou && isLastInSequence && (
-                        <Avatar className={cn('h-8 w-8')}>
-                            <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
-                            <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
+                        <button onClick={() => handleShowProfile(msg.user.id)}>
+                            <Avatar className={cn('h-8 w-8')}>
+                                <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                                <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                        </button>
                      )}
                      {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
@@ -207,10 +228,12 @@ export default function ChatPage() {
                         {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                      </div>
                      {isYou && isLastInSequence && (
-                         <Avatar className={cn('h-8 w-8')}>
-                            <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
-                            <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
-                         </Avatar>
+                         <button onClick={() => router.push('/profile')}>
+                             <Avatar className={cn('h-8 w-8')}>
+                                <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                                <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
+                             </Avatar>
+                         </button>
                      )}
                      {isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
@@ -270,5 +293,11 @@ export default function ChatPage() {
           </div>
       </div>
     </div>
+    <UserProfileDialog 
+        isOpen={isProfileDialogOpen}
+        onOpenChange={setIsProfileDialogOpen}
+        user={selectedUser}
+    />
+    </>
   );
 }
