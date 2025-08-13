@@ -8,7 +8,7 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc, query, orderBy, addDoc, updateDoc } from 'firebase/firestore';
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil, Upload, Image as ImageIcon, X, Megaphone } from "lucide-react";
+import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil, Upload, Image as ImageIcon, X, Megaphone, MapPin, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import Autoplay from "embla-carousel-autoplay";
+import { allStates } from "@/lib/states";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 
 
 interface Offer {
@@ -33,17 +35,20 @@ interface Offer {
   code?: string;
   validUntil?: string;
   type?: string;
+  states?: string[];
 }
 
 const initialNewOfferState = {
     title: '',
     description: '',
     code: '',
-    type: ''
+    type: '',
+    states: ['all'],
 };
 
 export default function OffersPage() {
-  const [offers, setOffers] = useState<Offer[]>([]);
+  const [allOffers, setAllOffers] = useState<Offer[]>([]);
+  const [filteredOffers, setFilteredOffers] = useState<Offer[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -83,8 +88,7 @@ export default function OffersPage() {
     const offersQuery = query(collection(db, 'offers'), orderBy('title'));
     const unsubscribe = onSnapshot(offersQuery, (snapshot) => {
         const offersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Offer));
-        setOffers(offersData);
-        setIsLoading(false);
+        setAllOffers(offersData);
     }, (error) => {
         console.error("Error fetching offers: ", error);
         toast({ title: "Error", description: "Could not fetch offers.", variant: "destructive" });
@@ -92,6 +96,22 @@ export default function OffersPage() {
     });
     return () => unsubscribe();
   }, [toast]);
+  
+  useEffect(() => {
+    if (isLoading) return;
+    
+    if (currentUser && currentUser.state) {
+        const userState = currentUser.state;
+        const visibleOffers = allOffers.filter(offer => 
+            !offer.states || offer.states.includes('all') || offer.states.includes(userState)
+        );
+        setFilteredOffers(visibleOffers);
+    } else {
+        // Show all offers if user has no state or is not logged in
+        setFilteredOffers(allOffers);
+    }
+    setIsLoading(false);
+  }, [allOffers, currentUser, isLoading]);
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -224,7 +244,7 @@ export default function OffersPage() {
 
   const openEditDialog = (offer: Offer) => {
     resetDialogState();
-    setEditingOffer({ ...offer, images: offer.images || [] });
+    setEditingOffer({ ...offer, images: offer.images || [], states: offer.states || ['all'] });
     setEditValidUntil(offer.validUntil ? parse(offer.validUntil, 'yyyy-MM-dd', new Date()) : undefined);
     setImagePreviews([]); // New previews for newly added files in edit mode
     setImageFiles([]);
@@ -235,6 +255,28 @@ export default function OffersPage() {
     resetDialogState();
     setIsAddOfferOpen(true);
   }
+
+  const handleStateSelection = (stateValue: string, isEditing: boolean) => {
+    const stateField = isEditing ? editingOffer?.states : newOffer.states;
+    const setStateField = isEditing
+      ? (states: string[]) => setEditingOffer(prev => prev ? { ...prev, states } : null)
+      : (states: string[]) => setNewOffer(prev => ({ ...prev, states }));
+  
+    if (stateValue === 'all') {
+      setStateField(['all']);
+    } else {
+      const currentStates = stateField?.includes('all') ? [] : (stateField || []);
+      const newStates = currentStates.includes(stateValue)
+        ? currentStates.filter(s => s !== stateValue)
+        : [...currentStates, stateValue];
+      
+      if(newStates.length === 0) {
+        setStateField(['all']);
+      } else {
+        setStateField(newStates);
+      }
+    }
+  };
 
 
   return (
@@ -251,14 +293,14 @@ export default function OffersPage() {
           <LoaderCircle className="w-8 h-8 animate-spin" />
           <p className="ml-2">Loading offers...</p>
         </div>
-      ) : offers.length === 0 ? (
+      ) : filteredOffers.length === 0 ? (
         <div className="text-center text-muted-foreground py-10">
           <h3 className="text-lg font-semibold">No Offers Available</h3>
-          <p className="text-sm">Check back later for new deals!</p>
+          <p className="text-sm">Check back later for new deals or check if your profile state is set.</p>
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {offers.map(offer => (
+          {filteredOffers.map(offer => (
             <Card key={offer.id} className="overflow-hidden flex flex-col">
               <CardHeader className="p-0 relative">
                 <Carousel className="w-full"
@@ -304,6 +346,16 @@ export default function OffersPage() {
                             <span>Valid Until: {format(new Date(offer.validUntil), "PPP")}</span>
                         </div>
                     )}
+                    <div className="flex items-center gap-2 pt-1">
+                        <MapPin className="w-4 h-4" />
+                        {offer.states?.includes('all') ? (
+                            <Badge variant="outline">Nationwide</Badge>
+                        ) : (
+                            <span className="capitalize">
+                                {offer.states?.map(s => allStates.find(as => as.value === s)?.label || s).join(', ')}
+                            </span>
+                        )}
+                    </div>
                 </div>
               </CardContent>
               <CardFooter className="p-2 pt-0">
@@ -335,12 +387,12 @@ export default function OffersPage() {
                         <Plus className="h-6 w-6" />
                     </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[480px]">
+                <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Add New Offer</DialogTitle>
                         <DialogDescription>Create a new coupon or offer for the community.</DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
+                    <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
                         <div className="grid gap-2">
                             <Label htmlFor="title">Title</Label>
                             <Input id="title" value={newOffer.title} onChange={(e) => setNewOffer({...newOffer, title: e.target.value})} />
@@ -393,6 +445,31 @@ export default function OffersPage() {
                                     />
                                 </PopoverContent>
                             </Popover>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Available States</Label>
+                           <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className="justify-start">
+                                {newOffer.states.includes('all') ? 'All States' : `${newOffer.states.length} states selected`}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0">
+                               <Command>
+                                <CommandInput placeholder="Search states..." />
+                                <CommandEmpty>No state found.</CommandEmpty>
+                                <CommandGroup className="max-h-48 overflow-y-auto">
+                                    <CommandItem onSelect={() => handleStateSelection('all', false)}>All States</CommandItem>
+                                    {allStates.map(state => (
+                                        <CommandItem key={state.value} onSelect={() => handleStateSelection(state.value, false)}>
+                                            <X className={cn("mr-2 h-4 w-4", newOffer.states.includes(state.value) ? "opacity-100" : "opacity-0")} />
+                                            {state.label}
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                               </Command>
+                            </PopoverContent>
+                           </Popover>
                         </div>
                         <div className="grid gap-2">
                             <Label>Offer Images</Label>
@@ -450,12 +527,12 @@ export default function OffersPage() {
 
       {currentUser?.isAdmin && editingOffer && (
             <Dialog open={isEditOfferOpen} onOpenChange={setIsEditOfferOpen}>
-              <DialogContent className="sm:max-w-[480px]">
+              <DialogContent className="sm:max-w-md">
                   <DialogHeader>
                       <DialogTitle>Edit Offer</DialogTitle>
                       <DialogDescription>Update the details for this offer.</DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
+                  <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
                       <div className="grid gap-2">
                           <Label htmlFor="title-edit">Title</Label>
                           <Input id="title-edit" value={editingOffer.title} onChange={(e) => setEditingOffer({...editingOffer, title: e.target.value})} />
@@ -509,6 +586,31 @@ export default function OffersPage() {
                               </PopoverContent>
                           </Popover>
                       </div>
+                       <div className="grid gap-2">
+                          <Label>Available States</Label>
+                           <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className="justify-start">
+                                {editingOffer.states?.includes('all') ? 'All States' : `${editingOffer.states?.length || 0} states selected`}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0">
+                               <Command>
+                                <CommandInput placeholder="Search states..." />
+                                <CommandEmpty>No state found.</CommandEmpty>
+                                <CommandGroup className="max-h-48 overflow-y-auto">
+                                    <CommandItem onSelect={() => handleStateSelection('all', true)}>All States</CommandItem>
+                                    {allStates.map(state => (
+                                        <CommandItem key={state.value} onSelect={() => handleStateSelection(state.value, true)}>
+                                            <X className={cn("mr-2 h-4 w-4", editingOffer.states?.includes(state.value) ? "opacity-100" : "opacity-0")} />
+                                            {state.label}
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                               </Command>
+                            </PopoverContent>
+                           </Popover>
+                        </div>
                       <div className="grid gap-2">
                           <Label>Offer Images</Label>
                           <div className="flex flex-wrap gap-2">
@@ -547,5 +649,3 @@ export default function OffersPage() {
     </div>
   )
 }
-
-    
