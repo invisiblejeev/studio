@@ -4,9 +4,9 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare } from 'lucide-react';
+import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, limit, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import type { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
@@ -15,6 +15,10 @@ import { getCurrentUser } from '@/services/auth';
 import { useToast } from '@/hooks/use-toast';
 import { differenceInDays, formatDistanceToNowStrict } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 const categoryConfig: Record<Category, { icon: React.ElementType, color: string }> = {
     "Jobs": { icon: Briefcase, color: "bg-blue-100 text-blue-800" },
@@ -38,7 +42,7 @@ interface Requirement extends Message {
     userInfo?: UserProfile;
 }
 
-const RequirementCard = ({ req, currentUser, onDelete }: { req: Requirement, currentUser: UserProfile | null, onDelete: (req: Requirement) => void }) => {
+const RequirementCard = ({ req, currentUser, onDelete, onEdit }: { req: Requirement, currentUser: UserProfile | null, onDelete: (req: Requirement) => void, onEdit: (req: Requirement) => void }) => {
     const { icon: Icon, color } = categoryConfig[req.category] || categoryConfig["Other"];
     const stateName = allStates.find(s => s.value === req.userInfo?.state)?.label || req.userInfo?.state || '';
     const router = useRouter();
@@ -61,14 +65,24 @@ const RequirementCard = ({ req, currentUser, onDelete }: { req: Requirement, cur
         <Card className="overflow-hidden shadow-md relative group flex flex-col">
             <CardContent className="p-4 pb-2 flex-1">
                  {currentUser?.isAdmin && (
-                    <Button 
-                        variant="destructive" 
-                        size="icon" 
-                        className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => onDelete(req)}
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-7 w-7 bg-white"
+                            onClick={() => onEdit(req)}
+                        >
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                            variant="destructive" 
+                            size="icon" 
+                            className="h-7 w-7"
+                            onClick={() => onDelete(req)}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </div>
                 )}
                 <div className="flex items-start gap-4">
                     <div className={`p-3 rounded-full ${color}`}>
@@ -116,6 +130,11 @@ export default function RequirementsPage() {
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const { toast } = useToast();
 
+    // Edit State
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [editingRequirement, setEditingRequirement] = useState<Requirement | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+
      useEffect(() => {
         const fetchUserAndRequirements = async () => {
             setIsLoading(true);
@@ -141,7 +160,6 @@ export default function RequirementsPage() {
                         const data = doc.data();
                         const timestamp = data.timestamp?.toDate();
                         
-                        // Auto-delete (hide) requirements older than 7 days
                         if (timestamp && differenceInDays(new Date(), timestamp) > 7) {
                             return; 
                         }
@@ -205,7 +223,6 @@ export default function RequirementsPage() {
             const messageRef = doc(db, 'chats', reqToDelete.userInfo.state, 'messages', reqToDelete.id);
             await deleteDoc(messageRef);
 
-            // Optimistically update UI
             const updatedReqs = allRequirements.filter(r => r.id !== reqToDelete.id);
             setAllRequirements(updatedReqs);
             if (activeFilter === 'All') {
@@ -227,6 +244,38 @@ export default function RequirementsPage() {
             });
         }
     }
+
+    const openEditDialog = (req: Requirement) => {
+        setEditingRequirement(req);
+        setIsEditDialogOpen(true);
+    };
+
+    const handleSaveChanges = async () => {
+        if (!editingRequirement || !editingRequirement.userInfo?.state) return;
+        setIsSaving(true);
+        try {
+            const reqRef = doc(db, 'chats', editingRequirement.userInfo.state, 'messages', editingRequirement.id);
+            await updateDoc(reqRef, {
+                title: editingRequirement.title,
+                text: editingRequirement.text,
+            });
+
+            // Update local state to reflect changes immediately
+            const updateReqs = (reqs: Requirement[]) => reqs.map(r => r.id === editingRequirement.id ? editingRequirement : r);
+            setAllRequirements(updateReqs);
+            setFilteredRequirements(updateReqs);
+            
+            toast({ title: "Success", description: "Requirement updated successfully." });
+            setIsEditDialogOpen(false);
+            setEditingRequirement(null);
+
+        } catch (error) {
+            console.error("Error updating requirement:", error);
+            toast({ title: "Error", description: "Failed to update requirement.", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    };
     
     return (
         <div className="space-y-6 p-4 bg-gray-50 min-h-screen">
@@ -264,7 +313,7 @@ export default function RequirementsPage() {
             ) : (
                 filteredRequirements.length > 0 ? (
                     <div className="space-y-4">
-                        {filteredRequirements.map(req => <RequirementCard key={req.id} req={req} currentUser={currentUser} onDelete={handleDeleteRequirement} />)}
+                        {filteredRequirements.map(req => <RequirementCard key={req.id} req={req} currentUser={currentUser} onDelete={handleDeleteRequirement} onEdit={openEditDialog} />)}
                     </div>
                 ) : (
                     <div className="text-center text-muted-foreground py-10">
@@ -274,6 +323,45 @@ export default function RequirementsPage() {
                     </div>
                 )
             )}
+
+            {/* Edit Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Requirement</DialogTitle>
+                        <DialogDescription>
+                            Make changes to this requirement post. Click save when you're done.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {editingRequirement && (
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-title">Title</Label>
+                                <Input
+                                    id="edit-title"
+                                    value={editingRequirement.title}
+                                    onChange={(e) => setEditingRequirement({ ...editingRequirement, title: e.target.value })}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-text">Description</Label>
+                                <Textarea
+                                    id="edit-text"
+                                    value={editingRequirement.text}
+                                    onChange={(e) => setEditingRequirement({ ...editingRequirement, text: e.target.value })}
+                                    rows={4}
+                                />
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSaving}>Cancel</Button>
+                        <Button onClick={handleSaveChanges} disabled={isSaving}>
+                            {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Changes"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
