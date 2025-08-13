@@ -101,14 +101,19 @@ export const onPersonalMessageCreated = onDocumentCreated(
             lastMessage: message.text || (message.imageUrl ? "Image" : ""),
             lastMessageTimestamp: message.timestamp,
             lastMessageSenderId: senderId
+        }).catch(err => {
+            // It's possible the document doesn't exist yet if this is the very first message.
+            // In a production app, we might use a transaction to create if not exists.
+            // For now, we log the error if it's not a 'not-found' error.
+            if (err.code !== 5) { // 5 = NOT_FOUND
+                console.error(`Error updating recipient's personal chat doc:`, err);
+            }
         });
-        console.log(`Incremented unread count for user ${recipientId} in chat with ${senderId}`);
+
+        console.log(`Updated unread count and last message for user ${recipientId} in chat with ${senderId}`);
       }
     } catch (err) {
-      // It's possible the recipient's chat document doesn't exist yet, so we can ignore not-found errors.
-      if (err.code !== 5) { // 5 = NOT_FOUND
-          console.error('Error during personal message trigger:', err);
-      }
+      console.error('Error during personal message trigger:', err);
     }
   }
 );

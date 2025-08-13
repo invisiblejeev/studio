@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -56,18 +56,23 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
       lastMessageSenderId: message.user.id
   }, { merge: true }).catch(e => console.error("Failed to update chat timestamp:", e));
 
-  // The logic to increment the unread count is now handled by a Firestore trigger
-  // (onPersonalMessageCreated) to avoid permission issues.
-  // We still need to update the sender's own chat document for sorting purposes.
-   const chatSnap = await getDoc(chatDocRef);
-    if (chatSnap.exists() && chatSnap.data().isPersonal) {
-        const senderChatRef = doc(db, `users/${message.user.id}/personalChats`, chatSnap.data().users.find((uid: string) => uid !== message.user.id));
-         await updateDoc(senderChatRef, {
+  // The logic to increment the unread count for the recipient is now handled by a Firestore trigger.
+  // We still need to update the SENDER's own chat document for sorting purposes and UI consistency.
+  const chatSnap = await getDoc(chatDocRef);
+  if (chatSnap.exists() && chatSnap.data().isPersonal) {
+      const users = chatSnap.data().users;
+      const recipientId = users.find((uid: string) => uid !== message.user.id);
+
+      if (recipientId) {
+        const senderChatRef = doc(db, `users/${message.user.id}/personalChats`, recipientId);
+        // We update the sender's document to reflect the new last message immediately.
+        await updateDoc(senderChatRef, {
             lastMessage: lastMessageContent,
             lastMessageTimestamp: serverTimestamp(),
             lastMessageSenderId: message.user.id
-        }).catch(e => console.log("Sender personal chat doc may not exist yet.", e));
-    }
+        }).catch(e => console.log("Sender personal chat doc may not exist yet, which is okay.", e.code));
+      }
+  }
 };
 
 
