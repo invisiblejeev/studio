@@ -89,6 +89,8 @@ export default function OffersPage() {
     const unsubscribe = onSnapshot(offersQuery, (snapshot) => {
         const offersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Offer));
         setAllOffers(offersData);
+        // We set loading to false here so the next effect can run
+        setIsLoading(false);
     }, (error) => {
         console.error("Error fetching offers: ", error);
         toast({ title: "Error", description: "Could not fetch offers.", variant: "destructive" });
@@ -99,18 +101,37 @@ export default function OffersPage() {
   
   useEffect(() => {
     if (isLoading) return;
-    
+
     if (currentUser && currentUser.state) {
         const userState = currentUser.state;
-        const visibleOffers = allOffers.filter(offer => 
-            !offer.states || offer.states.includes('all') || offer.states.includes(userState)
-        );
+        const visibleOffers = allOffers.filter(offer => {
+            // Rule 1: If an offer has no state restrictions (old data or explicitly empty), show it.
+            if (!offer.states || offer.states.length === 0) {
+                return true;
+            }
+            // Rule 2: If it's for 'all' states, show it.
+            if (offer.states.includes('all')) {
+                return true;
+            }
+            // Rule 3: If the user's state is in the offer's list of states, show it.
+            if (userState && offer.states.includes(userState)) {
+                return true;
+            }
+            // Otherwise, hide it.
+            return false;
+        });
         setFilteredOffers(visibleOffers);
     } else {
-        // Show all offers if user has no state or is not logged in
-        setFilteredOffers(allOffers);
+        // Show all offers if user has no state or is not logged in, but still filter for 'all' or no-state offers.
+        const visibleOffers = allOffers.filter(offer => {
+             if (!offer.states || offer.states.length === 0 || offer.states.includes('all')) {
+                return true;
+            }
+            // Non-logged in users don't see state-specific offers unless they set a profile state
+            return false;
+        });
+        setFilteredOffers(visibleOffers);
     }
-    setIsLoading(false);
   }, [allOffers, currentUser, isLoading]);
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -348,7 +369,7 @@ export default function OffersPage() {
                     )}
                     <div className="flex items-center gap-2 pt-1">
                         <MapPin className="w-4 h-4" />
-                        {offer.states?.includes('all') ? (
+                        {offer.states && offer.states.length > 0 && offer.states.includes('all') ? (
                             <Badge variant="outline">Nationwide</Badge>
                         ) : (
                             <span className="capitalize">
@@ -649,3 +670,5 @@ export default function OffersPage() {
     </div>
   )
 }
+
+    
