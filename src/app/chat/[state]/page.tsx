@@ -21,7 +21,8 @@ import { UserProfileDialog } from "@/components/UserProfileDialog";
 
 export default function ChatPage() {
   const router = useRouter();
-  const { state } = useParams() as { state: string };
+  const params = useParams();
+  const state = params.state as string;
   const { toast } = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
