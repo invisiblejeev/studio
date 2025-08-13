@@ -92,3 +92,14 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
     
     return roomId;
 }
+
+export const ensurePublicChatRoomExists = async (state: string) => {
+    const chatRef = doc(db, 'chats', state);
+    const chatSnap = await getDoc(chatRef);
+
+    if (!chatSnap.exists()) {
+        await setDoc(chatRef, {
+            isPersonal: false,
+        });
+    }
+};

@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile, getUserCountByState } from "@/services/users";
-import { sendMessage, Message } from "@/services/chat";
+import { sendMessage, Message, ensurePublicChatRoomExists } from "@/services/chat";
 import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
@@ -53,6 +53,9 @@ export default function ChatPage() {
   useEffect(() => {
     if (!state || !currentUser) return;
 
+    // Proactively ensure the public chat room document exists.
+    ensurePublicChatRoomExists(state);
+    
     getUserCountByState(state).then(setMemberCount);
 
     const unsubscribe = getMessages(state, (newMessages) => {
