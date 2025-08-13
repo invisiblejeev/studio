@@ -86,7 +86,13 @@ export default function AdminDashboardPage() {
                 const spamData = spamSnapshot.docs.map(doc => {
                     const data = doc.data();
                     const parentPath = doc.ref.parent.parent?.path;
-                    const state = parentPath ? parentPath.split('/')[1] : 'unknown';
+                    // The path is chats/{roomId}, so the roomId is the second segment.
+                    const roomId = parentPath ? parentPath.split('/')[1] : 'unknown';
+
+                    // For public chats, the room ID is the state name. For private chats, it's user IDs.
+                    // We only want to show state for public chats.
+                    const isPublicChat = allStates.some(s => s.value === roomId);
+                    const state = isPublicChat ? roomId : 'Private Chat';
 
                     return {
                         id: doc.id,
@@ -206,7 +212,7 @@ export default function AdminDashboardPage() {
                             <TableRow>
                                 <TableHead>Message</TableHead>
                                 <TableHead>Reason</TableHead>
-                                <TableHead>State</TableHead>
+                                <TableHead>Chat</TableHead>
                                 <TableHead>User</TableHead>
                             </TableRow>
                         </TableHeader>
