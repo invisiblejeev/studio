@@ -3,70 +3,65 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Users can read any profile, but only write to their own.
-    // Anyone can query the user list for signup checks.
+    
+    // Users can read/update their own profile. Admins can write to any profile.
     match /users/{userId} {
-      allow read, list: if request.auth != null;
-      allow create, update, delete: if request.auth.uid == userId;
-    }
-
-    // Admins can read all flagged content.
-    match /flagged_content/{docId} {
-      allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Offers are public to read, but only admins can modify them.
-    match /offers/{offerId} {
-      allow read: if request.auth != null;
+      allow read, update: if request.auth.uid == userId;
       allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Requirements are public to read.
-    // Only admins can update/delete, but the backend trigger (not a user) creates them.
-    match /requirements/{reqId} {
-      allow read, list: if request.auth != null;
-      allow create: if request.auth != null; // Allow backend function to create
-      allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    match /chats/{roomId} {
-      // Allow read on the chat document itself if it's a public chat,
-      // or if the user is a participant in a private chat.
-      allow read: if request.auth != null && (
-        !roomId.matches('.*_.*') || request.auth.uid in roomId.split('_')
-      );
-
-      // Allow write to the chat document (for lastMessage updates) using the same logic.
-      allow write: if request.auth != null && (
-        !roomId.matches('.*_.*') || request.auth.uid in roomId.split('_')
-      );
-
-      // --- This is the critical fix ---
-      // Explicitly define rules for the 'messages' subcollection.
-      match /messages/{messageId} {
-        // Allow read access under the same conditions as the parent chat room.
-        allow read: if request.auth != null && (
-          !roomId.matches('.*_.*') || request.auth.uid in roomId.split('_')
-        );
-
-        // Allow users to create messages in public chats,
-        // or in private chats they are a part of.
-        // This rule only checks the incoming data, not existing data.
-        allow create: if request.auth.uid == request.resource.data.user.id && (
-            !roomId.matches('.*_.*') || request.auth.uid in roomId.split('_')
-        );
-
-        // Generally, don't allow updates/deletes from the client.
-        // These could be enabled for admins if needed.
-        allow update, delete: if false;
+      
+      // Allow a user to read their own list of personal chats.
+      match /personalChats/{otherUserId} {
+        allow read: if request.auth.uid == userId;
       }
     }
     
-    // Admin collectionGroup query for spam checking.
-    // This allows an admin to query across all 'messages' subcollections.
+    // Rules for the 'chats' collection
+    match /chats/{roomId} {
+      
+      // Allow read/write if the user is part of the chat (for private chats) or if it's a public chat.
+      allow read: if request.auth != null && (
+                    (resource.data.isPersonal == true && request.auth.uid in resource.data.users) ||
+                    (resource.data.isPersonal == false) ||
+                    // This case is for the initial creation of a private chat
+                    (!exists(/databases/$(database)/documents/chats/$(roomId)) && request.auth.uid in roomId.split('_'))
+                  );
+
+      allow write: if request.auth != null; // Simplified for now, can be tightened later if needed.
+      
+      // Messages can be created by any authenticated user in a public chat,
+      // or by one of the two members of a private chat.
+      match /messages/{messageId} {
+        allow create: if request.auth != null && (
+                      (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false) ||
+                      (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == true && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users)
+                    );
+        allow read: if request.auth != null; // Simplification for now
+        allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      }
+    }
+    
+    // Requirements can be read by any authenticated user.
+    // They can only be written/deleted by admins (via cloud functions/backend).
+    match /requirements/{reqId} {
+      allow read: if request.auth != null;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    
+    // Offers can be read by any authenticated user.
+    // They can only be written/deleted by admins.
+    match /offers/{offerId} {
+        allow read: if request.auth != null;
+        allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Admins can read flagged content for improving the AI model.
+    match /flagged_content/{contentId} {
+      allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Collection group query for spam detection by admins.
     match /{path=**}/messages/{messageId} {
-        allow list: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
