@@ -176,9 +176,8 @@ export default function PersonalChatPage() {
             <h2 className="text-xl font-bold">{otherUser.username}</h2>
           </div>
       </header>
-       <div className="flex-1 overflow-y-auto">
-        <ScrollArea className="h-full p-4" ref={scrollAreaRef}>
-            <div className="space-y-1">
+       <ScrollArea className="flex-1" ref={scrollAreaRef}>
+            <div className="p-4 space-y-1">
                 {messages.map((msg, index) => {
                   const isYou = msg.user.id === currentUser?.uid;
                   const prevMessage = messages[index - 1];
@@ -247,7 +246,6 @@ export default function PersonalChatPage() {
               )}
             </div>
         </ScrollArea>
-      </div>
       <div className="p-4 border-t bg-card rounded-b-xl shrink-0">
            {imagePreview && (
               <div className="mb-2 relative w-24 h-24">
