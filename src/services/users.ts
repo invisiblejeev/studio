@@ -61,3 +61,17 @@ export async function deleteUserProfile(uid: string): Promise<void> {
     const userRef = doc(db, 'users', uid);
     await deleteDoc(userRef);
 }
+
+export async function getUserCountByState(state: string): Promise<number> {
+    if (!state) return 0;
+    try {
+        const q = query(collection(db, 'users'), where('state', '==', state));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.size;
+    } catch (error) {
+        console.error("Error getting user count by state: ", error);
+        return 0;
+    }
+}
+
+    

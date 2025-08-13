@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
-import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle, X } from "lucide-react"
+import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle, X, Users } from "lucide-react"
 import { useRouter, useParams } from 'next/navigation';
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
-import { getUserProfile, UserProfile } from "@/services/users";
+import { getUserProfile, UserProfile, getUserCountByState } from "@/services/users";
 import { getMessages, sendMessage, Message } from "@/services/chat";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
@@ -31,6 +31,7 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [memberCount, setMemberCount] = useState(0);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -44,9 +45,12 @@ export default function ChatPage() {
     };
     fetchUser();
   }, [router]);
-
+  
   useEffect(() => {
     if (!state) return;
+
+    getUserCountByState(state).then(setMemberCount);
+
     const unsubscribe = getMessages(state, (newMessages) => {
       setMessages(newMessages);
       setTimeout(() => {
@@ -147,7 +151,13 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-full bg-background rounded-xl border">
       <header className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-bold">{currentStateName} Community</h2>
+          <div>
+            <h2 className="text-xl font-bold">{currentStateName} Community</h2>
+            <div className="flex items-center text-sm text-muted-foreground mt-1">
+                <Users className="w-4 h-4 mr-1.5" />
+                <span>{memberCount} {memberCount === 1 ? 'member' : 'members'}</span>
+            </div>
+          </div>
           <Button variant="outline" onClick={() => router.push('/chat/personal')}>
               <MessageSquare className="w-4 h-4 mr-2" />
               Personal Chats
@@ -262,3 +272,5 @@ export default function ChatPage() {
     </div>
   );
 }
+
+    
