@@ -66,17 +66,6 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     // Intentionally not awaiting these promises so they run in the background
     (async () => {
         try {
-            // Moderation check
-            const moderationResult = await moderateMessage({ message: messagePayload.text, examples: [] });
-            if (moderationResult.is_inappropriate) {
-                await updateDoc(messageRef, {
-                    isSpam: true,
-                    reason: moderationResult.reason || 'Inappropriate content',
-                });
-                // Optionally, also add to a separate log for admins
-                // await addDoc(collection(db, 'inappropriate_logs'), { ...messagePayload, reason: moderationResult.reason });
-            }
-
             // Categorization check
             const categorization = await categorizeMessage({ text: messagePayload.text });
             if (categorization && categorization.category !== 'General Chat' && categorization.category !== 'Other') {
