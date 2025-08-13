@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { summarizeDailyActivity, SummarizeDailyActivityOutput } from '@/ai/flows/summarize-daily-activity';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, limit, addDoc } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, addDoc, where } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import { ShieldCheck, MessageCircleWarning, ListTodo, LoaderCircle, Plus, Upload, CalendarIcon, Image as ImageIcon, X } from 'lucide-react';
 import { allStates } from '@/lib/states';
@@ -27,11 +27,13 @@ import Image from 'next/image';
 interface SpamMessage extends Message {
   isSpam: boolean;
   reason?: string;
+  state: string;
 }
 
 interface Requirement extends Message {
     category: string;
     title: string;
+    state: string;
 }
 
 const initialNewOfferState = {
@@ -64,54 +66,53 @@ export default function AdminDashboardPage() {
                 const activitySummary = await summarizeDailyActivity({});
                 setSummary(activitySummary);
 
-                let allMessages: Message[] = [];
-                
-                // Fetch recent messages from all state chats
+                // Fetch Requirements directly
+                const reqQuery = query(collection(db, 'requirements'), orderBy('timestamp', 'desc'), limit(10));
+                const reqSnapshot = await getDocs(reqQuery);
+                const reqData = reqSnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        time: data.timestamp?.toDate().toLocaleString() ?? '',
+                    } as Requirement;
+                });
+                setRequirements(reqData);
+
+                // Fetch Spam Messages
+                // Note: This still requires a composite index on (isSpam, timestamp) in Firestore.
+                const spamData: SpamMessage[] = [];
                 const stateChatQueries = allStates.map(state => {
                     const messagesCollectionRef = collection(db, 'chats', state.value, 'messages');
-                    return query(messagesCollectionRef, orderBy('timestamp', 'desc'), limit(50));
+                    return query(messagesCollectionRef, where('isSpam', '==', true), orderBy('timestamp', 'desc'), limit(5));
                 });
-
-                const querySnapshots = await Promise.all(stateChatQueries.map(q => getDocs(q)));
+                 const querySnapshots = await Promise.all(stateChatQueries.map(q => getDocs(q)));
 
                 querySnapshots.forEach(snapshot => {
                     snapshot.forEach(doc => {
                         const data = doc.data();
-                        const timestamp = data.timestamp?.toDate();
-                        if (timestamp) {
-                           allMessages.push({
-                                id: doc.id,
-                                ...data,
-                                time: timestamp.toLocaleString(),
-                                timestamp: timestamp,
-                            } as Message);
-                        }
+                         spamData.push({
+                            id: doc.id,
+                            ...data,
+                            time: data.timestamp?.toDate().toLocaleString() ?? '',
+                        } as SpamMessage);
                     });
                 });
+                
+                spamData.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+                setSpamMessages(spamData.slice(0, 10));
 
-                // Client-side filtering for spam
-                const spamData = allMessages
-                    .filter(msg => (msg as SpamMessage).isSpam)
-                    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-                    .slice(0, 10) as SpamMessage[];
-                setSpamMessages(spamData);
-
-                // Client-side filtering for requirements
-                const reqData = allMessages
-                    .filter(msg => msg.category && msg.category !== 'General Chat' && msg.category !== null)
-                     .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-                    .slice(0, 10) as Requirement[];
-                setRequirements(reqData);
 
             } catch (error) {
                 console.error("Failed to fetch admin dashboard data:", error);
+                 toast({ title: "Error", description: "Could not fetch dashboard data. You may need to create Firestore indexes.", variant: "destructive" });
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchData();
-    }, []);
+    }, [toast]);
 
     const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -220,14 +221,16 @@ export default function AdminDashboardPage() {
                             <TableRow>
                                 <TableHead>Message</TableHead>
                                 <TableHead>Reason</TableHead>
+                                <TableHead>State</TableHead>
                                 <TableHead>User</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {spamMessages.map(msg => (
                                 <TableRow key={msg.id}>
-                                    <TableCell className="max-w-[200px] truncate">{msg.text}</TableCell>
+                                    <TableCell className="max-w-[150px] truncate">{msg.text}</TableCell>
                                     <TableCell><Badge variant="destructive">{msg.reason || 'Keyword'}</Badge></TableCell>
+                                     <TableCell className="capitalize">{msg.state}</TableCell>
                                     <TableCell>{msg.user.name}</TableCell>
                                 </TableRow>
                             ))}
@@ -247,14 +250,16 @@ export default function AdminDashboardPage() {
                             <TableRow>
                                 <TableHead>Title</TableHead>
                                 <TableHead>Category</TableHead>
+                                <TableHead>State</TableHead>
                                 <TableHead>User</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {requirements.map(req => (
                                 <TableRow key={req.id}>
-                                    <TableCell className="font-medium max-w-[200px] truncate">{req.title}</TableCell>
+                                    <TableCell className="font-medium max-w-[150px] truncate">{req.title}</TableCell>
                                     <TableCell><Badge variant="secondary">{req.category}</Badge></TableCell>
+                                     <TableCell className="capitalize">{req.state}</TableCell>
                                     <TableCell>{req.user.name}</TableCell>
                                 </TableRow>
                             ))}
@@ -361,5 +366,3 @@ export default function AdminDashboardPage() {
       </div>
     )
 }
-
-    

@@ -22,6 +22,7 @@ export interface Message {
   title?: string;
   isSpam?: boolean;
   reason?: string;
+  state?: string; // Added to know which state the message is from
 }
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
@@ -30,6 +31,11 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     user: message.user,
     timestamp: serverTimestamp(),
   };
+
+  const isPersonalChat = roomId.includes('_');
+  if (!isPersonalChat) {
+    messagePayload.state = roomId;
+  }
 
   if (message.text && message.text.trim() !== '') {
     messagePayload.text = message.text;
@@ -50,20 +56,25 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
 
   // 3. Update the last message timestamp on the parent chat document for sorting chat lists.
   const chatDocRef = doc(db, 'chats', roomId);
-  // Use set with merge: true to create the document if it doesn't exist, and update if it does.
   await setDoc(chatDocRef, { lastMessageTimestamp: serverTimestamp() }, { merge: true }).catch(e => console.error("Failed to update chat timestamp:", e));
 
 
   // 4. Run AI processes in the background without blocking the UI.
-  const isPersonalChat = roomId.includes('_');
   if (messagePayload.text && !isPersonalChat) {
-    // Run categorization and moderation in parallel.
     Promise.all([
-      // Categorization Flow
       categorizeMessage({ text: messagePayload.text })
         .then(categorization => {
-          if (categorization) {
-            // Update the message document with the category info.
+          if (categorization && categorization.category !== 'General Chat' && categorization.category !== 'Other') {
+            const requirementData = {
+              ...messagePayload,
+              category: categorization.category,
+              title: categorization.title,
+              originalMessageId: messageRef.id,
+              originalRoomId: roomId
+            };
+            // Add to the new requirements collection
+            addDoc(collection(db, 'requirements'), requirementData);
+            // Update the original message as well
             updateDoc(messageRef, {
               category: categorization.category,
               title: categorization.title,
@@ -72,21 +83,12 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
         })
         .catch(e => console.error("Failed to categorize message:", e)),
 
-      // Moderation Flow (now without fetching examples)
       moderateMessage({ message: messagePayload.text, examples: [] })
       .then(moderationResult => {
         if (moderationResult.is_inappropriate) {
-          // If inappropriate, update the message to be 'spam' and log the reason.
           updateDoc(messageRef, {
               isSpam: true,
               reason: moderationResult.reason || 'Inappropriate content',
-          });
-          // Also log it to a separate collection for admin review.
-          addDoc(collection(db, 'inappropriate_logs'), {
-              originalMessageId: messageRef.id,
-              ...messagePayload,
-              reason: moderationResult.reason,
-              checkedAt: serverTimestamp(),
           });
         }
       }).catch(e => console.error("Error during message moderation:", e))
@@ -106,7 +108,6 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
     if (!chatSnap.exists()) {
         await setDoc(chatRef, { users: [uid1, uid2], lastMessageTimestamp: serverTimestamp() });
         
-        // Add chat reference to each user's personalChats subcollection
         const user1Profile = await getUserProfile(uid1);
         const user2Profile = await getUserProfile(uid2);
 

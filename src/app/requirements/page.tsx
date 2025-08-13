@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle, Flag } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot, where } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import type { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
@@ -40,12 +40,12 @@ const categories: Category[] = ["Jobs", "Housing", "Marketplace", "Events", "Plu
 interface Requirement extends Message {
     category: Category;
     title: string;
-    userInfo?: UserProfile;
+    state: string;
 }
 
 const RequirementCard = ({ req, currentUser, onDelete, onEdit, onFlag }: { req: Requirement, currentUser: UserProfile | null, onDelete: (req: Requirement) => void, onEdit: (req: Requirement) => void, onFlag: (req: Requirement) => void }) => {
     const { icon: Icon, color } = categoryConfig[req.category] || categoryConfig["Other"];
-    const stateName = allStates.find(s => s.value === req.userInfo?.state)?.label || req.userInfo?.state || '';
+    const stateName = allStates.find(s => s.value === req.state)?.label || req.state || '';
     const router = useRouter();
 
     const getExpiryInfo = () => {
@@ -100,7 +100,7 @@ const RequirementCard = ({ req, currentUser, onDelete, onEdit, onFlag }: { req: 
                     <div className="flex-1">
                         <h3 className="font-bold text-lg">{req.title}</h3>
                         <p className="text-sm text-muted-foreground">
-                            {req.userInfo?.firstName} {req.userInfo?.lastName} &middot; {stateName}
+                            {req.user.name} &middot; {stateName}
                         </p>
                         <p className="mt-2 text-foreground">{req.text}</p>
                          <div className="flex justify-between items-center mt-3 text-xs text-muted-foreground">
@@ -115,13 +115,13 @@ const RequirementCard = ({ req, currentUser, onDelete, onEdit, onFlag }: { req: 
                     </div>
                 </div>
             </CardContent>
-            {!isAuthor && req.userInfo && (
+            {!isAuthor && (
                 <CardFooter className="p-2 pt-0">
                     <Button 
                         variant="outline" 
                         size="sm" 
                         className="w-full" 
-                        onClick={() => router.push(`/chat/user/${req.userInfo?.uid}`)}
+                        onClick={() => router.push(`/chat/user/${req.user.id}`)}
                     >
                         <MessageSquare className="mr-2 h-4 w-4" /> Send Private Message
                     </Button>
@@ -145,76 +145,44 @@ export default function RequirementsPage() {
     const [isSaving, setIsSaving] = useState(false);
 
      useEffect(() => {
-        const fetchUserAndRequirements = async () => {
-            setIsLoading(true);
-            try {
-                const user = await getCurrentUser();
-                if (user) {
-                    const profile = await getUserProfile(user.uid);
-                    setCurrentUser(profile);
-                }
-
-                const userIds = new Set<string>();
-                let allReqs: Requirement[] = [];
-
-                const stateChatQueries = allStates.map(state => {
-                    const messagesCollectionRef = collection(db, 'chats', state.value, 'messages');
-                    return query(messagesCollectionRef, orderBy('timestamp', 'desc'), limit(50));
-                });
-
-                const querySnapshots = await Promise.all(stateChatQueries.map(q => getDocs(q)));
-
-                querySnapshots.forEach(snapshot => {
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        const timestamp = data.timestamp?.toDate();
-                        
-                        if (timestamp && differenceInDays(new Date(), timestamp) > 7) {
-                            return; 
-                        }
-
-                        if (data.category && categories.includes(data.category)) {
-                            if (timestamp) {
-                                 userIds.add(data.user.id);
-                                 allReqs.push({
-                                    id: doc.id,
-                                    ...data,
-                                    time: formatDistanceToNowStrict(timestamp, { addSuffix: true }),
-                                    timestamp: timestamp,
-                                } as Requirement);
-                            }
-                        }
-                    });
-                });
-                
-                if (userIds.size > 0) {
-                    const userPromises = Array.from(userIds).map(uid => getUserProfile(uid));
-                    const users = (await Promise.all(userPromises)).filter(Boolean) as UserProfile[];
-                    const userMap = new Map(users.map(u => [u.uid, u]));
-                    
-                    const reqsWithUsers = allReqs.map(req => ({
-                        ...req,
-                        userInfo: userMap.get(req.user.id)
-                    }));
-                    
-                    reqsWithUsers.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-                    
-                    setAllRequirements(reqsWithUsers);
-                    setFilteredRequirements(reqsWithUsers);
-                } else {
-                    setAllRequirements([]);
-                    setFilteredRequirements([]);
-                }
-
-            } catch (error) {
-                console.error("Error fetching requirements:", error);
-            } finally {
-                setIsLoading(false);
+        const fetchUser = async () => {
+            const user = await getCurrentUser();
+            if (user) {
+                const profile = await getUserProfile(user.uid);
+                setCurrentUser(profile);
             }
         };
-
-        fetchUserAndRequirements();
+        fetchUser();
     }, []);
+
+    useEffect(() => {
+        setIsLoading(true);
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const reqQuery = query(collection(db, 'requirements'), where('timestamp', '>=', sevenDaysAgo), orderBy('timestamp', 'desc'));
+
+        const unsubscribe = onSnapshot(reqQuery, (snapshot) => {
+            const reqsData = snapshot.docs.map(doc => {
+                const data = doc.data();
+                const timestamp = data.timestamp?.toDate();
+                return {
+                    id: doc.id,
+                    ...data,
+                    time: timestamp ? formatDistanceToNowStrict(timestamp, { addSuffix: true }) : '',
+                    timestamp: timestamp,
+                } as Requirement;
+            });
+            setAllRequirements(reqsData);
+            setFilteredRequirements(reqsData);
+            setIsLoading(false);
+        }, (error) => {
+             console.error("Error fetching requirements:", error);
+             toast({ title: "Error", description: "Could not fetch requirements.", variant: "destructive" });
+             setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [toast]);
+
 
     const handleFilter = (category: Category | 'All') => {
         setActiveFilter(category);
@@ -226,19 +194,18 @@ export default function RequirementsPage() {
     };
     
     const handleDeleteRequirement = async (reqToDelete: Requirement) => {
-        if (!currentUser?.isAdmin || !reqToDelete.userInfo?.state) return;
+        if (!currentUser?.isAdmin) return;
         
         try {
-            const messageRef = doc(db, 'chats', reqToDelete.userInfo.state, 'messages', reqToDelete.id);
-            await deleteDoc(messageRef);
+            const reqRef = doc(db, 'requirements', reqToDelete.id);
+            await deleteDoc(reqRef);
 
-            const updatedReqs = allRequirements.filter(r => r.id !== reqToDelete.id);
-            setAllRequirements(updatedReqs);
-            if (activeFilter === 'All') {
-                setFilteredRequirements(updatedReqs);
-            } else {
-                setFilteredRequirements(updatedReqs.filter(r => r.category === activeFilter));
+            // Also delete the original message if possible
+            if (reqToDelete.originalMessageId && reqToDelete.originalRoomId) {
+                const originalMsgRef = doc(db, 'chats', reqToDelete.originalRoomId, 'messages', reqToDelete.originalMessageId);
+                await deleteDoc(originalMsgRef);
             }
+
 
             toast({
                 title: 'Requirement Deleted',
@@ -278,19 +245,20 @@ export default function RequirementsPage() {
     };
 
     const handleSaveChanges = async () => {
-        if (!editingRequirement || !editingRequirement.userInfo?.state) return;
+        if (!editingRequirement) return;
         setIsSaving(true);
         try {
-            const reqRef = doc(db, 'chats', editingRequirement.userInfo.state, 'messages', editingRequirement.id);
-            await updateDoc(reqRef, {
+            const reqRef = doc(db, 'requirements', editingRequirement.id);
+            const updateData = {
                 title: editingRequirement.title,
                 text: editingRequirement.text,
-            });
+            };
+            await updateDoc(reqRef, updateData);
 
-            // Update local state to reflect changes immediately
-            const updateReqs = (reqs: Requirement[]) => reqs.map(r => r.id === editingRequirement.id ? editingRequirement : r);
-            setAllRequirements(updateReqs);
-            setFilteredRequirements(updateReqs);
+            if (editingRequirement.originalMessageId && editingRequirement.originalRoomId) {
+                 const originalMsgRef = doc(db, 'chats', editingRequirement.originalRoomId, 'messages', editingRequirement.originalMessageId);
+                 await updateDoc(originalMsgRef, updateData);
+            }
             
             toast({ title: "Success", description: "Requirement updated successfully." });
             setIsEditDialogOpen(false);
@@ -305,7 +273,7 @@ export default function RequirementsPage() {
     };
     
     return (
-        <div className="space-y-6 p-4 bg-gray-50 min-h-screen">
+        <div className="space-y-6 p-4 bg-gray-50 min-h-screen pb-24">
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Community Requirements</h1>
               <p className="text-muted-foreground">
@@ -334,8 +302,9 @@ export default function RequirementsPage() {
             </div>
 
             {isLoading ? (
-                <div className="text-center py-10">
-                    <p>Loading requirements...</p>
+                 <div className="flex justify-center items-center py-10">
+                    <LoaderCircle className="w-8 h-8 animate-spin" />
+                    <p className="ml-2">Loading requirements...</p>
                 </div>
             ) : (
                 filteredRequirements.length > 0 ? (

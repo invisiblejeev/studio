@@ -4,58 +4,72 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can only read their own profile, but anyone can see a limited public profile.
-    // Any authenticated user can create a user profile.
+    // Helper function to check if a user is an admin
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    
+    // Helper function to check if a user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Users can only read/write their own profile
+    // Admins can read any profile
     match /users/{userId} {
-      allow read; // Allow any authenticated user to read user profiles for display.
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth.uid == userId;
-      
-      // Personal chat metadata
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      // Personal chat list is a subcollection of user
       match /personalChats/{otherUserId} {
-        allow read, write: if request.auth.uid == userId;
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
       }
     }
-
-    // State-based public chat rooms
-    match /chats/{stateId} {
-      // Allow authenticated users to read and write messages.
-      // Allow any authenticated user to update the last message timestamp for sorting.
-      allow read, update: if request.auth != null;
-
-      match /messages/{messageId} {
-        allow read, create: if request.auth != null;
-        // Only an admin can update/delete messages in public channels.
-        allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      }
+    
+    // Rules for public state-based chat rooms
+    match /chats/{state} {
+       allow read, update: if isAuthenticated(); // Allow reading chat doc and updating timestamp
+       
+       match /messages/{messageId} {
+         // Any authenticated user can read/write to public state chats
+         allow read, write: if isAuthenticated();
+         // Admins can delete messages
+         allow delete: if isAdmin();
+       }
     }
-
-    // Personal (one-to-one) chat rooms
+    
+    // Rules for private 1-on-1 chat rooms
     match /chats/{roomId} {
-      // Allow read/write access only if the user is part of the room.
-      // roomID is formatted as "uid1_uid2"
-      allow read, update: if request.auth != null && (request.auth.uid in roomId.split('_'));
-
+    	// RoomId for personal chats is formatted as "uid1_uid2"
+      // Only members of the chat can read/update the chat document
+      allow read, update: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
+      
       match /messages/{messageId} {
-        allow read, create: if request.auth != null && (request.auth.uid in roomId.split('_'));
+      	// Only members of the chat can read/write messages
+      	allow read, write: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
       }
     }
     
-    // Offers are public to read for any authenticated user.
-    // Only admins can create, update, or delete offers.
+    // Rules for offers
     match /offers/{offerId} {
-      allow read: if request.auth != null;
-      allow create, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    	// Any authenticated user can read offers
+      allow read: if isAuthenticated();
+      // Only admins can create, update, or delete offers
+      allow write: if isAdmin();
     }
     
-    // Admins can add flagged content for moderation training.
+    // Rules for requirements
+    match /requirements/{reqId} {
+    	// Any authenticated user can read requirements
+      allow read: if isAuthenticated();
+      // Any authenticated user can create a requirement (via sending a message)
+      allow create: if isAuthenticated();
+      // Admins can update or delete requirements
+      allow update, delete: if isAdmin();
+    }
+    
+    // Admins can read flagged content for moderation purposes
     match /flagged_content/{contentId} {
-        allow create: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-    
-    // Logs for inappropriate messages. Only admins can write to this.
-    match /inappropriate_logs/{logId} {
-        allow create: if request.auth != null;
+    	allow read, write: if isAdmin();
     }
   }
 }
