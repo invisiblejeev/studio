@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -49,28 +49,25 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   const chatDocRef = doc(db, 'chats', roomId);
   const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
   
+  // Update the main chat document's last message details
   await setDoc(chatDocRef, { 
       lastMessageTimestamp: serverTimestamp(),
       lastMessage: lastMessageContent,
       lastMessageSenderId: message.user.id
   }, { merge: true }).catch(e => console.error("Failed to update chat timestamp:", e));
 
-  // If this is a personal chat, increment the unread count for the recipient.
-  const chatSnap = await getDoc(chatDocRef);
-  if (chatSnap.exists() && chatSnap.data().isPersonal) {
-      const users = chatSnap.data().users;
-      const recipientId = users.find((uid: string) => uid !== message.user.id);
-      if (recipientId) {
-          const recipientChatRef = doc(db, `users/${recipientId}/personalChats`, message.user.id);
-          // Also update the last message info here so the personal chat list can be ordered by it
-          await updateDoc(recipientChatRef, {
-              unreadCount: increment(1),
-              lastMessage: lastMessageContent,
-              lastMessageTimestamp: serverTimestamp(),
-              lastMessageSenderId: message.user.id
-          }).catch(e => console.log("Recipient personal chat doc may not exist yet for unread count.", e));
-      }
-  }
+  // The logic to increment the unread count is now handled by a Firestore trigger
+  // (onPersonalMessageCreated) to avoid permission issues.
+  // We still need to update the sender's own chat document for sorting purposes.
+   const chatSnap = await getDoc(chatDocRef);
+    if (chatSnap.exists() && chatSnap.data().isPersonal) {
+        const senderChatRef = doc(db, `users/${message.user.id}/personalChats`, chatSnap.data().users.find((uid: string) => uid !== message.user.id));
+         await updateDoc(senderChatRef, {
+            lastMessage: lastMessageContent,
+            lastMessageTimestamp: serverTimestamp(),
+            lastMessageSenderId: message.user.id
+        }).catch(e => console.log("Sender personal chat doc may not exist yet.", e));
+    }
 };
 
 

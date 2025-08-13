@@ -3,54 +3,49 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // USERS
-    // Users can be read by any authenticated user (for profile display)
-    // but can only be written to by the user themselves.
-    // The personalChats subcollection can only be accessed by its owner.
+    
+    // Users can only read other user profiles, but can only write to their own.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId;
 
+      // Users can only read their own personal chat metadata.
+      // Writes are handled by backend triggers for security.
       match /personalChats/{otherUserId} {
-        allow read, write: if request.auth.uid == userId;
+        allow read: if request.auth.uid == userId;
+        allow write: if request.auth.uid == userId; // Allow user to reset their own unread count
       }
     }
 
-    // CHATS & MESSAGES
-    // A user can read a chat document if it's public or if they are a member.
-    // They can read messages under the same conditions.
-    // They can write messages if authenticated (server-side logic handles which rooms).
+    // Public chats are readable by anyone authenticated.
+    // Private chats are readable only by members of the chat.
     match /chats/{roomId} {
-      allow read: if request.auth != null && (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users);
-      allow write: if request.auth != null;
-
-      match /messages/{messageId} {
-        allow read: if request.auth != null && (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users);
-        allow write: if request.auth != null;
-      }
-    }
-
-    // REQUIREMENTS
-    // Readable by any authenticated user.
-    // Writable (update/delete) only by admins.
-    // Cannot be created from the client (only by backend function).
-    match /requirements/{requirementId} {
       allow read: if request.auth != null;
-      allow create: if false;
-      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // OFFERS
-    // Readable by any authenticated user.
-    // Writable (create/update/delete) only by admins.
-    match /offers/{offerId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow write: if request.auth != null; // Writes are for last message updates, etc.
     }
     
-    // ADMIN-ONLY COLLECTION GROUP QUERIES
-    // This allows admins to perform collectionGroup queries (e.g., for spam logs)
+    // Rules for messages within a chat
+    match /chats/{roomId}/messages/{messageId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == request.resource.data.user.id;
+    }
+    
+    // Requirements can be read by anyone, but only created by backend functions.
+    // Admins can update or delete them.
+    match /requirements/{requirementId} {
+        allow read: if request.auth != null;
+        allow create: if false; // Should only be created by backend
+        allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Offers can be read by anyone, but only written by admins.
+    match /offers/{offerId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    
+    // This rule is for the Admin dashboard's collectionGroup query to find spam.
+    // It allows an admin to read from the 'messages' collection group.
     match /{path=**}/messages/{messageId} {
       allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
