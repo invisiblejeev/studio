@@ -5,7 +5,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { summarizeDailyActivity, SummarizeDailyActivityOutput } from '@/ai/flows/summarize-daily-activity';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, orderBy, limit, addDoc, where, collectionGroup } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
@@ -44,7 +43,6 @@ const initialNewOfferState = {
 };
 
 export default function AdminDashboardPage() {
-    const [summary, setSummary] = useState<SummarizeDailyActivityOutput | null>(null);
     const [spamMessages, setSpamMessages] = useState<SpamMessage[]>([]);
     const [requirements, setRequirements] = useState<Requirement[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -62,10 +60,6 @@ export default function AdminDashboardPage() {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                // Fetch AI Summary
-                const activitySummary = await summarizeDailyActivity({});
-                setSummary(activitySummary);
-
                 // Fetch Requirements directly
                 const reqQuery = query(collection(db, 'requirements'), orderBy('timestamp', 'desc'), limit(10));
                 const reqSnapshot = await getDocs(reqQuery);
@@ -191,21 +185,11 @@ export default function AdminDashboardPage() {
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
                 <p className="text-muted-foreground">
-                Monitoring panel for community activity and AI systems.
+                Monitoring panel for community activity.
                 </p>
             </div>
             <ShieldCheck className="h-8 w-8 text-primary" />
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Daily AI Summary</CardTitle>
-            <CardDescription>An AI-generated overview of today's activity.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm">{summary?.summary || "No summary available."}</p>
-          </CardContent>
-        </Card>
 
         <div className="grid gap-6 md:grid-cols-2">
             <Card>
@@ -364,3 +348,5 @@ export default function AdminDashboardPage() {
       </div>
     )
 }
+
+    
