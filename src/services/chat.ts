@@ -23,6 +23,8 @@ export interface Message {
   isSpam?: boolean;
   reason?: string;
   state?: string; // Added to know which state the message is from
+  originalMessageId?: string; // To link back to the original message for edits/deletes
+  originalRoomId?: string; // To link back to the original message for edits/deletes
 }
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
@@ -61,41 +63,42 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
 
   // 4. Run AI processes in the background without blocking the UI.
   if (messagePayload.text && !isPersonalChat) {
-    Promise.all([
-      categorizeMessage({ text: messagePayload.text })
-        .then(categorization => {
-          if (categorization && categorization.category !== 'General Chat' && categorization.category !== 'Other') {
-            const requirementData = {
-              ...messagePayload,
-              category: categorization.category,
-              title: categorization.title,
-              originalMessageId: messageRef.id,
-              originalRoomId: roomId
-            };
-            // Add to the new requirements collection
-            addDoc(collection(db, 'requirements'), requirementData);
-            // Update the original message as well
-            updateDoc(messageRef, {
-              category: categorization.category,
-              title: categorization.title,
-            });
-          }
-        })
-        .catch(e => console.error("Failed to categorize message:", e)),
+    // Intentionally not awaiting these promises so they run in the background
+    (async () => {
+        try {
+            // Moderation check
+            const moderationResult = await moderateMessage({ message: messagePayload.text, examples: [] });
+            if (moderationResult.is_inappropriate) {
+                await updateDoc(messageRef, {
+                    isSpam: true,
+                    reason: moderationResult.reason || 'Inappropriate content',
+                });
+                // Optionally, also add to a separate log for admins
+                // await addDoc(collection(db, 'inappropriate_logs'), { ...messagePayload, reason: moderationResult.reason });
+            }
 
-      moderateMessage({ message: messagePayload.text, examples: [] })
-      .then(moderationResult => {
-        if (moderationResult.is_inappropriate) {
-          updateDoc(messageRef, {
-              isSpam: true,
-              reason: moderationResult.reason || 'Inappropriate content',
-          });
+            // Categorization check
+            const categorization = await categorizeMessage({ text: messagePayload.text });
+            if (categorization && categorization.category !== 'General Chat' && categorization.category !== 'Other') {
+                const requirementData = {
+                  ...messagePayload,
+                  category: categorization.category,
+                  title: categorization.title,
+                  originalMessageId: messageRef.id,
+                  originalRoomId: roomId
+                };
+                // Add to the new requirements collection
+                await addDoc(collection(db, 'requirements'), requirementData);
+                // Update the original message as well
+                await updateDoc(messageRef, {
+                  category: categorization.category,
+                  title: categorization.title,
+                });
+            }
+        } catch (err) {
+            console.error("Error in background AI processing:", err);
         }
-      }).catch(e => console.error("Error during message moderation:", e))
-
-    ]).catch(err => {
-        console.error("Error in background AI processing:", err);
-    });
+    })();
   }
 };
 
