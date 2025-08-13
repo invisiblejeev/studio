@@ -1,16 +1,19 @@
 
 "use client";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserProfile } from "@/services/users";
-import { Mail, MapPin, Globe } from "lucide-react";
+import { Mail, MapPin, Globe, MessageSquare } from "lucide-react";
 import { allStates } from "@/lib/states";
+import { Button } from "./ui/button";
+import { useRouter } from "next/navigation";
 
 interface UserProfileDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   user: UserProfile | null;
+  currentUser: UserProfile | null;
 }
 
 const ProfileInfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value?: string }) => (
@@ -25,8 +28,17 @@ const ProfileInfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType
     </div>
 );
 
-export function UserProfileDialog({ isOpen, onOpenChange, user }: UserProfileDialogProps) {
+export function UserProfileDialog({ isOpen, onOpenChange, user, currentUser }: UserProfileDialogProps) {
+  const router = useRouter();
+
   if (!user) return null;
+
+  const isOwnProfile = user.uid === currentUser?.uid;
+
+  const handleSendMessage = () => {
+    onOpenChange(false);
+    router.push(`/chat/user/${user.uid}`);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -44,6 +56,14 @@ export function UserProfileDialog({ isOpen, onOpenChange, user }: UserProfileDia
             <ProfileInfoItem icon={MapPin} label="State" value={allStates.find(s => s.value === user.state)?.label} />
             <ProfileInfoItem icon={Globe} label="City" value={user.city} />
         </div>
+        {!isOwnProfile && (
+            <DialogFooter>
+                <Button className="w-full" onClick={handleSendMessage}>
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Send Message
+                </Button>
+            </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );

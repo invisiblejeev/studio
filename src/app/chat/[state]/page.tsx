@@ -297,6 +297,7 @@ export default function ChatPage() {
         isOpen={isProfileDialogOpen}
         onOpenChange={setIsProfileDialogOpen}
         user={selectedUser}
+        currentUser={currentUser}
     />
     </>
   );
