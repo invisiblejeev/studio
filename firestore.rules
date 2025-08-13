@@ -1,48 +1,39 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if a user is an admin
-    function isAdmin(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.isAdmin == true;
-    }
-    
-    // Users can read their own profile, and anyone can read anyone else's profile.
-    // Only the user or an admin can update/delete a profile.
+
+    // Users can read/write their own profile, but admins can read any profile.
     match /users/{userId} {
-      allow read;
-      allow update, delete: if request.auth.uid == userId || isAdmin(request.auth.uid);
-      allow create: if request.auth.uid == userId;
+      allow read, write: if request.auth.uid == userId;
+      allow get: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Chat messages can be read by any authenticated user.
-    // Users can only create messages for themselves.
-    // Admins can edit or delete any message.
-    match /chats/{roomId}/{document=**} {
-        allow read: if request.auth != null;
-        allow create: if request.auth.uid == request.resource.data.user.id;
-        allow update, delete: if isAdmin(request.auth.uid);
+    // Authenticated users can read/write to chat rooms.
+    match /chats/{state}/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Admins can update/delete specific requirement messages.
+    match /chats/{state}/messages/{messageId} {
+       allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Offers are readable by any authenticated user, but only admins can modify them.
+    match /offers/{offerId} {
+      allow read: if request.auth != null;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
     
-    // Offers can be read by any authenticated user.
-    // Admins can create, update, and delete offers.
-    match /offers/{offerId} {
-        allow read: if request.auth != null;
-        allow create, update, delete: if isAdmin(request.auth.uid);
-    }
-
-    // Flagged content can be created and read by admins.
-    // Authenticated users can read it so the moderation AI flow can function.
+    // Flagged content is readable by any authenticated user for moderation checks, but only writable by admins.
     match /flagged_content/{docId} {
-        allow read: if request.auth != null;
-        allow create, update, delete: if isAdmin(request.auth.uid);
+      allow read: if request.auth != null;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Inappropriate message logs can only be created and read by admins.
-    // The service account (used by the AI flow) is treated as an admin.
+    // Inappropriate logs are only accessible by admins.
     match /inappropriate_logs/{docId} {
-        allow read, write: if isAdmin(request.auth.uid);
+      allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
