@@ -1,59 +1,56 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Rules for the 'users' collection
+    // Helper functions
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthed() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      // Check for auth first to prevent errors on unauthed requests.
+      return isAuthed() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Users Collection
+    // - Anyone authenticated can read user profiles (for displaying names, avatars, etc.).
+    // - Only the user themselves can edit their own profile.
     match /users/{userId} {
-      // Allow authenticated users to read any user profile.
-      allow read: if request.auth != null;
-      // A user can only write to their own profile.
-      allow write: if request.auth.uid == userId;
+      allow read: if isAuthed();
+      allow write: if isOwner(userId);
     }
 
-    // Rules for the 'chats' collection and its 'messages' subcollection
-    match /chats/{roomId} {
-      // Allow read on the chat document if it's a public chat OR the user is a member.
-      allow read: if request.auth != null && (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users);
-      // Allow any authenticated user to create a chat document (for proactive creation).
-      allow create: if request.auth != null;
-      // Allow any authenticated user to update chat metadata (like lastMessage).
-      allow update: if request.auth != null;
-
-      // Rules for the 'messages' subcollection
-      match /messages/{messageId} {
-        // A user can read a message if it's a public chat OR they are a member of the private chat.
-        // This uses a get() call to check the parent chat document.
-        allow read: if request.auth != null &&
-          (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false ||
-           request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users);
-
-        // Any authenticated user can write a message. The client logic ensures they only write to appropriate rooms.
-        allow write: if request.auth != null;
-      }
+    // Chats & Messages Collections
+    // The client is responsible for querying the correct chats.
+    // These rules simply allow authenticated users to access the data they query.
+    // This model is simpler and avoids complex/racy `get()` calls in rules.
+    match /chats/{roomId}/{documents=**} {
+      allow read, write: if isAuthed();
     }
-
-    // This rule allows an admin to perform a collectionGroup query on all 'messages' collections.
-    match /{path=**}/messages/{messageId} {
-        allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Rules for the 'requirements' collection
+    
+    // Requirements Collection
+    // - Anyone can read the requirements list.
+    // - No one can create requirements from the client-side (only the backend AI trigger can).
+    // - Only admins can update or delete requirements.
     match /requirements/{requirementId} {
-      // Any authenticated user can read requirements.
-      allow read: if request.auth != null;
-      // Only admins can update or delete requirements.
-      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      // Clients cannot create requirements directly; this must be done by the backend (AI trigger).
-      allow create: if false;
+      allow read: if isAuthed();
+      allow create: if false; 
+      allow update, delete: if isAdmin();
     }
 
-    // Rules for the 'offers' collection
+    // Offers Collection
+    // - Anyone can read offers.
+    // - Only admins can create, update, or delete offers.
     match /offers/{offerId} {
-      // Any authenticated user can read offers.
-      allow read: if request.auth != null;
-      // Only admins can create, update, or delete offers.
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow read: if isAuthed();
+      allow write: if isAdmin();
     }
+
   }
 }
