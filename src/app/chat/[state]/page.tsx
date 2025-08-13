@@ -264,12 +264,12 @@ export default function ChatPage() {
                     )}
                     {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
-                    <ContextMenu>
-                      <ContextMenuTrigger>
-                        <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
-                            {!isYou && isFirstInSequence && (
-                                <p className="text-xs text-muted-foreground mb-1 px-3 cursor-pointer hover:underline" onClick={() => handleShowProfile(msg.user.id)}>{msg.user.name}</p>
-                            )}
+                    <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
+                        {!isYou && isFirstInSequence && (
+                            <p className="text-xs text-muted-foreground mb-1 px-3 cursor-pointer hover:underline" onClick={() => handleShowProfile(msg.user.id)}>{msg.user.name}</p>
+                        )}
+                         <ContextMenu>
+                          <ContextMenuTrigger>
                             <div className={cn('p-3 rounded-lg shadow-sm', 
                                 isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
                                 msg.isDeleted ? 'bg-muted text-muted-foreground italic' : '',
@@ -290,18 +290,18 @@ export default function ChatPage() {
                                 )}
                                 {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                             </div>
-                            {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
-                        </div>
-                      </ContextMenuTrigger>
-                      <ContextMenuContent>
-                        {isYou && !msg.isDeleted && (
-                          <ContextMenuItem onClick={() => handleDelete(msg.id)} className="text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </ContextMenuItem>
-                        )}
-                      </ContextMenuContent>
-                    </ContextMenu>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent>
+                            {isYou && !msg.isDeleted && (
+                              <ContextMenuItem onClick={() => handleDelete(msg.id)} className="text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </ContextMenuItem>
+                            )}
+                          </ContextMenuContent>
+                        </ContextMenu>
+                        {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
+                    </div>
 
 
                     {isYou && isLastInSequence && (
