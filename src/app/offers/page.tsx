@@ -109,12 +109,19 @@ export default function OffersPage() {
 
     const userState = currentUser?.state;
     const visibleOffers = allOffers.filter(offer => {
-        if (!offer.states || offer.states.length === 0 || offer.states.includes('all')) {
+        // If an offer has no state restrictions (old data), everyone sees it.
+        if (!offer.states || offer.states.length === 0) {
             return true;
         }
+        // If it's for 'all' states, everyone sees it.
+        if (offer.states.includes('all')) {
+            return true;
+        }
+        // If the user has a state, check if their state is in the offer's list.
         if (userState && offer.states.includes(userState)) {
             return true;
         }
+        // Otherwise, hide it.
         return false;
     });
     setFilteredOffers(visibleOffers);
