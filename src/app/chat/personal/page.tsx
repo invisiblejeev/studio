@@ -6,16 +6,14 @@ import { ArrowLeft, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, orderBy, limit, onSnapshot, collectionGroup, getDoc, doc } from "firebase/firestore";
+import { collection, query, doc, onSnapshot, Unsubscribe } from "firebase/firestore";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { cn } from "@/lib/utils";
-import type { Message } from "@/services/chat";
-import { format, formatDistanceToNowStrict } from 'date-fns';
+import { formatDistanceToNowStrict } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
-
 
 interface ChatContact {
     user: {
@@ -36,83 +34,101 @@ export default function PersonalChatsListPage() {
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const chatListeners = useRef<Record<string, Unsubscribe>>({});
 
+    const updateAndSortChats = useCallback((newOrUpdatedChat: ChatContact) => {
+        setChats(prevChats => {
+            const existingChatIndex = prevChats.findIndex(c => c.roomId === newOrUpdatedChat.roomId);
+            let newChats: ChatContact[];
+            if (existingChatIndex > -1) {
+                newChats = [...prevChats];
+                newChats[existingChatIndex] = newOrUpdatedChat;
+            } else {
+                newChats = [...prevChats, newOrUpdatedChat];
+            }
+            newChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
+            return newChats;
+        });
+    }, []);
 
     useEffect(() => {
-        const fetchUserAndChats = async () => {
-          setIsLoading(true);
-          const user = await getCurrentUser();
-          if (!user) {
-            router.push('/');
-            return;
-          }
-          
-          const profile = await getUserProfile(user.uid);
-          setCurrentUser(profile);
-            
-          if (profile) {
-              const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
-              const q = query(personalChatsRef);
+        const fetchUserAndInitiateListeners = async () => {
+            setIsLoading(true);
+            const user = await getCurrentUser();
+            if (!user) {
+                router.push('/');
+                return;
+            }
 
-              const unsubscribe = onSnapshot(q, async (snapshot) => {
-                  const chatPromises = snapshot.docs.map(async (docData) => {
-                      const chatInfo = docData.data();
-                      const roomId = chatInfo.roomId;
-                      
-                      // Fetch the parent chat document which now contains last message info
-                      const chatDocRef = doc(db, 'chats', roomId);
-                      const chatDocSnap = await getDoc(chatDocRef);
-                      
-                      let lastMessageText = "No messages yet";
-                      let lastMessageTimestamp: Date | null = null;
-                      
-                      if (chatDocSnap.exists()) {
-                          const chatData = chatDocSnap.data();
-                          lastMessageText = chatData.lastMessage || (chatData.lastMessageSenderId ? "Image" : "No messages yet");
-                          lastMessageTimestamp = chatData.lastMessageTimestamp?.toDate() || new Date(0);
-                      }
-                      
-                      return {
-                          user: chatInfo.withUser,
-                          lastMessage: lastMessageText,
-                          time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp) : '',
-                          unread: 0, // Simplified for now
-                          timestamp: lastMessageTimestamp,
-                          roomId: roomId,
-                      };
-                  });
+            const profile = await getUserProfile(user.uid);
+            setCurrentUser(profile);
 
-                  const resolvedChats = await Promise.all(chatPromises);
-                  resolvedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
-                  setChats(resolvedChats);
-                  setIsLoading(false);
-              }, (error) => {
-                  console.error("Error fetching personal chats:", error);
-                  toast({ title: "Error", description: "Could not fetch personal chats. Check permissions.", variant: "destructive"});
-                  setIsLoading(false);
-              });
+            if (profile) {
+                const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
+                const q = query(personalChatsRef);
 
-              return unsubscribe;
-          }
+                const mainUnsubscribe = onSnapshot(q, (snapshot) => {
+                    setIsLoading(false);
+                    snapshot.docChanges().forEach((change) => {
+                        const chatInfo = change.doc.data();
+                        const roomId = chatInfo.roomId;
+
+                        if (change.type === "added") {
+                            if (!chatListeners.current[roomId]) {
+                                const chatDocRef = doc(db, 'chats', roomId);
+                                const chatUnsubscribe = onSnapshot(chatDocRef, (chatDocSnap) => {
+                                    if (chatDocSnap.exists()) {
+                                        const chatData = chatDocSnap.data();
+                                        const lastMessageTimestamp = chatData.lastMessageTimestamp?.toDate() || new Date(0);
+                                        const updatedContact: ChatContact = {
+                                            user: chatInfo.withUser,
+                                            lastMessage: chatData.lastMessage || (chatData.lastMessageSenderId ? "Image" : "No messages yet"),
+                                            time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp) : '',
+                                            unread: 0, // Placeholder
+                                            timestamp: lastMessageTimestamp,
+                                            roomId: roomId,
+                                        };
+                                        updateAndSortChats(updatedContact);
+                                    }
+                                });
+                                chatListeners.current[roomId] = chatUnsubscribe;
+                            }
+                        }
+                        if (change.type === "removed") {
+                            const unsubscribe = chatListeners.current[roomId];
+                            if (unsubscribe) {
+                                unsubscribe();
+                                delete chatListeners.current[roomId];
+                            }
+                            setChats(prev => prev.filter(c => c.roomId !== roomId));
+                        }
+                    });
+                     if (snapshot.empty) {
+                        setIsLoading(false);
+                    }
+                }, (error) => {
+                    console.error("Error fetching personal chats list:", error);
+                    toast({ title: "Error", description: "Could not fetch personal chats list.", variant: "destructive" });
+                    setIsLoading(false);
+                });
+
+                return mainUnsubscribe;
+            }
         };
 
-        const unsubscribePromise = fetchUserAndChats();
-        
+        let unsubscribe: Unsubscribe | undefined;
+        fetchUserAndInitiateListeners().then(unsub => { unsubscribe = unsub; });
+
         return () => {
-             unsubscribePromise.then(unsubscribe => {
-                if(unsubscribe) {
-                    unsubscribe();
-                }
-             });
-        }
-
-    }, [router, toast]);
-
+            if (unsubscribe) unsubscribe();
+            Object.values(chatListeners.current).forEach(unsub => unsub());
+            chatListeners.current = {};
+        };
+    }, [router, toast, updateAndSortChats]);
 
     const handleChatClick = (userId: string) => {
         router.push(`/chat/user/${userId}`);
     }
-
 
     return (
         <div className="flex flex-col h-screen bg-background rounded-xl border">
@@ -135,7 +151,7 @@ export default function PersonalChatsListPage() {
                     </div>
                 ) : (
                     chats.map(chat => (
-                        <div key={chat.user.uid} onClick={() => handleChatClick(chat.user.uid)} className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 cursor-pointer">
+                        <div key={chat.roomId} onClick={() => handleChatClick(chat.user.uid)} className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 cursor-pointer">
                             <Avatar className="h-12 w-12">
                                 <AvatarImage src={chat.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                                 <AvatarFallback>{chat.user.username.charAt(0)}</AvatarFallback>
