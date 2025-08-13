@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -49,11 +49,13 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   const chatDocRef = doc(db, 'chats', roomId);
   const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
   
-  await updateDoc(chatDocRef, { 
+  // Use setDoc with merge:true to create the document if it doesn't exist, or update it if it does.
+  // This prevents the "No document to update" error for new chat rooms.
+  await setDoc(chatDocRef, { 
       lastMessageTimestamp: serverTimestamp(),
       lastMessage: lastMessageContent,
       lastMessageSenderId: message.user.id
-  }).catch(e => console.error("Failed to update chat timestamp:", e));
+  }, { merge: true }).catch(e => console.error("Failed to update chat timestamp:", e));
 
 };
 
