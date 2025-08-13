@@ -24,7 +24,8 @@ import Image from "next/image";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import Autoplay from "embla-carousel-autoplay";
 import { allStates } from "@/lib/states";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 
 
 interface Offer {
@@ -266,7 +267,7 @@ export default function OffersPage() {
     setIsAddOfferOpen(true);
   }
 
-  const handleStateSelection = (stateValue: string, isEditing: boolean) => {
+const handleStateSelection = (stateValue: string, isEditing: boolean) => {
     const currentStates = (isEditing ? editingOffer?.states : newOffer.states) || [];
     const setStateAction = isEditing
         ? (states: string[]) => setEditingOffer(prev => prev ? { ...prev, states } : null)
@@ -275,9 +276,9 @@ export default function OffersPage() {
     let newStates: string[];
 
     if (stateValue === 'all') {
-        newStates = currentStates.includes('all') ? [] : ['all'];
+        newStates = currentStates.includes('all') ? currentStates.filter(s => s !== 'all') : ['all'];
     } else {
-        const filteredStates = currentStates.filter(s => s !== 'all');
+        let filteredStates = currentStates.filter(s => s !== 'all');
         if (filteredStates.includes(stateValue)) {
             newStates = filteredStates.filter(s => s !== stateValue);
         } else {
@@ -285,12 +286,9 @@ export default function OffersPage() {
         }
     }
     
-    if (newStates.length === 0) {
+    if (newStates.length === allStates.length) {
         setStateAction(['all']);
-    } else if (newStates.length > 1 && newStates.includes('all')){
-        setStateAction(newStates.filter(s => s !== 'all'));
-    } 
-    else {
+    } else {
         setStateAction(newStates);
     }
 };
@@ -466,31 +464,37 @@ export default function OffersPage() {
                         <div className="grid gap-2">
                           <Label>Available States</Label>
                            <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" className="justify-start">
-                                {newOffer.states.includes('all') ? 'All States' : `${newOffer.states.length} states selected`}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[300px] p-0">
-                               <Command onSelect={(e) => e.preventDefault()}>
-                                <CommandInput placeholder="Search states..." />
-                                <CommandList>
-                                <CommandEmpty>No state found.</CommandEmpty>
-                                <CommandGroup>
-                                    <CommandItem onSelect={() => handleStateSelection('all', false)}>
-                                        <Check className={cn("mr-2 h-4 w-4", newOffer.states.includes('all') ? "opacity-100" : "opacity-0")} />
-                                        All States
-                                    </CommandItem>
-                                    {allStates.map(state => (
-                                        <CommandItem key={state.value} onSelect={() => handleStateSelection(state.value, false)}>
-                                            <Check className={cn("mr-2 h-4 w-4", newOffer.states.includes(state.value) ? "opacity-100" : "opacity-0")} />
-                                            {state.label}
-                                        </CommandItem>
-                                    ))}
-                                </CommandGroup>
-                                </CommandList>
-                               </Command>
-                            </PopoverContent>
+                                <PopoverTrigger asChild>
+                                  <Button variant="outline" className="justify-start w-full">
+                                    {newOffer.states?.includes('all') ? 'All States' : `${newOffer.states?.length} states selected`}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[300px] p-0">
+                                    <ScrollArea className="h-48">
+                                        <div className="p-4">
+                                            <div className="flex items-center space-x-2 mb-2">
+                                                <Checkbox
+                                                    id="all-states-add"
+                                                    checked={newOffer.states?.includes('all')}
+                                                    onCheckedChange={() => handleStateSelection('all', false)}
+                                                />
+                                                <Label htmlFor="all-states-add" className="font-semibold">All States</Label>
+                                            </div>
+                                            <hr className="my-2" />
+                                            {allStates.map(state => (
+                                                <div key={state.value} className="flex items-center space-x-2 mt-1">
+                                                    <Checkbox
+                                                        id={`add-${state.value}`}
+                                                        checked={newOffer.states?.includes(state.value) || newOffer.states?.includes('all')}
+                                                        disabled={newOffer.states?.includes('all')}
+                                                        onCheckedChange={() => handleStateSelection(state.value, false)}
+                                                    />
+                                                    <Label htmlFor={`add-${state.value}`}>{state.label}</Label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </ScrollArea>
+                                </PopoverContent>
                            </Popover>
                         </div>
                         <div className="grid gap-2">
@@ -611,31 +615,37 @@ export default function OffersPage() {
                        <div className="grid gap-2">
                           <Label>Available States</Label>
                            <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" className="justify-start">
-                                {editingOffer.states?.includes('all') ? 'All States' : `${editingOffer.states?.length || 0} states selected`}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[300px] p-0">
-                               <Command onSelect={(e) => e.preventDefault()}>
-                                <CommandInput placeholder="Search states..." />
-                                 <CommandList>
-                                <CommandEmpty>No state found.</CommandEmpty>
-                                <CommandGroup>
-                                    <CommandItem onSelect={() => handleStateSelection('all', true)}>
-                                      <Check className={cn("mr-2 h-4 w-4", editingOffer.states?.includes('all') ? "opacity-100" : "opacity-0")} />
-                                        All States
-                                    </CommandItem>
-                                    {allStates.map(state => (
-                                        <CommandItem key={state.value} onSelect={() => handleStateSelection(state.value, true)}>
-                                            <Check className={cn("mr-2 h-4 w-4", editingOffer.states?.includes(state.value) ? "opacity-100" : "opacity-0")} />
-                                            {state.label}
-                                        </CommandItem>
-                                    ))}
-                                </CommandGroup>
-                                </CommandList>
-                               </Command>
-                            </PopoverContent>
+                               <PopoverTrigger asChild>
+                                <Button variant="outline" className="justify-start w-full">
+                                    {editingOffer.states?.includes('all') ? 'All States' : `${editingOffer.states?.length} states selected`}
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[300px] p-0">
+                                    <ScrollArea className="h-48">
+                                        <div className="p-4">
+                                            <div className="flex items-center space-x-2 mb-2">
+                                                <Checkbox
+                                                    id="all-states-edit"
+                                                    checked={editingOffer.states?.includes('all')}
+                                                    onCheckedChange={() => handleStateSelection('all', true)}
+                                                />
+                                                <Label htmlFor="all-states-edit" className="font-semibold">All States</Label>
+                                            </div>
+                                            <hr className="my-2" />
+                                            {allStates.map(state => (
+                                                <div key={state.value} className="flex items-center space-x-2 mt-1">
+                                                    <Checkbox
+                                                        id={`edit-${state.value}`}
+                                                        checked={editingOffer.states?.includes(state.value) || editingOffer.states?.includes('all')}
+                                                        disabled={editingOffer.states?.includes('all')}
+                                                        onCheckedChange={() => handleStateSelection(state.value, true)}
+                                                    />
+                                                    <Label htmlFor={`edit-${state.value}`}>{state.label}</Label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </ScrollArea>
+                                </PopoverContent>
                            </Popover>
                         </div>
                       <div className="grid gap-2">
@@ -676,5 +686,3 @@ export default function OffersPage() {
     </div>
   )
 }
-
-    
