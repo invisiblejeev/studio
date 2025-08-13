@@ -1,57 +1,79 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    //
+    // Functions
+    //
+    function isUserAuthenticated() {
+      return request.auth != null;
+    }
     
-    // Users can only be created during signup.
-    // A user can only get/update their own profile.
-    // Any authenticated user can list user profiles (needed for username checks and member counts).
+    function isUserProfileOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isUserAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function isOneOfChatParticipants(chatRoomId) {
+      let uids = chatRoomId.split('_');
+      return request.auth.uid == uids[0] || request.auth.uid == uids[1];
+    }
+    
+    //
+    // Rules
+    //
+    
+    // USERS
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth.uid == userId;
-      allow update, delete: if request.auth.uid == userId;
+      // Anyone can see a user's profile
+      allow read: if isUserAuthenticated();
+      // Only the user themselves can create or update their profile
+      allow create, update, delete: if isUserProfileOwner(userId);
     }
 
-    // Admins can read from anywhere for moderation.
-    // This rule allows admins to perform collection group queries on messages.
-    match /{path=**}/messages/{messageId} {
-        allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    // CHATS & MESSAGES
+    match /chats/{roomId}/{messages=**} {
+      // Allow read/write for any authenticated user. Specific access is controlled by the rules below.
+      allow read, write: if isUserAuthenticated();
     }
     
-    // Rules for chat rooms.
-    match /chats/{roomId}/{documents=**} {
-        // Anyone authenticated can read/write to a public state chat.
-        // For private chats (roomId contains '_'), only participants can read/write.
-        function isParticipant() {
-            return request.auth.uid in roomId.split('_');
-        }
-
-        allow read, write: if request.auth != null && (isParticipant() || !roomId.matches('.*_.*'));
+    // REQUIREMENTS
+    match /requirements/{requirementId} {
+      // Any authenticated user can read all requirements
+      allow read: if isUserAuthenticated();
+      // Any authenticated user can CREATE a requirement (via the sendMessage server-side function)
+      allow create: if isUserAuthenticated();
+      // Only admins can update or delete requirements
+      allow update, delete: if isUserAdmin();
     }
 
-    // Any authenticated user can read requirements.
-    // Only admins can create/update/delete requirements.
-    match /requirements/{reqId} {
-      allow read: if request.auth != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-    
-    // Any authenticated user can read offers.
-    // Only admins can create/update/delete offers.
+    // OFFERS
     match /offers/{offerId} {
-        allow read: if request.auth != null;
-        allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // A user can only access their own personal chat list.
-    match /users/{userId}/personalChats/{chatId} {
-        allow read, write: if request.auth.uid == userId;
+      // Any authenticated user can read offers
+      allow read: if isUserAuthenticated();
+      // Only admins can create, update, or delete offers
+      allow create, update, delete: if isUserAdmin();
     }
     
-    // Default deny all other access.
-    match /{document=**} {
-      allow read, write: if false;
+    // FLAGGED CONTENT - Only admins can access
+    match /flagged_content/{contentId} {
+      allow read, write, create, delete: if isUserAdmin();
+    }
+
+    // PERSONAL CHATS SUBCOLLECTION
+    match /users/{userId}/personalChats/{chatId} {
+        // Only the owner of the user profile can access their list of personal chats
+        allow read, write, delete: if isUserProfileOwner(userId);
+    }
+    
+    // COLLECTION GROUP - MESSAGES
+    // This rule allows admins to perform a collectionGroup query on 'messages'
+    // for features like finding spam across all chats.
+    match /{path=**}/messages/{messageId} {
+      allow read: if isUserAdmin();
     }
   }
 }

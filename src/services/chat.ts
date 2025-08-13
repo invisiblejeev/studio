@@ -71,7 +71,10 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
         const categorization = await categorizeMessage({ text: messagePayload.text });
         if (categorization && categorization.category !== 'General Chat' && categorization.category !== 'Other') {
             const requirementData = {
-              ...messagePayload,
+              user: messagePayload.user,
+              text: messagePayload.text,
+              state: messagePayload.state,
+              timestamp: messagePayload.timestamp,
               category: categorization.category,
               title: categorization.title,
               originalMessageId: messageRef.id,
