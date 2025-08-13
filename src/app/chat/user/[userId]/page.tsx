@@ -10,13 +10,13 @@ import { useRouter, useParams } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { sendMessage, getPersonalChatRoomId } from "@/services/chat";
+import { sendMessage, getPersonalChatRoomId, Message } from "@/services/chat";
 import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Message } from "@/services/chat";
+import { UserProfileDialog } from "@/components/UserProfileDialog";
 
 export default function PersonalChatPage() {
   const router = useRouter();
@@ -33,6 +33,8 @@ export default function PersonalChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
 
   useEffect(() => {
@@ -152,6 +154,20 @@ export default function PersonalChatPage() {
     }
   }
 
+  const handleShowProfile = async (userId: string) => {
+    if (userId === currentUser?.uid) {
+        router.push('/profile');
+        return;
+    }
+    const userProfile = await getUserProfile(userId);
+    if (userProfile) {
+        setSelectedUser(userProfile);
+        setIsProfileDialogOpen(true);
+    } else {
+        toast({ title: "Error", description: "Could not fetch user profile.", variant: "destructive" });
+    }
+  }
+
   if (!otherUser || !currentUser) {
       return (
          <div className="flex h-screen items-center justify-center">
@@ -163,18 +179,19 @@ export default function PersonalChatPage() {
   const canSendMessage = (newMessage.trim() !== "" || !!imageFile) && !isUploading;
 
   return (
+    <>
     <div className="flex flex-col h-full bg-background rounded-xl border">
       <header className="flex items-center justify-start p-4 border-b gap-4 shrink-0">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div className="flex items-center gap-3">
+          <button onClick={() => handleShowProfile(otherUser.uid)} className="flex items-center gap-3">
             <Avatar>
                 <AvatarImage src={otherUser.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                 <AvatarFallback>{otherUser.username.charAt(0)}</AvatarFallback>
             </Avatar>
             <h2 className="text-xl font-bold">{otherUser.username}</h2>
-          </div>
+          </button>
       </header>
        <ScrollArea className="flex-1" ref={scrollAreaRef}>
             <div className="p-4 space-y-1">
@@ -189,10 +206,12 @@ export default function PersonalChatPage() {
                   return (
                     <div key={msg.id} className={cn('flex items-end gap-2', isYou ? 'justify-end' : 'justify-start')}>
                       {!isYou && isLastInSequence && (
-                          <Avatar className={cn('h-8 w-8')}>
-                              <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
-                              <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
-                          </Avatar>
+                          <button onClick={() => handleShowProfile(msg.user.id)} className="shrink-0">
+                            <Avatar className={cn('h-8 w-8')}>
+                                <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                                <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                          </button>
                       )}
                       {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
@@ -220,10 +239,12 @@ export default function PersonalChatPage() {
                       </div>
 
                       {isYou && isLastInSequence && (
-                          <Avatar className={cn('h-8 w-8')}>
-                              <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
-                              <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
-                          </Avatar>
+                           <button onClick={() => router.push('/profile')} className="shrink-0">
+                              <Avatar className={cn('h-8 w-8')}>
+                                  <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                                  <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
+                              </Avatar>
+                          </button>
                       )}
                         {isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
                     </div>
@@ -280,5 +301,12 @@ export default function PersonalChatPage() {
           </div>
       </div>
     </div>
+    <UserProfileDialog 
+        isOpen={isProfileDialogOpen}
+        onOpenChange={setIsProfileDialogOpen}
+        user={selectedUser}
+        currentUser={currentUser}
+    />
+    </>
   );
 }

@@ -195,7 +195,7 @@ export default function ChatPage() {
                 return (
                   <div key={msg.id} className={cn('flex items-end gap-2', isYou ? 'justify-end' : 'justify-start')}>
                     {!isYou && isLastInSequence && (
-                        <button onClick={() => handleShowProfile(msg.user.id)}>
+                        <button onClick={() => handleShowProfile(msg.user.id)} className="shrink-0">
                             <Avatar className={cn('h-8 w-8')}>
                                 <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                                 <AvatarFallback>{msg.user.name.charAt(0)}</AvatarFallback>
@@ -205,7 +205,11 @@ export default function ChatPage() {
                     {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
                     <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
-                        {!isYou && isFirstInSequence && <p className="text-xs text-muted-foreground mb-1 px-3">{msg.user.name}</p>}
+                        {!isYou && isFirstInSequence && (
+                            <button onClick={() => handleShowProfile(msg.user.id)}>
+                                <p className="text-xs text-muted-foreground mb-1 px-3 hover:underline">{msg.user.name}</p>
+                            </button>
+                        )}
                         <div className={cn('p-3 rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
                             !msg.text && msg.imageUrl ? 'p-1' : 'p-3',
@@ -228,7 +232,7 @@ export default function ChatPage() {
                         {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                     </div>
                     {isYou && isLastInSequence && (
-                        <button onClick={() => router.push('/profile')}>
+                        <button onClick={() => router.push('/profile')} className="shrink-0">
                             <Avatar className={cn('h-8 w-8')}>
                                 <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
                                 <AvatarFallback>{currentUser?.username.charAt(0)}</AvatarFallback>
