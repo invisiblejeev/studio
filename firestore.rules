@@ -1,50 +1,58 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can only manage their own profile. Anyone can view profiles.
-    match /users/{userId} {
-      allow read;
-      allow create, update, delete: if request.auth.uid == userId;
-    }
-    
-    // Allow admins to query users (e.g., for user counts)
-    match /users/{document=**} {
-    	allow list: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true || request.auth.uid != null;
-    }
-
-    // Public collections readable by any authenticated user.
+    // Public collections readable by any authenticated user
     match /offers/{offerId} {
-      allow read: if request.auth.uid != null;
+      allow read: if request.auth != null;
       allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
     match /requirements/{reqId} {
-      allow read: if request.auth.uid != null;
+      allow read: if request.auth != null;
       allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Secure chat rooms
-    match /chats/{roomId}/{messages=**} {
-      // Public state-based chats (e.g., /chats/california)
-      // Any authenticated user can read/write.
-      allow read, write: if request.auth.uid != null && !roomId.matches('.*_.*');
+    // Users can read any profile, but only write to their own.
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth.uid == userId;
       
-      // Personal chats (e.g., /chats/uid1_uid2)
-      // Only the two participants can read/write.
-      allow read, write: if request.auth.uid != null && request.auth.uid in roomId.split('_');
-    }
-    
-    // Admins can perform collection group queries on messages for moderation.
-    match /{path=**}/messages/{message} {
-      allow list: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Allow reading personal chat metadata
+      match /personalChats/{otherUserId} {
+        allow read: if request.auth.uid == userId;
+      }
     }
 
-    // Any user can manage their own personal chat list.
-    match /users/{userId}/personalChats/{chatId} {
-        allow read, write, delete: if request.auth.uid == userId;
+    // Rules for all chat rooms
+    match /chats/{roomId} {
+      // Anyone can create a chat room document (needed for first message)
+      allow create: if request.auth != null;
+      // You can update last message timestamp if you are a user
+      allow update: if request.auth != null;
+
+      // Rules for messages within a chat room
+      match /messages/{messageId} {
+        // Allow reads if it's a public (state) chat, or if the user is part of a private chat.
+        allow read: if (
+          !roomId.includes('_') || 
+          (roomId.includes('_') && request.auth.uid in resource.data.user.id.split('_'))
+        );
+        
+        // Allow writes if authenticated. A more specific create rule is below.
+        allow write: if request.auth != null;
+
+        // More specific create rule: for private chats, you must be one of the participants.
+        allow create: if (
+            !roomId.includes('_') ||
+            (roomId.includes('_') && request.auth.uid in roomId.split('_'))
+        );
+      }
     }
     
+    // Admins can perform collection group queries on messages for spam detection.
+    match /{path=**}/messages/{message} {
+      allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
   }
 }
