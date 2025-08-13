@@ -5,7 +5,6 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { categorizeMessage } from '@/ai/flows/categorize-message';
 import { moderateMessage } from '@/ai/flows/moderate-message';
-import { getFlaggedContent } from '@/services/admin';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -51,7 +50,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
 
   // 3. Update the last message timestamp on the parent chat document for sorting chat lists.
   const chatRef = doc(db, 'chats', roomId);
-  await updateDoc(chatRef, { lastMessageTimestamp: serverTimestamp() });
+  await updateDoc(chatRef, { lastMessageTimestamp: serverTimestamp() }).catch(e => console.error("Failed to update chat timestamp:", e));
 
   // 4. Run AI processes in the background without blocking the UI.
   const isPersonalChat = roomId.includes('_');
@@ -72,10 +71,8 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
         .catch(e => console.error("Failed to categorize message:", e)),
 
       // Moderation Flow
-      getFlaggedContent().then(flaggedContent => {
-        const examples = flaggedContent.map(item => item.text);
-        return moderateMessage({ message: messagePayload.text, examples });
-      }).then(moderationResult => {
+      moderateMessage({ message: messagePayload.text, examples: [] })
+      .then(moderationResult => {
         if (moderationResult.is_inappropriate) {
           // If inappropriate, update the message to be 'spam' and log the reason.
           updateDoc(messageRef, {
@@ -113,7 +110,7 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
 
         if (user1Profile && user2Profile) {
             const user1ChatRef = doc(db, `users/${uid1}/personalChats`, uid2);
-            await setDoc(user1ChatRef, { withUser: { uid: user2Profile.uid, username: user2Profile.username, avatar: user2Profile.avatar || '' }, roomId });
+            await setDoc(user1ChatRef, { withUser: { uid: user2Profile.uid, username: user2Profile.username, avatar: user2.avatar || '' }, roomId });
             
             const user2ChatRef = doc(db, `users/${uid2}/personalChats`, uid1);
             await setDoc(user2ChatRef, { withUser: { uid: user1Profile.uid, username: user1Profile.username, avatar: user1Profile.avatar || '' }, roomId });
