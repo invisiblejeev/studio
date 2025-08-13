@@ -8,7 +8,7 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc, query, orderBy, addDoc, updateDoc } from 'firebase/firestore';
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil, Upload, Image as ImageIcon, X, Megaphone, MapPin, Globe } from "lucide-react";
+import { Trash2, LoaderCircle, Plus, CalendarIcon, Tag, Ticket, Pencil, Upload, Image as ImageIcon, X, Megaphone, MapPin, Globe, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,7 @@ import Image from "next/image";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import Autoplay from "embla-carousel-autoplay";
 import { allStates } from "@/lib/states";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 
 interface Offer {
@@ -38,9 +38,10 @@ interface Offer {
   states?: string[];
 }
 
-const initialNewOfferState = {
+const initialNewOfferState: Omit<Offer, 'id'> = {
     title: '',
     description: '',
+    images: [],
     code: '',
     type: '',
     states: ['all'],
@@ -102,32 +103,20 @@ export default function OffersPage() {
   useEffect(() => {
     if (isLoading) return;
 
-    if (currentUser && currentUser.state) {
+    if (currentUser?.state) {
         const userState = currentUser.state;
         const visibleOffers = allOffers.filter(offer => {
-            // Rule 1: If an offer has no state restrictions (old data or explicitly empty), show it.
-            if (!offer.states || offer.states.length === 0) {
-                return true;
-            }
-            // Rule 2: If it's for 'all' states, show it.
-            if (offer.states.includes('all')) {
-                return true;
-            }
-            // Rule 3: If the user's state is in the offer's list of states, show it.
-            if (userState && offer.states.includes(userState)) {
-                return true;
-            }
-            // Otherwise, hide it.
+            if (!offer.states || offer.states.length === 0) return true;
+            if (offer.states.includes('all')) return true;
+            if (offer.states.includes(userState)) return true;
             return false;
         });
         setFilteredOffers(visibleOffers);
     } else {
-        // Show all offers if user has no state or is not logged in, but still filter for 'all' or no-state offers.
         const visibleOffers = allOffers.filter(offer => {
              if (!offer.states || offer.states.length === 0 || offer.states.includes('all')) {
                 return true;
             }
-            // Non-logged in users don't see state-specific offers unless they set a profile state
             return false;
         });
         setFilteredOffers(visibleOffers);
@@ -278,26 +267,33 @@ export default function OffersPage() {
   }
 
   const handleStateSelection = (stateValue: string, isEditing: boolean) => {
-    const stateField = isEditing ? editingOffer?.states : newOffer.states;
-    const setStateField = isEditing
-      ? (states: string[]) => setEditingOffer(prev => prev ? { ...prev, states } : null)
-      : (states: string[]) => setNewOffer(prev => ({ ...prev, states }));
-  
+    const currentStates = (isEditing ? editingOffer?.states : newOffer.states) || [];
+    const setStateAction = isEditing
+        ? (states: string[]) => setEditingOffer(prev => prev ? { ...prev, states } : null)
+        : (states: string[]) => setNewOffer(prev => ({ ...prev, states }));
+
+    let newStates: string[];
+
     if (stateValue === 'all') {
-      setStateField(['all']);
+        newStates = currentStates.includes('all') ? [] : ['all'];
     } else {
-      const currentStates = stateField?.includes('all') ? [] : (stateField || []);
-      const newStates = currentStates.includes(stateValue)
-        ? currentStates.filter(s => s !== stateValue)
-        : [...currentStates, stateValue];
-      
-      if(newStates.length === 0) {
-        setStateField(['all']);
-      } else {
-        setStateField(newStates);
-      }
+        const filteredStates = currentStates.filter(s => s !== 'all');
+        if (filteredStates.includes(stateValue)) {
+            newStates = filteredStates.filter(s => s !== stateValue);
+        } else {
+            newStates = [...filteredStates, stateValue];
+        }
     }
-  };
+    
+    if (newStates.length === 0) {
+        setStateAction(['all']);
+    } else if (newStates.length > 1 && newStates.includes('all')){
+        setStateAction(newStates.filter(s => s !== 'all'));
+    } 
+    else {
+        setStateAction(newStates);
+    }
+};
 
 
   return (
@@ -476,18 +472,23 @@ export default function OffersPage() {
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[300px] p-0">
-                               <Command>
+                               <Command onSelect={(e) => e.preventDefault()}>
                                 <CommandInput placeholder="Search states..." />
+                                <CommandList>
                                 <CommandEmpty>No state found.</CommandEmpty>
-                                <CommandGroup className="max-h-48 overflow-y-auto">
-                                    <CommandItem onSelect={() => handleStateSelection('all', false)}>All States</CommandItem>
+                                <CommandGroup>
+                                    <CommandItem onSelect={() => handleStateSelection('all', false)}>
+                                        <Check className={cn("mr-2 h-4 w-4", newOffer.states.includes('all') ? "opacity-100" : "opacity-0")} />
+                                        All States
+                                    </CommandItem>
                                     {allStates.map(state => (
                                         <CommandItem key={state.value} onSelect={() => handleStateSelection(state.value, false)}>
-                                            <X className={cn("mr-2 h-4 w-4", newOffer.states.includes(state.value) ? "opacity-100" : "opacity-0")} />
+                                            <Check className={cn("mr-2 h-4 w-4", newOffer.states.includes(state.value) ? "opacity-100" : "opacity-0")} />
                                             {state.label}
                                         </CommandItem>
                                     ))}
                                 </CommandGroup>
+                                </CommandList>
                                </Command>
                             </PopoverContent>
                            </Popover>
@@ -616,18 +617,23 @@ export default function OffersPage() {
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[300px] p-0">
-                               <Command>
+                               <Command onSelect={(e) => e.preventDefault()}>
                                 <CommandInput placeholder="Search states..." />
+                                 <CommandList>
                                 <CommandEmpty>No state found.</CommandEmpty>
-                                <CommandGroup className="max-h-48 overflow-y-auto">
-                                    <CommandItem onSelect={() => handleStateSelection('all', true)}>All States</CommandItem>
+                                <CommandGroup>
+                                    <CommandItem onSelect={() => handleStateSelection('all', true)}>
+                                      <Check className={cn("mr-2 h-4 w-4", editingOffer.states?.includes('all') ? "opacity-100" : "opacity-0")} />
+                                        All States
+                                    </CommandItem>
                                     {allStates.map(state => (
                                         <CommandItem key={state.value} onSelect={() => handleStateSelection(state.value, true)}>
-                                            <X className={cn("mr-2 h-4 w-4", editingOffer.states?.includes(state.value) ? "opacity-100" : "opacity-0")} />
+                                            <Check className={cn("mr-2 h-4 w-4", editingOffer.states?.includes(state.value) ? "opacity-100" : "opacity-0")} />
                                             {state.label}
                                         </CommandItem>
                                     ))}
                                 </CommandGroup>
+                                </CommandList>
                                </Command>
                             </PopoverContent>
                            </Popover>
