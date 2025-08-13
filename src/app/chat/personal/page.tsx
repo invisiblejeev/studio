@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, orderBy, limit, onSnapshot, collectionGroup } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, limit, onSnapshot, collectionGroup, getDoc, doc } from "firebase/firestore";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/services/chat";
@@ -27,7 +27,7 @@ interface ChatContact {
 export default function PersonalChatsListPage() {
     const router = useRouter();
     const [chats, setChats] = useState<ChatContact[]>([]);
-    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -45,61 +45,51 @@ export default function PersonalChatsListPage() {
     useEffect(() => {
         if (!currentUser) return;
 
-        // This is a complex query. In a production app, you'd likely store a user's chat rooms in their profile.
-        // Here, we query all chat collections.
-        const personalChatsQuery = query(collectionGroup(db, "messages"), orderBy("timestamp", "desc"));
+        // This is a complex query. In a production app, this would be optimized.
+        // We query all chat room collections to find ones involving the current user.
+        const unsubscribe = onSnapshot(collection(db, "chats"), async (chatsSnapshot) => {
+            const chatPromises: Promise<ChatContact | null>[] = [];
 
-        const unsubscribe = onSnapshot(personalChatsQuery, async (snapshot) => {
-            const chatRooms: { [key: string]: { lastMessage: Message, unread: number } } = {};
-            const myRooms: Set<string> = new Set();
-            
-            snapshot.docs.forEach(doc => {
-                const message = doc.data() as Message;
-                const roomId = doc.ref.parent.parent?.id;
-
-                if (roomId && roomId.includes(currentUser.uid)) {
-                    myRooms.add(roomId);
-                     if (!chatRooms[roomId]) { // Only process if it's a new room for this snapshot
-                        const timestamp = message.timestamp?.toDate ? message.timestamp.toDate() : new Date();
-                        chatRooms[roomId] = {
-                            lastMessage: { ...message, id: doc.id, timestamp },
-                            unread: 1 // Placeholder
-                        };
-                    }
-                }
-            });
-            
-            // This is a placeholder for real unread logic
-            myRooms.forEach(roomId => {
-                if (localStorage.getItem(`read_${roomId}`) === 'true') {
-                    if (chatRooms[roomId]) chatRooms[roomId].unread = 0;
-                } else {
-                    // Simulate unread count
-                    if(chatRooms[roomId]) chatRooms[roomId].unread = Math.floor(Math.random() * 3);
-                }
-            })
-
-
-            const chatPromises = Array.from(myRooms).map(async (roomId) => {
-                const otherUserId = roomId.replace(currentUser.uid, '').replace('_', '');
-                const otherUser = await getUserProfile(otherUserId);
-
-                if (otherUser && chatRooms[roomId]) {
-                    const { lastMessage, unread } = chatRooms[roomId];
-                    const timestamp = lastMessage.timestamp as Date;
+            for (const chatDoc of chatsSnapshot.docs) {
+                const roomId = chatDoc.id;
+                // Personal chats are identified by having an underscore in the room ID
+                if (roomId.includes(currentUser.uid) && roomId.includes('_')) {
                     
-                    return {
-                        user: otherUser,
-                        lastMessage: lastMessage.text || (lastMessage.imageUrl ? "Image" : "No messages yet"),
-                        time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                        unread: unread,
-                        timestamp: timestamp,
-                        roomId: roomId
-                    };
+                    const otherUserId = roomId.replace(currentUser.uid, '').replace('_', '');
+                    if (!otherUserId) continue;
+
+                    const promise = (async () => {
+                        const otherUser = await getUserProfile(otherUserId);
+                        if (!otherUser) return null;
+
+                        const messagesCollection = collection(db, 'chats', roomId, 'messages');
+                        const q = query(messagesCollection, orderBy("timestamp", "desc"), limit(1));
+                        const messageSnapshot = await getDocs(q);
+
+                        if (messageSnapshot.empty) {
+                           return null;
+                        }
+                        
+                        const lastMessageDoc = messageSnapshot.docs[0];
+                        const lastMessage = lastMessageDoc.data() as Message;
+                        const timestamp = lastMessage.timestamp?.toDate ? lastMessage.timestamp.toDate() : new Date();
+
+                        // Placeholder for real unread logic
+                        const unread = localStorage.getItem(`read_${roomId}`) === 'true' ? 0 : Math.floor(Math.random() * 3);
+
+                        return {
+                            user: otherUser,
+                            lastMessage: lastMessage.text || (lastMessage.imageUrl ? "Image" : "No messages yet"),
+                            time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+                            unread: unread,
+                            timestamp: timestamp,
+                            roomId: roomId
+                        };
+                    })();
+                    chatPromises.push(promise);
                 }
-                return null;
-            });
-            
+            }
+
             const resolvedChats = (await Promise.all(chatPromises)).filter(Boolean) as ChatContact[];
             resolvedChats.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
             setChats(resolvedChats);
@@ -108,12 +98,16 @@ export default function PersonalChatsListPage() {
         return () => unsubscribe();
     }, [currentUser]);
 
+
     const handleChatClick = (roomId: string) => {
         // Simulate marking chat as read
         localStorage.setItem(`read_${roomId}`, 'true');
         const updatedChats = chats.map(c => c.roomId === roomId ? { ...c, unread: 0 } : c);
         setChats(updatedChats);
-        router.push(`/chat/user/${roomId.replace(currentUser.uid, '').replace('_', '')}`);
+        if (currentUser) {
+            const otherUserId = roomId.replace(currentUser.uid, '').replace('_', '');
+            router.push(`/chat/user/${otherUserId}`);
+        }
     }
 
 
@@ -150,6 +144,12 @@ export default function PersonalChatsListPage() {
                         </div>
                     </div>
                 ))}
+                 {chats.length === 0 && (
+                    <div className="text-center text-muted-foreground p-8">
+                        <p>No personal chats yet.</p>
+                        <p className="text-xs mt-2">Start a conversation from a user's post on the Requirements page.</p>
+                    </div>
+                )}
             </div>
         </div>
     );
