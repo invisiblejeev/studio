@@ -103,7 +103,7 @@ export default function PersonalChatPage() {
         }
     }
     
-    await sendMessage(roomId, {
+    sendMessage(roomId, {
       user: { 
           id: currentUser.uid, 
           name: currentUser.username, 

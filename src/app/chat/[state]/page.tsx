@@ -113,7 +113,7 @@ export default function ChatPage() {
         }
     }
 
-    await sendMessage(state, {
+    sendMessage(state, {
       user: {
           id: currentUser.uid,
           name: currentUser.username,
