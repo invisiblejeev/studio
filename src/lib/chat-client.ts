@@ -21,7 +21,8 @@ export const getMessages = (roomId: string, callback: (messages: Message[]) => v
         time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
         timestamp: timestamp,
         category: data.category,
-        title: data.title
+        title: data.title,
+        isDeleted: data.isDeleted || false,
       } as Message
     });
     callback(messages);

@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, increment, deleteDoc } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -23,6 +23,7 @@ export interface Message {
   state?: string; 
   originalMessageId?: string;
   originalRoomId?: string;
+  isDeleted?: boolean;
 }
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
@@ -70,7 +71,13 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
             lastMessage: lastMessageContent,
             lastMessageTimestamp: serverTimestamp(),
             lastMessageSenderId: message.user.id
-        }).catch(e => console.log("Sender personal chat doc may not exist yet, which is okay.", e.code));
+        }).catch(e => {
+             // This can happen if the doc doesn't exist yet, which is fine.
+             // The trigger will create it if needed.
+             if (e.code !== 'not-found') {
+                console.log("Sender personal chat doc may not exist yet, which is okay.", e.code)
+             }
+        });
       }
   }
 };
@@ -125,3 +132,12 @@ export const ensurePublicChatRoomExists = async (state: string) => {
     }
 };
 
+export const deleteMessage = async (roomId: string, messageId: string) => {
+    const messageRef = doc(db, 'chats', roomId, 'messages', messageId);
+    // Soft delete: update the message to indicate it's deleted.
+    await updateDoc(messageRef, {
+        text: 'This message was deleted',
+        imageUrl: null,
+        isDeleted: true,
+    });
+};

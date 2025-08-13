@@ -5,18 +5,24 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
-import { Paperclip, SendHorizonal, ArrowLeft, LoaderCircle, X } from "lucide-react"
+import { Paperclip, SendHorizonal, ArrowLeft, LoaderCircle, X, Trash2 } from "lucide-react"
 import { useRouter, useParams } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { sendMessage, getPersonalChatRoomId, Message } from "@/services/chat";
+import { sendMessage, getPersonalChatRoomId, Message, deleteMessage } from "@/services/chat";
 import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 
 export default function PersonalChatPage() {
   const router = useRouter();
@@ -158,6 +164,22 @@ export default function PersonalChatPage() {
     }
   }
 
+  const handleDelete = async (messageId: string) => {
+    if (!roomId) return;
+    try {
+      await deleteMessage(roomId, messageId);
+      toast({
+        title: 'Message Deleted',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete message.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleShowProfile = async (userId: string) => {
     if (userId === currentUser?.uid) {
         router.push('/profile');
@@ -218,28 +240,42 @@ export default function PersonalChatPage() {
                       )}
                       {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
-                      <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
-                          <div className={cn('rounded-lg shadow-sm', 
-                              isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
-                              !msg.text && msg.imageUrl ? 'p-1' : 'p-3',
-                              isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
-                              isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
-                              !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
-                              !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
-                              !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
-                              'rounded-lg'
-                          )}>
-                              {msg.imageUrl && (
-                                <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                                  <div className="relative aspect-square rounded-md overflow-hidden max-w-[300px]">
-                                    <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
-                                  </div>
-                                </Link>
-                              )}
-                              {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+                       <ContextMenu>
+                        <ContextMenuTrigger>
+                           <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
+                              <div className={cn('rounded-lg shadow-sm', 
+                                  isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
+                                  msg.isDeleted ? 'bg-muted text-muted-foreground italic' : '',
+                                  !msg.text && msg.imageUrl ? 'p-1' : 'p-3',
+                                  isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
+                                  isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
+                                  !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
+                                  !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
+                                  !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
+                                  'rounded-lg'
+                              )}>
+                                  {msg.imageUrl && !msg.isDeleted && (
+                                    <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
+                                      <div className="relative aspect-square rounded-md overflow-hidden max-w-[300px]">
+                                        <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
+                                      </div>
+                                    </Link>
+                                  )}
+                                  {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+                              </div>
+                              {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                           </div>
-                          {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
-                      </div>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          {isYou && !msg.isDeleted && (
+                            <ContextMenuItem onClick={() => handleDelete(msg.id)} className="text-destructive">
+                               <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </ContextMenuItem>
+                          )}
+                        </ContextMenuContent>
+                      </ContextMenu>
+
 
                       {isYou && isLastInSequence && (
                            <Avatar className={cn('h-8 w-8 cursor-pointer')} onClick={() => router.push('/profile')}>

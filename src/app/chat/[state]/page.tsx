@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
-import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle, X, Users } from "lucide-react"
+import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle, X, Users, Trash2 } from "lucide-react"
 import { useRouter, useParams } from 'next/navigation';
 import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile, getUserCountByState } from "@/services/users";
-import { sendMessage, Message, ensurePublicChatRoomExists } from "@/services/chat";
+import { sendMessage, Message, ensurePublicChatRoomExists, deleteMessage } from "@/services/chat";
 import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
@@ -21,6 +21,12 @@ import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { Badge } from "@/components/ui/badge";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 
 export default function ChatPage() {
   const router = useRouter();
@@ -77,20 +83,26 @@ export default function ChatPage() {
     });
     
     // Listen for total unread count
-    const personalChatsRef = collection(db, `users/${currentUser.uid}/personalChats`);
-    const unreadQuery = query(personalChatsRef, where('unreadCount', '>', 0));
-    const unsubscribeUnread = onSnapshot(unreadQuery, (snapshot) => {
-        let total = 0;
-        snapshot.docs.forEach(doc => {
-            total += doc.data().unreadCount || 0;
+    if (currentUser.uid) {
+        const personalChatsRef = collection(db, `users/${currentUser.uid}/personalChats`);
+        const unreadQuery = query(personalChatsRef, where('unreadCount', '>', 0));
+        const unsubscribeUnread = onSnapshot(unreadQuery, (snapshot) => {
+            let total = 0;
+            snapshot.docs.forEach(doc => {
+                total += doc.data().unreadCount || 0;
+            });
+            setTotalUnread(total);
         });
-        setTotalUnread(total);
-    });
+
+        return () => {
+            unsubscribe();
+            unsubscribeUnread();
+        };
+    }
 
 
     return () => {
         unsubscribe();
-        unsubscribeUnread();
     };
   }, [state, currentUser]);
 
@@ -192,6 +204,21 @@ export default function ChatPage() {
     }
   }
 
+  const handleDelete = async (messageId: string) => {
+    try {
+      await deleteMessage(state, messageId);
+      toast({
+        title: 'Message Deleted',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete message.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
   const canSendMessage = !!currentUser && (newMessage.trim() !== "" || !!imageFile) && !isUploading;
 
@@ -237,31 +264,46 @@ export default function ChatPage() {
                     )}
                     {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
-                    <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
-                        {!isYou && isFirstInSequence && (
-                            <p className="text-xs text-muted-foreground mb-1 px-3 cursor-pointer hover:underline" onClick={() => handleShowProfile(msg.user.id)}>{msg.user.name}</p>
-                        )}
-                        <div className={cn('p-3 rounded-lg shadow-sm', 
-                            isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
-                            !msg.text && msg.imageUrl ? 'p-1' : 'p-3',
-                            isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
-                            isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
-                            !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
-                            !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
-                            !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
-                            'rounded-lg'
-                        )}>
-                            {msg.imageUrl && (
-                              <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                                  <div className="relative aspect-square rounded-md overflow-hidden max-w-[300px]">
-                                    <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
-                                  </div>
-                              </Link>
+                    <ContextMenu>
+                      <ContextMenuTrigger>
+                        <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
+                            {!isYou && isFirstInSequence && (
+                                <p className="text-xs text-muted-foreground mb-1 px-3 cursor-pointer hover:underline" onClick={() => handleShowProfile(msg.user.id)}>{msg.user.name}</p>
                             )}
-                            {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+                            <div className={cn('p-3 rounded-lg shadow-sm', 
+                                isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
+                                msg.isDeleted ? 'bg-muted text-muted-foreground italic' : '',
+                                !msg.text && msg.imageUrl ? 'p-1' : 'p-3',
+                                isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
+                                isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
+                                !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
+                                !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
+                                !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
+                                'rounded-lg'
+                            )}>
+                                {msg.imageUrl && !msg.isDeleted && (
+                                  <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
+                                      <div className="relative aspect-square rounded-md overflow-hidden max-w-[300px]">
+                                        <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
+                                      </div>
+                                  </Link>
+                                )}
+                                {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+                            </div>
+                            {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                         </div>
-                        {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
-                    </div>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        {isYou && !msg.isDeleted && (
+                          <ContextMenuItem onClick={() => handleDelete(msg.id)} className="text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </ContextMenuItem>
+                        )}
+                      </ContextMenuContent>
+                    </ContextMenu>
+
+
                     {isYou && isLastInSequence && (
                         <Avatar className={cn('h-8 w-8 cursor-pointer')} onClick={() => router.push('/profile')}>
                             <AvatarImage src={currentUser?.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
