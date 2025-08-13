@@ -1,5 +1,5 @@
 
-'use server';
+'use client';
 
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
@@ -16,19 +16,16 @@ export interface Message {
   imageUrl?: string;
   time: string; 
   timestamp: any;
-  // Fields below are added by backend triggers, not set by client
   category?: string;
   title?: string;
   isSpam?: boolean;
   reason?: string;
-  // Fields used for 'requirements' collection
   state?: string; 
   originalMessageId?: string;
   originalRoomId?: string;
 }
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
-  // 1. Construct the basic message payload the client is allowed to send.
   const messagePayload: any = {
     user: message.user,
     timestamp: serverTimestamp(),
@@ -42,20 +39,16 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     messagePayload.imageUrl = message.imageUrl;
   }
 
-  // Abort if the message is empty (no text and no image)
   if (!messagePayload.text && !messagePayload.imageUrl) {
     console.log("Attempted to send an empty message. Aborting.");
     return;
   }
 
-  // 2. Immediately save the message. AI processing is handled by a backend trigger.
   await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 
-  // 3. Update the last message info on the parent chat document for chat lists.
   const chatDocRef = doc(db, 'chats', roomId);
   const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
-  // Use updateDoc instead of setDoc with merge to ensure the document exists.
-  // This is now safe because getPersonalChatRoomId guarantees the doc exists.
+  
   await updateDoc(chatDocRef, { 
       lastMessageTimestamp: serverTimestamp(),
       lastMessage: lastMessageContent,
@@ -70,16 +63,13 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
     const chatRef = doc(db, 'chats', roomId);
     const chatSnap = await getDoc(chatRef);
 
-    // If the chat document doesn't exist, create it with initial fields.
-    // This prevents the "phantom document" issue.
     if (!chatSnap.exists()) {
         await setDoc(chatRef, { 
             users: [uid1, uid2], 
-            isPersonal: true, // Add a field to distinguish private chats
+            isPersonal: true,
             lastMessageTimestamp: serverTimestamp() 
         });
         
-        // Also create the references in each user's personalChats subcollection
         const user1Profile = await getUserProfile(uid1);
         const user2Profile = await getUserProfile(uid2);
 
