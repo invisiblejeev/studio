@@ -74,11 +74,15 @@ export default function RequirementsPage() {
 
     useEffect(() => {
         setIsLoading(true);
-        // This query should only run once when the component mounts.
-        const reqQuery = query(collection(db, 'requirements'), orderBy('timestamp', 'desc'));
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        
+        const reqQuery = query(
+            collection(db, 'requirements'), 
+            where('timestamp', '>', sevenDaysAgo),
+            orderBy('timestamp', 'desc')
+        );
 
         const unsubscribe = onSnapshot(reqQuery, (snapshot) => {
-            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
             const reqsData = snapshot.docs
                 .map(doc => {
                     const data = doc.data();
@@ -89,14 +93,13 @@ export default function RequirementsPage() {
                         time: timestamp ? formatDistanceToNowStrict(timestamp, { addSuffix: true }) : '',
                         timestamp: timestamp,
                     } as Requirement;
-                })
-                .filter(req => req.timestamp && isAfter(req.timestamp, sevenDaysAgo)); // Filter client-side
+                });
 
             setAllRequirements(reqsData);
             setIsLoading(false);
         }, (error) => {
              console.error("Error fetching requirements:", error);
-             toast({ title: "Error", description: "Could not fetch requirements. " + error.message, variant: "destructive" });
+             toast({ title: "Error", description: "Could not fetch requirements. Please ensure Firestore indexes are set up if prompted.", variant: "destructive" });
              setIsLoading(false);
         });
 
@@ -349,5 +352,3 @@ export default function RequirementsPage() {
         </div>
     );
 }
-
-    
