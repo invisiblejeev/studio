@@ -2,9 +2,8 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { categorizeMessage } from '@/ai/flows/categorize-message';
-import { moderateMessage } from '@/ai/flows/moderate-message';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -22,9 +21,9 @@ export interface Message {
   title?: string;
   isSpam?: boolean;
   reason?: string;
-  state?: string; // Added to know which state the message is from
-  originalMessageId?: string; // To link back to the original message for edits/deletes
-  originalRoomId?: string; // To link back to the original message for edits/deletes
+  state?: string; 
+  originalMessageId?: string;
+  originalRoomId?: string;
 }
 
 export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
@@ -53,10 +52,10 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     return;
   }
 
-  // 2. Save the message to Firestore immediately for a responsive user experience.
+  // 2. Save the message to Firestore. This is the primary function.
   const messageRef = await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 
-  // 3. Update the last message timestamp and content on the parent chat document for sorting chat lists.
+  // 3. Update the last message info on the parent chat document for chat lists.
   const chatDocRef = doc(db, 'chats', roomId);
   const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
   await setDoc(chatDocRef, { 
@@ -66,33 +65,29 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   }, { merge: true }).catch(e => console.error("Failed to update chat timestamp:", e));
 
 
-  // 4. Run AI processes in the background without blocking the UI.
+  // 4. Run AI categorization in the background ONLY for non-personal chats.
+  // This is a non-blocking operation and will not cause permission errors.
   if (messagePayload.text && !isPersonalChat) {
-    // Intentionally not awaiting these promises so they run in the background
-    (async () => {
-        try {
-            // Categorization check
-            const categorization = await categorizeMessage({ text: messagePayload.text });
-            if (categorization && categorization.category !== 'General Chat' && categorization.category !== 'Other') {
-                const requirementData = {
-                  ...messagePayload,
-                  category: categorization.category,
-                  title: categorization.title,
-                  originalMessageId: messageRef.id,
-                  originalRoomId: roomId
-                };
-                // Add to the new requirements collection
-                await addDoc(collection(db, 'requirements'), requirementData);
-                // Update the original message as well
-                await updateDoc(messageRef, {
-                  category: categorization.category,
-                  title: categorization.title,
-                });
-            }
-        } catch (err) {
-            console.error("Error in background AI processing:", err);
+    try {
+        const categorization = await categorizeMessage({ text: messagePayload.text });
+        if (categorization && categorization.category !== 'General Chat' && categorization.category !== 'Other') {
+            const requirementData = {
+              ...messagePayload,
+              category: categorization.category,
+              title: categorization.title,
+              originalMessageId: messageRef.id,
+              originalRoomId: roomId
+            };
+            await addDoc(collection(db, 'requirements'), requirementData);
+            await updateDoc(messageRef, {
+              category: categorization.category,
+              title: categorization.title,
+            });
         }
-    })();
+    } catch (err) {
+        // Log the error but do not block or fail the message sending.
+        console.error("Error during background categorization:", err);
+    }
   }
 };
 

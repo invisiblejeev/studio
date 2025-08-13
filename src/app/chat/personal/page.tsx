@@ -13,7 +13,8 @@ import { collection, query, where, getDocs, orderBy, limit, onSnapshot, collecti
 import { getUserProfile, UserProfile } from "@/services/users";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/services/chat";
-import { format } from 'date-fns';
+import { format, formatDistanceToNowStrict } from 'date-fns';
+import { useToast } from "@/hooks/use-toast";
 
 
 interface ChatContact {
@@ -34,6 +35,7 @@ export default function PersonalChatsListPage() {
     const [chats, setChats] = useState<ChatContact[]>([]);
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
 
 
     useEffect(() => {
@@ -42,7 +44,6 @@ export default function PersonalChatsListPage() {
           const user = await getCurrentUser();
           if (!user) {
             router.push('/');
-            setIsLoading(false);
             return;
           }
           
@@ -74,7 +75,7 @@ export default function PersonalChatsListPage() {
                       return {
                           user: chatInfo.withUser,
                           lastMessage: lastMessageText,
-                          time: lastMessageTimestamp ? format(lastMessageTimestamp, 'p') : '',
+                          time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp) : '',
                           unread: 0, // Simplified for now
                           timestamp: lastMessageTimestamp,
                           roomId: roomId,
@@ -105,7 +106,7 @@ export default function PersonalChatsListPage() {
              });
         }
 
-    }, [router]);
+    }, [router, toast]);
 
 
     const handleChatClick = (userId: string) => {
@@ -130,7 +131,7 @@ export default function PersonalChatsListPage() {
                 ) : chats.length === 0 ? (
                      <div className="text-center text-muted-foreground p-8">
                         <p>No personal chats yet.</p>
-                        <p className="text-xs mt-2">Start a conversation from a user's post on the Requirements page.</p>
+                        <p className="text-xs mt-2">Start a conversation from a user's profile.</p>
                     </div>
                 ) : (
                     chats.map(chat => (
