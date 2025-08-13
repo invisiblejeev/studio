@@ -3,73 +3,72 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+  
+    // Users Collection
+    // - A user can read/write to their own profile.
+    // - Any authenticated user can query the users collection (e.g., for checking if a username is taken).
+    match /users/{uid} {
+      allow read, write: if request.auth.uid == uid;
+      allow list: if request.auth.uid != null;
+    }
+    
+    // Personal Chats Collection (`/users/{uid}/personalChats/{otherUid}`)
+    // A user can read/write their own list of personal chats.
+    match /users/{uid}/personalChats/{chatId} {
+        allow read, write: if request.auth.uid == uid;
+    }
 
-    // Helper function to check if a user is an admin
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-    
-    // Helper function to check if a user is authenticated
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    // Users can only read/write their own profile
-    // Admins can read any profile
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAuthenticated() && request.auth.uid == userId;
-      // Personal chat list is a subcollection of user
-      match /personalChats/{otherUserId} {
-        allow read, write: if isAuthenticated() && request.auth.uid == userId;
-      }
-    }
-    
-    // Rules for public state-based chat rooms
-    match /chats/{state} {
-       allow read, update: if isAuthenticated(); // Allow reading chat doc and updating timestamp
-       
-       match /messages/{messageId} {
-         // Any authenticated user can read/write to public state chats
-         allow read, write: if isAuthenticated();
-         // Admins can delete messages
-         allow delete: if isAdmin();
-       }
-    }
-    
-    // Rules for private 1-on-1 chat rooms
+    // Chats Collection
     match /chats/{roomId} {
-    	// RoomId for personal chats is formatted as "uid1_uid2"
-      // Only members of the chat can read/update the chat document
-      allow read, update: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
+        
+      // Public State Chats (e.g., /chats/california)
+      // - Any authenticated user can read messages.
+      // - Any authenticated user can create messages.
+      // - Any authenticated user can update the timestamp (required for sending messages).
+      function isPublicStateChat() {
+        return !(roomId.contains("_"));
+      }
+
+      allow update: if isPublicStateChat() && request.auth.uid != null;
       
       match /messages/{messageId} {
-      	// Only members of the chat can read/write messages
-      	allow read, write: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
+          allow read, create: if isPublicStateChat() && request.auth.uid != null;
+          allow update, delete: if isPublicStateChat() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      }
+      
+      // Personal Chats (e.g., /chats/user1_user2)
+      // - Only the two users in the chat can read/write messages or update the room.
+      function isPersonalChat() {
+        return roomId.contains("_") && request.auth.uid in roomId.split("_");
+      }
+      
+      allow update: if isPersonalChat();
+
+      match /messages/{messageId} {
+        allow read, write: if isPersonalChat();
       }
     }
     
-    // Rules for offers
-    match /offers/{offerId} {
-    	// Any authenticated user can read offers
-      allow read: if isAuthenticated();
-      // Only admins can create, update, or delete offers
-      allow write: if isAdmin();
-    }
-    
-    // Rules for requirements
+    // Requirements Collection
+    // - Any authenticated user can read the requirements list.
+    // - Only admins can write/delete requirements (they are created via server-side flows).
     match /requirements/{reqId} {
-    	// Any authenticated user can read requirements
-      allow read: if isAuthenticated();
-      // Any authenticated user can create a requirement (via sending a message)
-      allow create: if isAuthenticated();
-      // Admins can update or delete requirements
-      allow update, delete: if isAdmin();
+        allow read: if request.auth.uid != null;
+        allow write, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Offers Collection
+    // - Any authenticated user can read offers.
+    // - Only admins can write/delete offers.
+    match /offers/{offerId} {
+        allow read: if request.auth.uid != null;
+        allow write, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
     
-    // Admins can read flagged content for moderation purposes
+    // Flagged Content (for admin training)
+    // - Only admins can read/write.
     match /flagged_content/{contentId} {
-    	allow read, write: if isAdmin();
+        allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }

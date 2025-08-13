@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { summarizeDailyActivity, SummarizeDailyActivityOutput } from '@/ai/flows/summarize-daily-activity';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, limit, addDoc, where } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, addDoc, where, collectionGroup } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import { ShieldCheck, MessageCircleWarning, ListTodo, LoaderCircle, Plus, Upload, CalendarIcon, Image as ImageIcon, X } from 'lucide-react';
 import { allStates } from '@/lib/states';
@@ -79,28 +79,26 @@ export default function AdminDashboardPage() {
                 });
                 setRequirements(reqData);
 
-                // Fetch Spam Messages
-                // Note: This still requires a composite index on (isSpam, timestamp) in Firestore.
-                const spamData: SpamMessage[] = [];
-                const stateChatQueries = allStates.map(state => {
-                    const messagesCollectionRef = collection(db, 'chats', state.value, 'messages');
-                    return query(messagesCollectionRef, where('isSpam', '==', true), orderBy('timestamp', 'desc'), limit(5));
-                });
-                 const querySnapshots = await Promise.all(stateChatQueries.map(q => getDocs(q)));
-
-                querySnapshots.forEach(snapshot => {
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                         spamData.push({
-                            id: doc.id,
-                            ...data,
-                            time: data.timestamp?.toDate().toLocaleString() ?? '',
-                        } as SpamMessage);
-                    });
-                });
+                // Fetch Spam Messages using a collectionGroup query.
+                // This requires a composite index on (isSpam, timestamp) in Firestore.
+                // The console will prompt you to create this index automatically.
+                const spamQuery = query(
+                    collectionGroup(db, 'messages'), 
+                    where('isSpam', '==', true), 
+                    orderBy('timestamp', 'desc'), 
+                    limit(10)
+                );
                 
-                spamData.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
-                setSpamMessages(spamData.slice(0, 10));
+                const spamSnapshot = await getDocs(spamQuery);
+                const spamData = spamSnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        time: data.timestamp?.toDate().toLocaleString() ?? '',
+                    } as SpamMessage
+                });
+                setSpamMessages(spamData);
 
 
             } catch (error) {
