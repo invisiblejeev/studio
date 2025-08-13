@@ -42,6 +42,15 @@ export default function ChatPage() {
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
+  const scrollToBottom = useCallback(() => {
+    if (scrollAreaRef.current) {
+        const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
+        if (viewport) {
+            viewport.scrollTop = viewport.scrollHeight;
+        }
+    }
+  }, []);
+
   useEffect(() => {
     const fetchUser = async () => {
       const user = await getCurrentUser() as any;
@@ -65,14 +74,6 @@ export default function ChatPage() {
 
     const unsubscribe = getMessages(state, (newMessages) => {
       setMessages(newMessages);
-      setTimeout(() => {
-        if (scrollAreaRef.current) {
-            const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
-            if (viewport) {
-                viewport.scrollTop = viewport.scrollHeight;
-            }
-        }
-      }, 0);
     });
     
     // Listen for total unread count
@@ -92,6 +93,11 @@ export default function ChatPage() {
         unsubscribeUnread();
     };
   }, [state, currentUser]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
 
   const handleShowProfile = async (userId: string) => {
     if (userId === currentUser?.uid) {

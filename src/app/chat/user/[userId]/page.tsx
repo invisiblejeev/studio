@@ -36,6 +36,14 @@ export default function PersonalChatPage() {
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
+  const scrollToBottom = useCallback(() => {
+    if (scrollAreaRef.current) {
+        const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
+        if (viewport) {
+            viewport.scrollTop = viewport.scrollHeight;
+        }
+    }
+  }, []);
 
   useEffect(() => {
     const fetchUsersAndRoom = async () => {
@@ -64,17 +72,13 @@ export default function PersonalChatPage() {
     if (!roomId || !currentUser) return;
     const unsubscribe = getMessages(roomId, (newMessages) => {
       setMessages(newMessages);
-       setTimeout(() => {
-        if (scrollAreaRef.current) {
-            const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
-            if (viewport) {
-                viewport.scrollTop = viewport.scrollHeight;
-            }
-        }
-      }, 0);
     });
     return () => unsubscribe();
   }, [roomId, currentUser]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
 
   const handleSendMessage = useCallback(async () => {
