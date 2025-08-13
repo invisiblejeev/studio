@@ -33,7 +33,6 @@ export default function PersonalChatsListPage() {
     const [chats, setChats] = useState<ChatContact[]>([]);
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const messageListeners: (() => void)[] = [];
 
 
     useEffect(() => {
@@ -49,42 +48,30 @@ export default function PersonalChatsListPage() {
                 const q = query(personalChatsRef);
 
                 const unsubscribe = onSnapshot(q, (snapshot) => {
-                    if (snapshot.empty) {
-                        setChats([]);
-                        setIsLoading(false);
-                        return;
-                    }
-
-                    // Clear previous message listeners
-                    messageListeners.forEach(unsub => unsub());
-                    messageListeners.length = 0;
-
                     const chatPromises = snapshot.docs.map(docData => {
                         const chatInfo = docData.data();
                         const roomId = chatInfo.roomId;
                         
-                        return new Promise<ChatContact>(resolve => {
+                        return new Promise<ChatContact>(async (resolve) => {
                             const messagesCollection = collection(db, 'chats', roomId, 'messages');
                             const q2 = query(messagesCollection, orderBy("timestamp", "desc"), limit(1));
+                            
+                            const messageSnapshot = await getDocs(q2);
+                            let lastMessage: Message | null = null;
+                            if (!messageSnapshot.empty) {
+                                lastMessage = messageSnapshot.docs[0].data() as Message;
+                            }
 
-                            const messageUnsubscribe = onSnapshot(q2, messageSnapshot => {
-                                let lastMessage: Message | null = null;
-                                if (!messageSnapshot.empty) {
-                                    lastMessage = messageSnapshot.docs[0].data() as Message;
-                                }
-
-                                const timestamp = lastMessage?.timestamp?.toDate ? lastMessage.timestamp.toDate() : new Date(0);
-                                
-                                resolve({
-                                    user: chatInfo.withUser,
-                                    lastMessage: lastMessage?.text || (lastMessage?.imageUrl ? "Image" : "No messages yet"),
-                                    time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                                    unread: 0, // Simplified
-                                    timestamp: timestamp,
-                                    roomId: roomId,
-                                });
+                            const timestamp = lastMessage?.timestamp?.toDate ? lastMessage.timestamp.toDate() : new Date(0);
+                            
+                            resolve({
+                                user: chatInfo.withUser,
+                                lastMessage: lastMessage?.text || (lastMessage?.imageUrl ? "Image" : "No messages yet"),
+                                time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+                                unread: 0, // Simplified for now
+                                timestamp: timestamp,
+                                roomId: roomId,
                             });
-                             messageListeners.push(messageUnsubscribe);
                         });
                     });
 
@@ -94,10 +81,7 @@ export default function PersonalChatsListPage() {
                         setIsLoading(false);
                     });
                 });
-                return () => {
-                    unsubscribe();
-                    messageListeners.forEach(unsub => unsub());
-                }
+                return unsubscribe;
             }
           } else {
             router.push('/');
@@ -105,15 +89,14 @@ export default function PersonalChatsListPage() {
           }
         };
 
-        const unsubscribe = fetchUserAndChats();
+        const unsubscribePromise = fetchUserAndChats();
         
         return () => {
-             // @ts-ignore
-            if (unsubscribe && typeof unsubscribe === 'function') {
-                 // @ts-ignore
-                unsubscribe();
-            }
-            messageListeners.forEach(unsub => unsub());
+             unsubscribePromise.then(unsubscribe => {
+                if(unsubscribe) {
+                    unsubscribe();
+                }
+             });
         }
 
     }, [router]);
