@@ -61,7 +61,7 @@ export default function PersonalChatPage() {
   }, [router, otherUserId]);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId || !currentUser) return;
     const unsubscribe = getMessages(roomId, (newMessages) => {
       setMessages(newMessages);
        setTimeout(() => {
@@ -74,7 +74,7 @@ export default function PersonalChatPage() {
       }, 0);
     });
     return () => unsubscribe();
-  }, [roomId]);
+  }, [roomId, currentUser]);
 
 
   const handleSendMessage = useCallback(async () => {
@@ -171,7 +171,8 @@ export default function PersonalChatPage() {
   if (!otherUser || !currentUser) {
       return (
          <div className="flex h-screen items-center justify-center">
-              <p>Loading chat...</p>
+              <LoaderCircle className="w-8 h-8 animate-spin" />
+              <p className="ml-2">Loading Chat...</p>
           </div>
       )
   }
@@ -274,7 +275,7 @@ export default function PersonalChatPage() {
           )}
           <div className="relative">
               <Textarea 
-                placeholder={`Message ${otherUser.username}...`} 
+                placeholder={currentUser ? `Message ${otherUser.username}...` : "Loading chat..."}
                 className="pr-28 min-h-[48px]"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
@@ -285,11 +286,11 @@ export default function PersonalChatPage() {
                   }
                 }}
                 maxRows={5}
-                disabled={isUploading}
+                disabled={isUploading || !currentUser}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => fileInputRef.current?.click()} disabled={isUploading}><Paperclip className="w-5 h-5" /></Button>
-                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading} />
+                  <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => fileInputRef.current?.click()} disabled={isUploading || !currentUser}><Paperclip className="w-5 h-5" /></Button>
+                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading || !currentUser} />
                   <Button size="icon" onClick={handleSendMessage} disabled={!canSendMessage}>
                     {isUploading ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <SendHorizonal className="w-5 h-5" />}
                   </Button>
