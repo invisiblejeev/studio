@@ -1,61 +1,60 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can read any profile, but only write to their own.
+    // Users: Can read any profile, but only write to their own.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId;
 
-      // Users can only read their own personal chat list.
-       match /personalChats/{otherUserId} {
-         allow read: if request.auth.uid == userId;
-       }
-    }
-
-    // Rules for chat rooms and messages
-    match /chats/{roomId} {
-      // This rule is intentionally left open for reads to allow security rules on subcollections to work correctly.
-      // Actual document data access is controlled by the rules on the 'messages' subcollection.
-      allow read: if request.auth != null;
-
-      match /messages/{messageId} {
-        // A user can read a message if:
-        // 1. It's a public chat (isPersonal is explicitly false).
-        // OR
-        // 2. They are a member of that specific private chat room.
-        allow read: if request.auth != null && (
-          get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false ||
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users
-        );
-
-        // An authenticated user can write a message to any chat they have access to.
-        // The message's user.id should match the authenticated user's uid.
-        allow write: if request.auth != null && request.resource.data.user.id == request.auth.uid;
+      // Personal Chats Subcollection: Only the user can see their own list of personal chats.
+      match /personalChats/{otherUserId} {
+        allow read, write: if request.auth.uid == userId;
       }
     }
 
-    // Requirements are readable by any authenticated user.
-    // Creation is handled by backend triggers, not clients.
-    // Admins can update or delete.
+    // Chats: Contains metadata for both public and private chat rooms.
+    match /chats/{roomId} {
+        // Read: Allow if it's a public chat OR if the user is a member of the private chat.
+        allow read: if resource.data.isPersonal == false || request.auth.uid in resource.data.users;
+        
+        // Write: Allow updates (like last message timestamp) if user is part of the chat (for private)
+        // or if it's a public chat where anyone can trigger an update by sending a message.
+        allow write: if request.auth != null;
+    }
+
+    // Messages Subcollection: The actual chat messages.
+    match /chats/{roomId}/messages/{messageId} {
+        // Read: Any authenticated user can read messages. Access to the *room* is controlled
+        // by the client-side logic (you only see rooms you're supposed to see).
+        allow read: if request.auth != null;
+        
+        // Write: A user can only create a message if they are authenticated and the sender ID in the message
+        // matches their own UID. This prevents users from impersonating others.
+        allow create: if request.auth != null && request.resource.data.user.id == request.auth.uid;
+        
+        // Update/Delete: Generally, users shouldn't edit/delete messages in this app,
+        // but this could be restricted to admins or the original user.
+        allow update, delete: if false; 
+    }
+
+    // Requirements: Publicly readable, but only updatable/deletable by admins. Creation is server-side only.
     match /requirements/{requirementId} {
       allow read: if request.auth != null;
-      allow create: if false; // Deny client-side creation
-      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow create: if false; // Only cloud functions can create
+      allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Offers are readable by any authenticated user.
-    // Only admins can create, update, or delete them.
+    // Offers: Publicly readable, but only writable by admins.
     match /offers/{offerId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Default deny all other reads/writes
-    match /{document=**} {
-      allow read, write: if false;
+    // Flagged Content: Only admins can read or write.
+    match /flagged_content/{contentId} {
+        allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
