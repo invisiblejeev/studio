@@ -13,7 +13,7 @@ import { getUserProfile, UserProfile } from '@/services/users';
 import { allStates } from '@/lib/states';
 import { getCurrentUser } from '@/services/auth';
 import { useToast } from '@/hooks/use-toast';
-import { differenceInDays, formatDistanceToNowStrict } from 'date-fns';
+import { differenceInDays, formatDistanceToNowStrict, isAfter } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -157,31 +157,40 @@ export default function RequirementsPage() {
 
     useEffect(() => {
         setIsLoading(true);
-        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const reqQuery = query(collection(db, 'requirements'), where('timestamp', '>=', sevenDaysAgo), orderBy('timestamp', 'desc'));
+        // Simplified query to avoid needing a composite index.
+        const reqQuery = query(collection(db, 'requirements'), orderBy('timestamp', 'desc'));
 
         const unsubscribe = onSnapshot(reqQuery, (snapshot) => {
-            const reqsData = snapshot.docs.map(doc => {
-                const data = doc.data();
-                const timestamp = data.timestamp?.toDate();
-                return {
-                    id: doc.id,
-                    ...data,
-                    time: timestamp ? formatDistanceToNowStrict(timestamp, { addSuffix: true }) : '',
-                    timestamp: timestamp,
-                } as Requirement;
-            });
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            const reqsData = snapshot.docs
+                .map(doc => {
+                    const data = doc.data();
+                    const timestamp = data.timestamp?.toDate();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        time: timestamp ? formatDistanceToNowStrict(timestamp, { addSuffix: true }) : '',
+                        timestamp: timestamp,
+                    } as Requirement;
+                })
+                .filter(req => req.timestamp && isAfter(req.timestamp, sevenDaysAgo)); // Filter client-side
+
             setAllRequirements(reqsData);
-            setFilteredRequirements(reqsData);
+            // We need to re-apply the active filter to the newly fetched data
+            if (activeFilter === 'All') {
+                setFilteredRequirements(reqsData);
+            } else {
+                setFilteredRequirements(reqsData.filter(r => r.category === activeFilter));
+            }
             setIsLoading(false);
         }, (error) => {
              console.error("Error fetching requirements:", error);
-             toast({ title: "Error", description: "Could not fetch requirements.", variant: "destructive" });
+             toast({ title: "Error", description: "Could not fetch requirements. " + error.message, variant: "destructive" });
              setIsLoading(false);
         });
 
         return () => unsubscribe();
-    }, [toast]);
+    }, [toast, activeFilter]);
 
 
     const handleFilter = (category: Category | 'All') => {
