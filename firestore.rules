@@ -1,63 +1,50 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check for admin role
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
 
-    // Users can read any profile, but only write to their own.
-    // Allow list for username/email checks during signup.
+    // Users can only manage their own profile. Anyone can view profiles.
     match /users/{userId} {
-      allow read, list: if request.auth != null;
+      allow read;
       allow create, update, delete: if request.auth.uid == userId;
     }
+    
+    // Allow admins to query users (e.g., for user counts)
+    match /users/{document=**} {
+    	allow list: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true || request.auth.uid != null;
+    }
 
-    // Offers can be read by anyone, but only written by admins.
+    // Public collections readable by any authenticated user.
     match /offers/{offerId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
+      allow read: if request.auth.uid != null;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-    
-    // Requirements can be read by anyone, but only written by admins.
+
     match /requirements/{reqId} {
-        allow read: if request.auth != null;
-        allow create, update, delete: if isAdmin();
+      allow read: if request.auth.uid != null;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Flagged content is only accessible by admins.
-    match /flagged_content/{contentId} {
-        allow read, write: if isAdmin();
+    // Secure chat rooms
+    match /chats/{roomId}/{messages=**} {
+      // Public state-based chats (e.g., /chats/california)
+      // Any authenticated user can read/write.
+      allow read, write: if request.auth.uid != null && !roomId.matches('.*_.*');
+      
+      // Personal chats (e.g., /chats/uid1_uid2)
+      // Only the two participants can read/write.
+      allow read, write: if request.auth.uid != null && request.auth.uid in roomId.split('_');
     }
     
-    // Chat documents and their message subcollections
-    match /chats/{roomId} {
-      // Public state chats: any authenticated user can read/write.
-      // We check if roomId is not a UID-based personal chat room.
-      function isPublicChat() {
-        return !exists(/databases/$(database)/documents/users/$(roomId.split('_')[0]));
-      }
+    // Admins can perform collection group queries on messages for moderation.
+    match /{path=**}/messages/{message} {
+      allow list: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
 
-      // Personal chats: only the two users in the chat can access.
-      function isPersonalChatParticipant() {
-        return request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
-      }
-      
-      // Allow read/write on the chat document itself (for timestamps) and its messages
-      allow read, write: if request.auth != null && (isPublicChat() || isPersonalChatParticipant());
-      
-      match /messages/{messageId} {
-        allow read, write: if request.auth != null && (isPublicChat() || isPersonalChatParticipant());
-      }
+    // Any user can manage their own personal chat list.
+    match /users/{userId}/personalChats/{chatId} {
+        allow read, write, delete: if request.auth.uid == userId;
     }
     
-    // This rule is specifically for the collectionGroup query on the admin page.
-    // It allows an admin to query across all 'messages' subcollections.
-    match /{path=**}/messages/{messageId} {
-      allow read: if isAdmin();
-    }
   }
 }
