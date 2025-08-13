@@ -1,55 +1,59 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // =============================================
-    // Users
-    // Users can read/update their own profile.
-    // Any authenticated user can list users for checks like "is username taken"
-    // = a user can create their own user document after signing up.
-    // =============================================
+    // Rules for the 'users' collection
     match /users/{userId} {
-      allow read, update: if request.auth.uid == userId;
-      allow create: if request.auth.uid == userId;
-    }
-    // This is required for checking if a username is taken, and for member counts.
-    match /users/{document=**} {
-    	allow list: if request.auth.uid != null;
+      // Allow any authenticated user to read any user's profile.
+      // This is needed for chat member lists, profile popups, etc.
+      allow read: if request.auth != null;
+
+      // Allow a user to create, update, or delete their own document.
+      allow write: if request.auth.uid == userId;
     }
 
-    // =============================================
-    // Chats & Messages
-    // Defines rules for both public state rooms and private user-to-user rooms.
-    // =============================================
+    // Rules for chat rooms
     match /chats/{roomId}/{documents=**} {
-    	// PUBLIC CHATS (e.g., /chats/california)
-      // Anyone authenticated can read/write to public state chats.
-      // The roomID is the state name and does not contain an underscore.
-    	allow read, write: if request.auth.uid != null && !roomId.matches('.*_.*');
+        // For public state chats (roomId does not contain '_')
+        function isPublicChat() {
+            return !roomId.matches('.*_.*');
+        }
+
+        // For private chats (roomId is formatted as 'uid1_uid2')
+        function isPrivateChatParticipant() {
+            let uids = roomId.split('_');
+            return request.auth.uid == uids[0] || request.auth.uid == uids[1];
+        }
+
+        // Admin access check
+        function isAdmin() {
+            return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        }
+
+        // Grant access based on chat type or admin role
+        allow read, write: if (isPublicChat() && request.auth != null) || 
+                              (isPrivateChatParticipant()) ||
+                              (isAdmin());
+    }
+
+    // Rules for the 'requirements' collection
+    match /requirements/{requirementId} {
+      // Allow any authenticated user to read requirements.
+      allow read: if request.auth != null;
       
-      // PERSONAL CHATS (e.g., /chats/uid1_uid2)
-      // Only the two users involved in a personal chat can read/write messages.
-      // The roomId is a combination of two uids, separated by an underscore.
-      allow read, write: if request.auth.uid != null && roomId.matches('.*_.*') && request.auth.uid in roomId.split("_");
+      // Only allow admins to write (create, update, delete) requirements.
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-    
-    // =============================================
-    // Offers & Requirements
-    // Any authenticated user can read.
-    // Only admins can create, update, or delete.
-    // =============================================
-    match /{collectionName}/{docId} where collectionName in ['offers', 'requirements'] {
-      allow read: if request.auth.uid != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-    
-    // =============================================
-    // Admin Functionality
-    // Allows admins to query across all message collections to find spam.
-    // =============================================
-     match /{path=**}/messages/{message} {
-      allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+
+    // Rules for the 'offers' collection
+    match /offers/{offerId} {
+       // Allow any authenticated user to read offers.
+      allow read: if request.auth != null;
+
+      // Only allow admins to write (create, update, delete) offers.
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
