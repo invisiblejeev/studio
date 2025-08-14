@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, orderBy, limit, addDoc, where, collectionGroup } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
-import { ShieldCheck, MessageCircleWarning, ListTodo, LoaderCircle, Plus, Upload, CalendarIcon, Image as ImageIcon, X } from 'lucide-react';
+import { ShieldCheck, MessageCircleWarning, LoaderCircle, Plus, Upload, CalendarIcon, X } from 'lucide-react';
 import { allStates } from '@/lib/states';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -57,7 +57,8 @@ export default function AdminDashboardPage() {
                 const spamQuery = query(
                     collectionGroup(db, 'messages'), 
                     where('isSpam', '==', true), 
-                    limit(10)
+                    orderBy('timestamp', 'desc'),
+                    limit(20)
                 );
                 
                 const spamSnapshot = await getDocs(spamQuery);
@@ -139,7 +140,8 @@ export default function AdminDashboardPage() {
             await addDoc(collection(db, 'offers'), {
                 ...newOffer,
                 validUntil: validUntil ? format(validUntil, 'yyyy-MM-dd') : null,
-                images: imageUrls
+                images: imageUrls,
+                states: ['all']
             });
 
             toast({ title: "Offer Added", description: "The new offer has been successfully created." });
@@ -306,3 +308,5 @@ export default function AdminDashboardPage() {
       </div>
     )
 }
+
+    
