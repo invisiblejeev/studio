@@ -20,8 +20,6 @@ export const getMessages = (roomId: string, callback: (messages: Message[]) => v
         imageUrl: data.imageUrl,
         time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
         timestamp: timestamp,
-        category: data.category,
-        title: data.title,
         isDeleted: data.isDeleted || false,
       } as Message
     });
@@ -40,3 +38,5 @@ export const getMessages = (roomId: string, callback: (messages: Message[]) => v
     unsubscribeChatDoc();
   };
 };
+
+    
