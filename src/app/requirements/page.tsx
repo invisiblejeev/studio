@@ -5,8 +5,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Pencil, LoaderCircle, Plus } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, doc, deleteDoc, updateDoc, onSnapshot, where, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Category } from '@/ai/flows/categorize-message';
+import { collection, query, orderBy, doc, deleteDoc, updateDoc, onSnapshot, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getUserProfile, UserProfile } from '@/services/users';
 import { allStates } from '@/lib/states';
 import { getCurrentUser } from '@/services/auth';
@@ -23,6 +22,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+type Category = "Jobs" | "Housing" | "Marketplace" | "Events" | "Plumber" | "Babysitter" | "Pet Care" | "Doctor" | "Lawyer" | "General Chat" | "Other";
 
 const categoryConfig: Record<Category, { icon: React.ElementType, color: string }> = {
     "Jobs": { icon: Briefcase, color: "bg-blue-100 text-blue-800" },
@@ -34,11 +34,11 @@ const categoryConfig: Record<Category, { icon: React.ElementType, color: string 
     "Pet Care": { icon: Dog, color: "bg-orange-100 text-orange-800" },
     "Doctor": { icon: Stethoscope, color: "bg-red-100 text-red-800" },
     "Lawyer": { icon: Scale, color: "bg-indigo-100 text-indigo-800" },
-    "General Chat": { icon: FileQuestion, color: "bg-gray-100 text-gray-800" }, 
+    "General Chat": { icon: FileQuestion, color: "bg-gray-100 text-gray-800" },
     "Other": { icon: FileQuestion, color: "bg-gray-100 text-gray-800" }
 };
 
-const categories: Category[] = ["Jobs", "Housing", "Marketplace", "Events", "Plumber", "Babysitter", "Pet Care", "Doctor", "Lawyer"];
+const categories: Category[] = ["Jobs", "Housing", "Marketplace", "Events", "Plumber", "Babysitter", "Pet Care", "Doctor", "Lawyer", "Other"];
 
 interface Requirement {
     id: string;
@@ -95,7 +95,7 @@ export default function RequirementsPage() {
         setIsLoading(true);
         const sevenDaysAgo = subDays(new Date(), 7);
         const reqQuery = query(
-            collection(db, 'requirements'), 
+            collection(db, 'requirements'),
             where('timestamp', '>=', sevenDaysAgo),
             orderBy('timestamp', 'desc')
         );
@@ -121,13 +121,13 @@ export default function RequirementsPage() {
             setIsLoading(false);
         }, (error) => {
              console.error("Error fetching requirements:", error);
-             toast({ title: "Error fetching requirements", description: "There was an issue loading recent community needs.", variant: "destructive" });
+             toast({ title: "Error fetching requirements", description: "There was an issue loading recent community needs. Please check Firestore security rules.", variant: "destructive" });
              setIsLoading(false);
         });
 
         return () => unsubscribe();
     }, [toast]);
-    
+
     useEffect(() => {
         if (activeFilter === 'All') {
             setFilteredRequirements(allRequirements);
@@ -140,10 +140,10 @@ export default function RequirementsPage() {
     const handleFilter = (category: Category | 'All') => {
         setActiveFilter(category);
     };
-    
+
     const handleDeleteRequirement = async (reqToDelete: Requirement) => {
         if (!currentUser?.isAdmin) return;
-        
+
         try {
             const reqRef = doc(db, 'requirements', reqToDelete.id);
             await deleteDoc(reqRef);
@@ -167,7 +167,7 @@ export default function RequirementsPage() {
         setEditingRequirement(req);
         setIsEditDialogOpen(true);
     };
-    
+
     const handleAddRequirement = async () => {
         if (!newRequirement.title || !newRequirement.text || !newRequirement.category || !currentUser) {
             toast({ title: "Missing Fields", description: "Please fill out all fields.", variant: "destructive" });
@@ -210,7 +210,7 @@ export default function RequirementsPage() {
                 category: editingRequirement.category,
             };
             await updateDoc(reqRef, updateData);
-            
+
             toast({ title: "Success", description: "Requirement updated successfully." });
             setIsEditDialogOpen(false);
             setEditingRequirement(null);
@@ -222,16 +222,16 @@ export default function RequirementsPage() {
             setIsSaving(false);
         }
     };
-    
+
     return (
         <div className="space-y-6 p-4 bg-gray-50 min-h-screen pb-24 relative">
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Community Requirements</h1>
               <p className="text-muted-foreground">
-                  Community-posted needs and opportunities.
+                  Community-posted needs and opportunities from the last 7 days.
               </p>
             </div>
-            
+
             <div className="flex space-x-2 overflow-x-auto pb-2">
                 <Button
                     variant={activeFilter === 'All' ? 'default' : 'outline'}
@@ -259,7 +259,7 @@ export default function RequirementsPage() {
                 </div>
             ) : (
                 filteredRequirements.length > 0 ? (
-                     <div className="border rounded-md">
+                     <div className="border rounded-md bg-white">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -276,7 +276,7 @@ export default function RequirementsPage() {
                                     const { icon: Icon } = categoryConfig[req.category] || categoryConfig["Other"];
                                     const stateName = allStates.find(s => s.value === req.state)?.label || req.state || '';
                                     const isAuthor = currentUser?.uid === req.user.id;
-                                    
+
                                     return (
                                         <TableRow key={req.id}>
                                             <TableCell className="font-medium max-w-xs truncate">
@@ -328,14 +328,14 @@ export default function RequirementsPage() {
                         </Table>
                     </div>
                 ) : (
-                    <div className="text-center text-muted-foreground py-10 border rounded-md">
-                        <FileQuestion className="mx-auto w-12 h-12 mb-4" />
+                    <div className="text-center text-muted-foreground py-10 border rounded-md bg-white">
+                        <FileQuestion className="mx-auto w-12 h-12 mb-4 text-gray-400" />
                         <h3 className="text-lg font-semibold">No Requirements Found</h3>
-                        <p className="text-sm">Be the first to post a requirement in your community!</p>
+                        <p className="text-sm">There have been no community needs posted in the last 7 days.</p>
                     </div>
                 )
             )}
-            
+
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
                     <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg z-30 md:bottom-8 md:right-8">
@@ -444,4 +444,5 @@ export default function RequirementsPage() {
             </Dialog>
         </div>
     );
-}
+
+    
