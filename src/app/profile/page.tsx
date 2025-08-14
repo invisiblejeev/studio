@@ -337,7 +337,7 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent className="divide-y">
              <SettingsItem icon={Bell} label="Notifications" href="/settings" />
-             <SettingsItem icon={Shield} label="Privacy & Security" href="/settings" />
+             <SettingsItem icon={Shield} label="Privacy & Security" href="/privacy" />
              <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <DialogTrigger asChild>
                     <div>
