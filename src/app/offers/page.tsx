@@ -320,137 +320,21 @@ export default function OffersPage() {
 
   return (
     <div className="space-y-8 p-4 md:p-6 pb-24">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Coupons &amp; Offers</h1>
-        <p className="text-muted-foreground">
-          Exclusive deals for our community members.
-        </p>
-      </div>
-
-      {isLoading ? (
-        <div className="flex justify-center items-center py-10">
-          <LoaderCircle className="w-8 h-8 animate-spin" />
-          <p className="ml-2">Loading offers...</p>
+      <div className="flex items-center justify-between">
+        <div>
+            <h1 className="text-3xl font-bold tracking-tight">Coupons &amp; Offers</h1>
+            <p className="text-muted-foreground">
+            Exclusive deals for our community members.
+            </p>
         </div>
-      ) : filteredOffers.length === 0 ? (
-        <div className="text-center text-muted-foreground py-10">
-          <h3 className="text-lg font-semibold">No Offers Available</h3>
-          <p className="text-sm">Check back later for new deals or check if your profile state is set.</p>
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredOffers.map(offer => (
-            <div key={offer.id} className="perspective-1000">
-              <div className={cn("relative h-full w-full transform-style-3d transition-transform duration-700", flippedOffers.has(offer.id) && "rotate-y-180")}>
-                {/* Card Front */}
-                <div className="backface-hidden w-full h-full">
-                    <Card className="overflow-hidden flex flex-col h-full">
-                    <CardHeader className="p-0 relative">
-                        <Carousel className="w-full"
-                            plugins={[autoplay.current]}
-                            onMouseEnter={autoplay.current.stop}
-                            onMouseLeave={autoplay.current.reset}
-                        >
-                            <CarouselContent>
-                                {offer.images && offer.images.length > 0 ? (
-                                    offer.images.map((image, index) => (
-                                        <CarouselItem key={index}>
-                                            <div className="aspect-video relative">
-                                                <Image src={image} alt={`${offer.title} image ${index + 1}`} fill className="object-cover" />
-                                            </div>
-                                        </CarouselItem>
-                                    ))
-                                ) : (
-                                    <CarouselItem>
-                                        <div className="aspect-video relative">
-                                            <Image src="https://placehold.co/600x400.png" data-ai-hint="deal offer" alt="Placeholder" fill className="object-cover" />
-                                        </div>
-                                    </CarouselItem>
-                                )}
-                            </CarouselContent>
-                        </Carousel>
-                        {offer.type && <Badge className="absolute top-2 right-2 z-10">{offer.type}</Badge>}
-                        {offer.images && offer.images.length > 1 && <Badge variant="secondary" className="absolute top-2 left-2 z-10">{offer.images.length} photos</Badge>}
-
-                    </CardHeader>
-                    <CardContent className="p-4 flex-1">
-                        <CardTitle className="text-lg">{offer.title}</CardTitle>
-                        <CardDescription className="mt-1 text-sm">{offer.description}</CardDescription>
-                        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                            {offer.validUntil && (
-                                <div className="flex items-center gap-2">
-                                    <CalendarIcon className="w-4 h-4"/>
-                                    <span>Valid Until: {format(new Date(offer.validUntil), "PPP")}</span>
-                                </div>
-                            )}
-                            <div className="flex items-center gap-2 pt-1">
-                                <MapPin className="w-4 h-4" />
-                                {offer.states && offer.states.length > 0 && offer.states.includes('all') ? (
-                                    <Badge variant="outline">Nationwide</Badge>
-                                ) : (
-                                    <span className="capitalize">
-                                        {offer.states?.map(s => allStates.find(as => as.value === s)?.label || s).join(', ')}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                    <CardFooter className="p-2 pt-0">
-                        {currentUser?.isAdmin ? (
-                            <div className="w-full flex gap-2">
-                                <Button className="w-full" variant="outline" size="sm" onClick={() => openEditDialog(offer)}>
-                                    <Pencil className="mr-2 h-4 w-4" /> Edit
-                                </Button>
-                                <Button className="w-full" variant="destructive" size="sm" onClick={() => handleDeleteOffer(offer.id)}>
-                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                </Button>
-                            </div>
-                        ) : (
-                            <Button className="w-full" size="sm" onClick={() => offer.code ? toggleCardFlip(offer.id) : null}>
-                            <Ticket className="mr-2 h-4 w-4" />
-                            {offer.code ? "View Deal" : "See Details"}
-                            </Button>
-                        )}
-                    </CardFooter>
-                    </Card>
-                </div>
-                {/* Card Back */}
-                <div className="absolute top-0 left-0 w-full h-full backface-hidden rotate-y-180">
-                     <Card className="flex flex-col h-full items-center justify-center bg-muted">
-                        <CardHeader>
-                            <CardTitle>Coupon Code</CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-center">
-                            <div className="border-2 border-dashed border-primary/50 bg-background rounded-md p-4 mb-4">
-                                <p className="text-2xl font-bold tracking-widest text-primary">{offer.code}</p>
-                            </div>
-                             <Button onClick={() => handleCopyCode(offer.code || '')}>
-                                <Copy className="mr-2 h-4 w-4"/>
-                                Copy Code
-                             </Button>
-                        </CardContent>
-                        <CardFooter>
-                             <Button variant="outline" onClick={() => toggleCardFlip(offer.id)}>
-                                <RotateCcw className="mr-2 h-4 w-4"/>
-                                Flip Back
-                             </Button>
-                        </CardFooter>
-                    </Card>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-        {currentUser?.isAdmin ? (
-             <Dialog open={isAddOfferOpen} onOpenChange={setIsAddOfferOpen}>
+        {currentUser?.isAdmin && (
+            <Dialog open={isAddOfferOpen} onOpenChange={setIsAddOfferOpen}>
                 <DialogTrigger asChild>
-                    <Button onClick={openAddDialog} className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg z-30 md:bottom-8 md:right-8">
-                        <Plus className="h-6 w-6" />
+                    <Button onClick={openAddDialog}>
+                        <Plus className="mr-2 h-4 w-4" /> Add Offer
                     </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
+                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Add New Offer</DialogTitle>
                         <DialogDescription>Create a new coupon or offer for the community.</DialogDescription>
@@ -573,7 +457,126 @@ export default function OffersPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        ) : (
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center items-center py-10">
+          <LoaderCircle className="w-8 h-8 animate-spin" />
+          <p className="ml-2">Loading offers...</p>
+        </div>
+      ) : filteredOffers.length === 0 ? (
+        <div className="text-center text-muted-foreground py-10">
+          <h3 className="text-lg font-semibold">No Offers Available</h3>
+          <p className="text-sm">Check back later for new deals or check if your profile state is set.</p>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredOffers.map(offer => (
+            <div key={offer.id} className="perspective-1000">
+              <div className={cn("relative h-full w-full transform-style-3d transition-transform duration-700", flippedOffers.has(offer.id) && "rotate-y-180")}>
+                {/* Card Front */}
+                <div className="backface-hidden w-full h-full">
+                    <Card className="overflow-hidden flex flex-col h-full">
+                    <CardHeader className="p-0 relative">
+                        <Carousel className="w-full"
+                            plugins={[autoplay.current]}
+                            onMouseEnter={autoplay.current.stop}
+                            onMouseLeave={autoplay.current.reset}
+                        >
+                            <CarouselContent>
+                                {offer.images && offer.images.length > 0 ? (
+                                    offer.images.map((image, index) => (
+                                        <CarouselItem key={index}>
+                                            <div className="aspect-video relative">
+                                                <Image src={image} alt={`${offer.title} image ${index + 1}`} fill className="object-cover" />
+                                            </div>
+                                        </CarouselItem>
+                                    ))
+                                ) : (
+                                    <CarouselItem>
+                                        <div className="aspect-video relative">
+                                            <Image src="https://placehold.co/600x400.png" data-ai-hint="deal offer" alt="Placeholder" fill className="object-cover" />
+                                        </div>
+                                    </CarouselItem>
+                                )}
+                            </CarouselContent>
+                        </Carousel>
+                        {offer.type && <Badge className="absolute top-2 right-2 z-10">{offer.type}</Badge>}
+                        {offer.images && offer.images.length > 1 && <Badge variant="secondary" className="absolute top-2 left-2 z-10">{offer.images.length} photos</Badge>}
+
+                    </CardHeader>
+                    <CardContent className="p-4 flex-1">
+                        <CardTitle className="text-lg">{offer.title}</CardTitle>
+                        <CardDescription className="mt-1 text-sm">{offer.description}</CardDescription>
+                        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                            {offer.validUntil && (
+                                <div className="flex items-center gap-2">
+                                    <CalendarIcon className="w-4 h-4"/>
+                                    <span>Valid Until: {format(new Date(offer.validUntil), "PPP")}</span>
+                                </div>
+                            )}
+                            <div className="flex items-center gap-2 pt-1">
+                                <MapPin className="w-4 h-4" />
+                                {offer.states && offer.states.length > 0 && offer.states.includes('all') ? (
+                                    <Badge variant="outline">Nationwide</Badge>
+                                ) : (
+                                    <span className="capitalize">
+                                        {offer.states?.map(s => allStates.find(as => as.value === s)?.label || s).join(', ')}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </CardContent>
+                    <CardFooter className="p-2 pt-0">
+                        {currentUser?.isAdmin ? (
+                            <div className="w-full flex gap-2">
+                                <Button className="w-full" variant="outline" size="sm" onClick={() => openEditDialog(offer)}>
+                                    <Pencil className="mr-2 h-4 w-4" /> Edit
+                                </Button>
+                                <Button className="w-full" variant="destructive" size="sm" onClick={() => handleDeleteOffer(offer.id)}>
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </Button>
+                            </div>
+                        ) : (
+                            <Button className="w-full" size="sm" onClick={() => offer.code ? toggleCardFlip(offer.id) : null}>
+                            <Ticket className="mr-2 h-4 w-4" />
+                            {offer.code ? "View Deal" : "See Details"}
+                            </Button>
+                        )}
+                    </CardFooter>
+                    </Card>
+                </div>
+                {/* Card Back */}
+                <div className="absolute top-0 left-0 w-full h-full backface-hidden rotate-y-180">
+                     <Card className="flex flex-col h-full items-center justify-center bg-muted">
+                        <CardHeader>
+                            <CardTitle>Coupon Code</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-center">
+                            <div className="border-2 border-dashed border-primary/50 bg-background rounded-md p-4 mb-4">
+                                <p className="text-2xl font-bold tracking-widest text-primary">{offer.code}</p>
+                            </div>
+                             <Button onClick={() => handleCopyCode(offer.code || '')}>
+                                <Copy className="mr-2 h-4 w-4"/>
+                                Copy Code
+                             </Button>
+                        </CardContent>
+                        <CardFooter>
+                             <Button variant="outline" onClick={() => toggleCardFlip(offer.id)}>
+                                <RotateCcw className="mr-2 h-4 w-4"/>
+                                Flip Back
+                             </Button>
+                        </CardFooter>
+                    </Card>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+        {!currentUser?.isAdmin && (
             <Dialog open={isPromoteDialogOpen} onOpenChange={setIsPromoteDialogOpen}>
                 <DialogTrigger asChild>
                      <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg z-30 md:bottom-8 md:right-8 flex items-center justify-center">
@@ -734,3 +737,5 @@ export default function OffersPage() {
     </div>
   )
 }
+
+    
