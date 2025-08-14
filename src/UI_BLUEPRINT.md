@@ -140,8 +140,7 @@ A mobile-friendly layout with a persistent bottom navigation bar for primary nav
 ## 5. Admin Dashboard (`/admin`)
 
 -   **Layout:** A single-column layout with a card for the spam log.
--   **Header:** "Admin Dashboard" title and a shield icon.
+-   **Header:**
+    -   "Admin Dashboard" title and a shield icon.
+    -   An "Add Offer" button in the top-right corner, which opens the same dialog used on the Offers page.
 -   **Spam Log Card:** A table showing recently detected spam messages, including the message text, reason, chat location, and user.
--   **Floating Action Button (FAB):** A `+` button to open the same "Add Offer" dialog available on the Offers page.
-
-    
