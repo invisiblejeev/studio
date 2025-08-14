@@ -3,18 +3,18 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle, Flag } from 'lucide-react';
+import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle, Flag, Plus } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot, where } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import type { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
 import { allStates } from '@/lib/states';
 import { getCurrentUser } from '@/services/auth';
 import { useToast } from '@/hooks/use-toast';
-import { differenceInDays, formatDistanceToNowStrict, isAfter, subDays } from 'date-fns';
+import { subDays, formatDistanceToNowStrict } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 const categoryConfig: Record<Category, { icon: React.ElementType, color: string }> = {
@@ -47,6 +48,12 @@ interface Requirement extends Message {
     state: string;
 }
 
+const initialNewRequirementState = {
+    title: '',
+    text: '',
+    category: '' as Category
+};
+
 export default function RequirementsPage() {
     const [allRequirements, setAllRequirements] = useState<Requirement[]>([]);
     const [filteredRequirements, setFilteredRequirements] = useState<Requirement[]>([]);
@@ -59,6 +66,10 @@ export default function RequirementsPage() {
     // Edit State
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editingRequirement, setEditingRequirement] = useState<Requirement | null>(null);
+
+    // Add State
+    const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+    const [newRequirement, setNewRequirement] = useState(initialNewRequirementState);
     const [isSaving, setIsSaving] = useState(false);
 
      useEffect(() => {
@@ -98,7 +109,7 @@ export default function RequirementsPage() {
             setIsLoading(false);
         }, (error) => {
              console.error("Error fetching requirements:", error);
-             toast({ title: "Error fetching requirements", description: "There was an issue loading recent community needs. Please ensure you have read permissions for the 'requirements' collection.", variant: "destructive" });
+             toast({ title: "Error fetching requirements", description: "There was an issue loading recent community needs.", variant: "destructive" });
              setIsLoading(false);
         });
 
@@ -125,13 +136,6 @@ export default function RequirementsPage() {
             const reqRef = doc(db, 'requirements', reqToDelete.id);
             await deleteDoc(reqRef);
 
-            // Also delete the original message if possible
-            if (reqToDelete.originalMessageId && reqToDelete.originalRoomId) {
-                const originalMsgRef = doc(db, 'chats', reqToDelete.originalRoomId, 'messages', reqToDelete.originalMessageId);
-                await deleteDoc(originalMsgRef);
-            }
-
-
             toast({
                 title: 'Requirement Deleted',
                 description: 'The post has been successfully removed.',
@@ -146,28 +150,42 @@ export default function RequirementsPage() {
         }
     }
 
-    const handleFlagRequirement = async (reqToFlag: Requirement) => {
-        if (!currentUser?.isAdmin || !reqToFlag.text) return;
-        try {
-            await flagContent(reqToFlag.text, currentUser.uid);
-            toast({
-                title: 'Content Flagged',
-                description: 'This content has been flagged for AI training.',
-            });
-        } catch (error) {
-            console.error('Error flagging requirement:', error);
-            toast({
-                title: 'Error',
-                description: 'Could not flag the content. Please try again.',
-                variant: 'destructive',
-            });
-        }
-    };
 
     const openEditDialog = (req: Requirement) => {
         setEditingRequirement(req);
         setIsEditDialogOpen(true);
     };
+    
+    const handleAddRequirement = async () => {
+        if (!newRequirement.title || !newRequirement.text || !newRequirement.category || !currentUser) {
+            toast({ title: "Missing Fields", description: "Please fill out all fields.", variant: "destructive" });
+            return;
+        }
+        setIsSaving(true);
+        try {
+            const requirementData = {
+                user: {
+                    id: currentUser.uid,
+                    name: currentUser.username,
+                    avatar: currentUser.avatar || ''
+                },
+                title: newRequirement.title,
+                text: newRequirement.text,
+                category: newRequirement.category,
+                state: currentUser.state || 'unknown',
+                timestamp: serverTimestamp(),
+            };
+            await addDoc(collection(db, 'requirements'), requirementData);
+            toast({ title: "Success", description: "Your requirement has been posted." });
+            setIsAddDialogOpen(false);
+            setNewRequirement(initialNewRequirementState);
+        } catch (error) {
+            console.error("Error adding requirement:", error);
+            toast({ title: "Error", description: "Failed to post requirement.", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    }
 
     const handleSaveChanges = async () => {
         if (!editingRequirement) return;
@@ -179,11 +197,6 @@ export default function RequirementsPage() {
                 text: editingRequirement.text,
             };
             await updateDoc(reqRef, updateData);
-
-            if (editingRequirement.originalMessageId && editingRequirement.originalRoomId) {
-                 const originalMsgRef = doc(db, 'chats', editingRequirement.originalRoomId, 'messages', editingRequirement.originalMessageId);
-                 await updateDoc(originalMsgRef, updateData);
-            }
             
             toast({ title: "Success", description: "Requirement updated successfully." });
             setIsEditDialogOpen(false);
@@ -198,11 +211,11 @@ export default function RequirementsPage() {
     };
     
     return (
-        <div className="space-y-6 p-4 bg-gray-50 min-h-screen pb-24">
+        <div className="space-y-6 p-4 bg-gray-50 min-h-screen pb-24 relative">
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Community Requirements</h1>
               <p className="text-muted-foreground">
-                  AI-detected needs and opportunities from all state chats.
+                  Community-posted needs and opportunities.
               </p>
             </div>
             
@@ -305,12 +318,67 @@ export default function RequirementsPage() {
                     <div className="text-center text-muted-foreground py-10 border rounded-md">
                         <FileQuestion className="mx-auto w-12 h-12 mb-4" />
                         <h3 className="text-lg font-semibold">No Requirements Found</h3>
-                        <p className="text-sm">There have been no community needs posted in the last 7 days.</p>
+                        <p className="text-sm">Be the first to post a requirement in your community!</p>
                     </div>
                 )
             )}
+            
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                    <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg z-30 md:bottom-8 md:right-8">
+                        <Plus className="h-6 w-6" />
+                    </Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Post a Requirement</DialogTitle>
+                        <DialogDescription>
+                            Share a need with the community. Select a category, give it a title, and describe it.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="add-category">Category</Label>
+                            <Select onValueChange={(value: Category) => setNewRequirement(prev => ({...prev, category: value}))}>
+                                <SelectTrigger id="add-category">
+                                    <SelectValue placeholder="Select a category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {categories.map(cat => (
+                                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="add-title">Title</Label>
+                            <Input
+                                id="add-title"
+                                value={newRequirement.title}
+                                onChange={(e) => setNewRequirement({ ...newRequirement, title: e.target.value })}
+                                placeholder="e.g., 'Looking for a 2BR apartment'"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="add-text">Description</Label>
+                            <Textarea
+                                id="add-text"
+                                value={newRequirement.text}
+                                onChange={(e) => setNewRequirement({ ...newRequirement, text: e.target.value })}
+                                placeholder="Provide more details about your requirement..."
+                                rows={4}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSaving}>Cancel</Button>
+                        <Button onClick={handleAddRequirement} disabled={isSaving}>
+                            {isSaving ? <LoaderCircle className="animate-spin" /> : "Post Requirement"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-            {/* Edit Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -333,7 +401,7 @@ export default function RequirementsPage() {
                                 <Label htmlFor="edit-text">Description</Label>
                                 <Textarea
                                     id="edit-text"
-                                    value={editingRequirement.text}
+                                    value={editingRequirement.text || ''}
                                     onChange={(e) => setEditingRequirement({ ...editingRequirement, text: e.target.value })}
                                     rows={4}
                                 />
@@ -351,5 +419,3 @@ export default function RequirementsPage() {
         </div>
     );
 }
-
-    

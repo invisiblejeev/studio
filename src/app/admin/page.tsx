@@ -74,7 +74,6 @@ export default function AdminDashboardPage() {
                 setRequirements(reqData);
 
                 // Fetch Spam Messages using a collectionGroup query.
-                // This requires a composite index on (isSpam, timestamp) in Firestore.
                 const spamQuery = query(
                     collectionGroup(db, 'messages'), 
                     where('isSpam', '==', true), 
@@ -231,8 +230,8 @@ export default function AdminDashboardPage() {
             </Card>
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><ListTodo className="text-blue-500" /> AI Classifications</CardTitle>
-                    <CardDescription>Recently classified community requirements.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><ListTodo className="text-blue-500" /> Community Requirements</CardTitle>
+                    <CardDescription>Recently posted community requirements.</CardDescription>
                 </CardHeader>
                 <CardContent>
                      <Table>
@@ -255,7 +254,7 @@ export default function AdminDashboardPage() {
                             ))}
                         </TableBody>
                     </Table>
-                     {requirements.length === 0 && <p className="text-center text-sm text-muted-foreground pt-4">No new requirements classified.</p>}
+                     {requirements.length === 0 && <p className="text-center text-sm text-muted-foreground pt-4">No new requirements posted.</p>}
                 </CardContent>
             </Card>
         </div>
