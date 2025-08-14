@@ -3,41 +3,46 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users: Can read any profile, but only write to their own.
+    // Users
+    // - Authenticated users can read any profile.
+    // - Users can only write to their own profile.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId;
     }
 
-    // Chats: Can read/write messages in public chats or private chats they are a member of.
+    // Chats & Messages
+    // - To read/write messages, user must be part of the chat.
+    // - For public chats, any authenticated user can read/write.
+    // - isPersonal is a flag on the chat doc.
     match /chats/{roomId} {
-      // Allow reads on the chat document itself if it's a public chat,
-      // or if the user is part of the private chat.
-      allow read: if request.auth != null && (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || request.auth.uid in resource.data.users);
+      allow read, write: if request.auth != null && (
+        (resource.data.isPersonal == true && request.auth.uid in resource.data.users) ||
+        (resource.data.isPersonal == false)
+      );
 
       match /messages/{messageId} {
-        // Allow read/write to messages if user is authenticated and is a member of the chat room.
-        allow read: if request.auth != null && (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users);
-        allow write: if request.auth != null; // Further logic handled by triggers/app logic.
+        allow read, write: if request.auth != null && (
+          (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == true && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users) ||
+          (get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false)
+        );
       }
     }
-
-    // Requirements: Authenticated users can list all requirements. Only admins can update/delete. Creation is server-side only.
+    
+    // Requirements
+    // - Authenticated users can read and create requirements.
+    // - Only admins can update or delete requirements.
     match /requirements/{requirementId} {
-      allow get, list: if request.auth != null;
-      allow create: if false; // Deny client-side creation
+      allow get, list, create: if request.auth != null;
       allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Offers: Authenticated users can read offers. Only admins can write.
+    // Offers
+    // - Authenticated users can read offers.
+    // - Only admins can write (create, update, delete) offers.
     match /offers/{offerId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Flagged Content: Only accessible by backend functions (admins flag via a callable function).
-    match /flagged_content/{flagId} {
-      allow read, write: if false;
     }
   }
 }
