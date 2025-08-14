@@ -1,15 +1,14 @@
 
 {
   "appName": "Indian Community Chat App (USA)",
-  "appDescription": "A mobile-first chat application designed to connect the Indian community within different states in the USA. It features state-specific public chat rooms, private messaging, and AI-powered content moderation and categorization to identify community needs.",
+  "appDescription": "A mobile-first chat application designed to connect the Indian community within different states in the USA. It features state-specific public chat rooms, private messaging, and dedicated pages for community needs and offers.",
   "techStack": [
     "Next.js (App Router)",
     "React",
     "TypeScript",
     "Tailwind CSS",
     "ShadCN UI",
-    "Firebase (Firestore, Authentication, Storage)",
-    "Genkit (for AI functionality)"
+    "Firebase (Firestore, Authentication, Storage)"
   ],
   "coreFeatures": [
     {
@@ -29,12 +28,8 @@
       "description": "Users can initiate one-on-one private chats with other users. Private chat history is accessible from a dedicated 'Personal Chats' screen."
     },
     {
-      "feature": "AI-Powered Requirement Detection",
-      "description": "An AI flow automatically analyzes messages in public chats to detect user needs. It categorizes messages into types like 'Jobs', 'Housing', 'Marketplace', etc., and creates a structured 'requirement' post."
-    },
-    {
       "feature": "Requirements Page",
-      "description": "A dedicated page that displays all AI-detected requirements. Users can filter requirements by category. This page serves as a community needs board."
+      "description": "A dedicated page that displays community needs. Users can manually post new requirements (e.g., 'Jobs', 'Housing') through a form. They can also filter requirements by category. This page serves as a community needs board."
     },
     {
       "feature": "Coupons & Offers Page",
@@ -42,7 +37,7 @@
     },
     {
       "feature": "Admin Dashboard",
-      "description": "A protected page for administrators. It displays a log of detected spam messages and a feed of the latest AI-classified community requirements. Admins can also add new offers directly from this dashboard."
+      "description": "A protected page for administrators. It displays a log of detected spam messages. Admins can also add new offers directly from this dashboard."
     },
     {
       "feature": "Navigation",
@@ -128,9 +123,7 @@
           "state": "string",
           "timestamp": "timestamp",
           "category": "string (e.g., 'Jobs', 'Housing')",
-          "title": "string",
-          "originalMessageId": "string",
-          "originalRoomId": "string"
+          "title": "string"
         }
       },
       {
@@ -149,22 +142,7 @@
     ]
   },
   "aiFunctionality": {
-    "genkitFlows": [
-      {
-        "name": "categorizeMessageFlow",
-        "path": "src/ai/flows/categorize-message.ts",
-        "description": "Analyzes a user's chat message to determine if it represents a specific need or requirement.",
-        "input": {
-          "text": "string (The user's message)"
-        },
-        "output": {
-          "category": "enum ('Jobs', 'Housing', 'Marketplace', 'Events', 'Plumber', 'Babysitter', 'Pet Care', 'Doctor', 'Lawyer', 'General Chat', 'Other')",
-          "title": "string (A concise title for the post, e.g., 'Roommate Needed')",
-          "reason": "string (optional, explanation for the categorization)"
-        },
-        "trigger": "A Firestore trigger on document creation in `chats/{roomId}/messages/{messageId}`. It processes messages from public chats and creates a new document in the `requirements` collection if the category is not 'General Chat' or 'Other'."
-      }
-    ]
+    "genkitFlows": []
   },
   "securityRules": {
     "file": "firestore.rules",
@@ -188,7 +166,7 @@
         "path": "/requirements/{requirementId}",
         "permissions": {
           "read": "Allow if user is authenticated.",
-          "create": "Deny client-side creation (only cloud functions can create).",
+          "create": "Allow if user is authenticated.",
           "update": "Allow if user is an admin.",
           "delete": "Allow if user is an admin."
         }

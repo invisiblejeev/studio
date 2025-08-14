@@ -2,10 +2,5 @@
 import { config } from 'dotenv';
 config();
 
-// We no longer have the categorize-message flow.
-// import '@/ai/flows/categorize-message.ts';
-
-// We are now deploying the trigger, so we don't need to import it for local dev.
-// The deployed function will listen for Firestore events directly.
-// We import it here for local testing if needed, but it should be commented out for deployment.
-// import '@/ai/triggers.ts';
+// AI flows are no longer part of this application.
+// Triggers are deployed with Firebase Functions and not needed for local dev.

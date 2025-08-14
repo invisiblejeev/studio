@@ -29,12 +29,6 @@ interface SpamMessage extends Message {
   state: string;
 }
 
-interface Requirement extends Message {
-    category: string;
-    title: string;
-    state: string;
-}
-
 const initialNewOfferState = {
     title: '',
     description: '',
@@ -44,7 +38,6 @@ const initialNewOfferState = {
 
 export default function AdminDashboardPage() {
     const [spamMessages, setSpamMessages] = useState<SpamMessage[]>([]);
-    const [requirements, setRequirements] = useState<Requirement[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isAddOfferOpen, setIsAddOfferOpen] = useState(false);
     const [newOffer, setNewOffer] = useState(initialNewOfferState);
@@ -60,19 +53,6 @@ export default function AdminDashboardPage() {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                // Fetch Requirements directly
-                const reqQuery = query(collection(db, 'requirements'), orderBy('timestamp', 'desc'), limit(10));
-                const reqSnapshot = await getDocs(reqQuery);
-                const reqData = reqSnapshot.docs.map(doc => {
-                    const data = doc.data();
-                    return {
-                        id: doc.id,
-                        ...data,
-                        time: data.timestamp?.toDate().toLocaleString() ?? '',
-                    } as Requirement;
-                });
-                setRequirements(reqData);
-
                 // Fetch Spam Messages using a collectionGroup query.
                 const spamQuery = query(
                     collectionGroup(db, 'messages'), 
@@ -198,7 +178,7 @@ export default function AdminDashboardPage() {
             <ShieldCheck className="h-8 w-8 text-primary" />
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-1">
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><MessageCircleWarning className="text-destructive"/> Spam Log</CardTitle>
@@ -226,35 +206,6 @@ export default function AdminDashboardPage() {
                         </TableBody>
                     </Table>
                     {spamMessages.length === 0 && <p className="text-center text-sm text-muted-foreground pt-4">No spam detected recently.</p>}
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><ListTodo className="text-blue-500" /> Community Requirements</CardTitle>
-                    <CardDescription>Recently posted community requirements.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                     <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Title</TableHead>
-                                <TableHead>Category</TableHead>
-                                <TableHead>State</TableHead>
-                                <TableHead>User</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {requirements.map(req => (
-                                <TableRow key={req.id}>
-                                    <TableCell className="font-medium max-w-[150px] truncate">{req.title}</TableCell>
-                                    <TableCell><Badge variant="secondary">{req.category}</Badge></TableCell>
-                                     <TableCell className="capitalize">{req.state}</TableCell>
-                                    <TableCell>{req.user.name}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                     {requirements.length === 0 && <p className="text-center text-sm text-muted-foreground pt-4">No new requirements posted.</p>}
                 </CardContent>
             </Card>
         </div>

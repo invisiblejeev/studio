@@ -8,8 +8,6 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-// The categorizeMessage flow is no longer used.
-// import { categorizeMessage } from '@/ai/flows/categorize-message';
 
 // Initialize the Admin SDK if it hasn't been already.
 if (!getApps().length) {
@@ -17,8 +15,6 @@ if (!getApps().length) {
 }
 const db = getFirestore();
 
-// The onPublicMessageCreated trigger has been removed as per the user's request
-// to disable automatic requirement creation from chat messages.
 
 // This trigger runs whenever a new message is created in a PERSONAL chat room.
 export const onPersonalMessageCreated = onDocumentCreated(

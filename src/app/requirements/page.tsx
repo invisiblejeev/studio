@@ -3,22 +3,20 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle, Flag, Plus } from 'lucide-react';
+import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Pencil, LoaderCircle, Plus } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot, where, addDoc, serverTimestamp } from 'firebase/firestore';
-import type { Message } from '@/services/chat';
-import type { Category } from '@/ai/flows/categorize-message';
+import { collection, query, getDocs, orderBy, doc, deleteDoc, updateDoc, onSnapshot, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
 import { allStates } from '@/lib/states';
 import { getCurrentUser } from '@/services/auth';
 import { useToast } from '@/hooks/use-toast';
 import { subDays, formatDistanceToNowStrict } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { flagContent } from '@/services/admin';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -42,11 +40,21 @@ const categoryConfig: Record<Category, { icon: React.ElementType, color: string 
 
 const categories: Category[] = ["Jobs", "Housing", "Marketplace", "Events", "Plumber", "Babysitter", "Pet Care", "Doctor", "Lawyer"];
 
-interface Requirement extends Message {
-    category: Category;
+interface Requirement {
+    id: string;
+    user: {
+        id: string;
+        name: string;
+        avatar: string;
+    };
     title: string;
+    text: string;
+    category: Category;
     state: string;
+    time: string;
+    timestamp: Date;
 }
+
 
 const initialNewRequirementState = {
     title: '',
@@ -99,7 +107,11 @@ export default function RequirementsPage() {
                     const timestamp = data.timestamp?.toDate();
                     return {
                         id: doc.id,
-                        ...data,
+                        user: data.user,
+                        title: data.title,
+                        text: data.text,
+                        category: data.category,
+                        state: data.state,
                         time: timestamp ? formatDistanceToNowStrict(timestamp, { addSuffix: true }) : '',
                         timestamp: timestamp,
                     } as Requirement;
@@ -195,6 +207,7 @@ export default function RequirementsPage() {
             const updateData = {
                 title: editingRequirement.title,
                 text: editingRequirement.text,
+                category: editingRequirement.category,
             };
             await updateDoc(reqRef, updateData);
             
@@ -255,7 +268,7 @@ export default function RequirementsPage() {
                                     <TableHead>User</TableHead>
                                     <TableHead>State</TableHead>
                                     <TableHead>Posted</TableHead>
-                                    {currentUser?.isAdmin && <TableHead className="text-right">Actions</TableHead>}
+                                    {(currentUser?.isAdmin) && <TableHead className="text-right">Actions</TableHead>}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -296,7 +309,7 @@ export default function RequirementsPage() {
                                             </TableCell>
                                             <TableCell className="capitalize">{stateName}</TableCell>
                                             <TableCell>{req.time}</TableCell>
-                                             {currentUser?.isAdmin && (
+                                             {(currentUser?.isAdmin) && (
                                                 <TableCell className="text-right">
                                                     <div className="flex gap-1 justify-end">
                                                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(req)}>
@@ -390,11 +403,24 @@ export default function RequirementsPage() {
                     {editingRequirement && (
                         <div className="grid gap-4 py-4">
                             <div className="grid gap-2">
+                                <Label htmlFor="edit-category">Category</Label>
+                                <Select onValueChange={(value: Category) => setEditingRequirement(prev => prev ? ({...prev, category: value}) : null)} value={editingRequirement.category}>
+                                    <SelectTrigger id="edit-category">
+                                        <SelectValue placeholder="Select a category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {categories.map(cat => (
+                                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
                                 <Label htmlFor="edit-title">Title</Label>
                                 <Input
                                     id="edit-title"
                                     value={editingRequirement.title}
-                                    onChange={(e) => setEditingRequirement({ ...editingRequirement, title: e.target.value })}
+                                    onChange={(e) => setEditingRequirement(prev => prev ? { ...prev, title: e.target.value } : null)}
                                 />
                             </div>
                             <div className="grid gap-2">
@@ -402,7 +428,7 @@ export default function RequirementsPage() {
                                 <Textarea
                                     id="edit-text"
                                     value={editingRequirement.text || ''}
-                                    onChange={(e) => setEditingRequirement({ ...editingRequirement, text: e.target.value })}
+                                     onChange={(e) => setEditingRequirement(prev => prev ? { ...prev, text: e.target.value } : null)}
                                     rows={4}
                                 />
                             </div>
@@ -419,7 +445,3 @@ export default function RequirementsPage() {
         </div>
     );
 }
-
-    
-
-    
