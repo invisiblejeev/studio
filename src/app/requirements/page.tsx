@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Clock, MessageSquare, Pencil, LoaderCircle, Flag } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, doc, deleteDoc, updateDoc, onSnapshot, where } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 import type { Category } from '@/ai/flows/categorize-message';
 import { getUserProfile, UserProfile } from '@/services/users';
@@ -74,10 +74,14 @@ export default function RequirementsPage() {
 
     useEffect(() => {
         setIsLoading(true);
-        const reqQuery = query(collection(db, 'requirements'), orderBy('timestamp', 'desc'));
+        const sevenDaysAgo = subDays(new Date(), 7);
+        const reqQuery = query(
+            collection(db, 'requirements'), 
+            where('timestamp', '>=', sevenDaysAgo),
+            orderBy('timestamp', 'desc')
+        );
 
         const unsubscribe = onSnapshot(reqQuery, (snapshot) => {
-            const sevenDaysAgo = subDays(new Date(), 7);
             const reqsData = snapshot.docs
                 .map(doc => {
                     const data = doc.data();
@@ -88,14 +92,13 @@ export default function RequirementsPage() {
                         time: timestamp ? formatDistanceToNowStrict(timestamp, { addSuffix: true }) : '',
                         timestamp: timestamp,
                     } as Requirement;
-                })
-                .filter(req => req.timestamp && isAfter(req.timestamp, sevenDaysAgo));
+                });
 
             setAllRequirements(reqsData);
             setIsLoading(false);
         }, (error) => {
              console.error("Error fetching requirements:", error);
-             toast({ title: "Error", description: "Could not fetch requirements. Please ensure Firestore indexes are set up if prompted.", variant: "destructive" });
+             toast({ title: "Error fetching requirements", description: "There was an issue loading recent community needs. Please ensure you have read permissions for the 'requirements' collection.", variant: "destructive" });
              setIsLoading(false);
         });
 
@@ -302,7 +305,7 @@ export default function RequirementsPage() {
                     <div className="text-center text-muted-foreground py-10 border rounded-md">
                         <FileQuestion className="mx-auto w-12 h-12 mb-4" />
                         <h3 className="text-lg font-semibold">No Requirements Found</h3>
-                        <p className="text-sm">There are currently no items in this category.</p>
+                        <p className="text-sm">There have been no community needs posted in the last 7 days.</p>
                     </div>
                 )
             )}
@@ -348,3 +351,5 @@ export default function RequirementsPage() {
         </div>
     );
 }
+
+    
