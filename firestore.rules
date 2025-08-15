@@ -1,38 +1,60 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Users can read any profile, but only write to their own.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId;
+      
+      // A user can only access their own personalChats subcollection.
+      match /personalChats/{otherUserId} {
+        allow read, write: if request.auth.uid == userId;
+      }
+    }
+
+    // This rule is for the chat document itself, which contains metadata.
+    // It is primarily used for private chats.
+    match /chats/{roomId} {
+      allow read, write: if request.auth.uid in resource.data.users;
+    }
+
+    // Rules for the messages within a chat room.
+    match /chats/{roomId}/messages/{messageId} {
+      // To read messages:
+      // 1. You must be authenticated.
+      // 2. EITHER it's a public chat (no '_' in roomId)
+      //    OR it's a private chat and your UID is in the roomId.
+      allow read: if request.auth != null &&
+                  (!roomId.matches('.*_.*') || request.auth.uid in roomId.split('_'));
+
+      // To write/create messages:
+      // 1. You must be authenticated.
+      // 2. Your UID must match the sender's ID in the message payload.
+      // 3. EITHER it's a public chat
+      //    OR it's a private chat and your UID is in the roomId.
+      allow create: if request.auth != null &&
+                     request.auth.uid == request.resource.data.user.id &&
+                     (!roomId.matches('.*_.*') || request.auth.uid in roomId.split('_'));
+
+      // To update/delete (soft-delete) messages:
+      // You can only modify your own messages.
+      allow update: if request.auth != null && request.auth.uid == resource.data.user.id;
     }
     
-    match /chats/{roomId} {
-        // Allow reading the chat document only for members of a personal chat
-        allow read: if request.auth.uid in resource.data.users;
-        // Allow writes (for updating timestamps) by members of the chat
-        allow write: if request.auth.uid in resource.data.users;
-    }
-
-    match /chats/{roomId}/messages/{messageId} {
-        // Read is allowed if:
-        // 1. It's a public chat (roomId does not contain '_') AND the user is authenticated.
-        // 2. It's a private chat AND the user is a member of that chat.
-        allow read: if (!roomId.matches('.*_.*') && request.auth != null) || (get(/databases/$(database)/documents/chats/$(roomId)).data.users[0] == request.auth.uid || get(/databases/$(database)/documents/chats/$(roomId)).data.users[1] == request.auth.uid);
-        
-        // Write is allowed if the user is authenticated and the message is theirs.
-        allow create: if request.auth.uid == request.resource.data.user.id;
-        allow update, delete: if request.auth.uid == resource.data.user.id;
-    }
-
+    // Requirements can be read by anyone, but only created by authenticated users.
+    // Only admins can update or delete them.
     match /requirements/{requirementId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null; // Allow authenticated users to create
-      allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
+    // Offers can be read by anyone, but only written by admins.
     match /offers/{offerId} {
       allow read: if request.auth != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
