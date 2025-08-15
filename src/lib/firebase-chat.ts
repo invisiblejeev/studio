@@ -19,7 +19,7 @@ function docToMessage(doc: QueryDocumentSnapshot<DocumentData>): Message {
         imageUrl: data.imageUrl,
         // Format time directly from the Timestamp object
         time: timestamp ? timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-        timestamp: timestamp,
+        timestamp: timestamp, // Keep as Timestamp for sorting
         isDeleted: data.isDeleted || false,
     } as Message;
 }
@@ -43,22 +43,25 @@ export function createFirebaseMessageApi(roomId: string) {
 
         if (startAfterDoc) {
             q = query(q, startAfter(startAfterDoc));
+        } else {
+             q = query(q, limit(PAGE_SIZE));
         }
         
-        q = query(q, limit(PAGE_SIZE));
-
         liveUnsubscribe = onSnapshot(q, (snapshot) => {
-            if (snapshot.empty) {
+            if (snapshot.empty && !startAfterDoc) {
                 callback([], null, false);
                 return;
             }
             
             const newMessages = snapshot.docs.map(docToMessage);
-            const oldestDoc = snapshot.docs[snapshot.docs.length - 1];
-            newestDoc = newestDoc || snapshot.docs[0];
+            if (!newestDoc && snapshot.docs.length > 0) {
+              newestDoc = snapshot.docs[0];
+            }
+            
+            const oldestDocInBatch = snapshot.docs[snapshot.docs.length - 1];
             const hasMore = snapshot.docs.length === PAGE_SIZE;
 
-            callback(newMessages.reverse(), oldestDoc, hasMore);
+            callback(newMessages.reverse(), oldestDocInBatch, hasMore);
 
         }, (error) => {
             console.error(`[FirebaseChat] Error listening for messages in room ${roomId}:`, error);

@@ -8,10 +8,13 @@ import type { QueryDocumentSnapshot, Timestamp } from 'firebase/firestore';
 // Helper to get milliseconds from either a Firestore Timestamp or a JS Date
 const getMillis = (timestamp: Timestamp | Date | undefined | null): number => {
     if (!timestamp) return 0;
-    if ('toMillis' in timestamp) { // Firestore Timestamp
+    if (timestamp instanceof Date) { // It's a JS Date
+        return timestamp.getTime();
+    }
+    if ('toMillis' in timestamp) { // It's a Firestore Timestamp
         return timestamp.toMillis();
     }
-    return timestamp.getTime(); // JS Date
+    return 0;
 }
 
 
@@ -71,8 +74,9 @@ export function createMessagesStore(roomId: string, onInitialLoad?: (messages: M
 
             // Now, listen for live updates
             firebaseApi.listenForMessages((liveMessages, _, __) => {
+                // We pass the current hasMore state as live updates don't change it.
                 handleUpdates(liveMessages, null, hasMore);
-            }, null);
+            }, oldestDoc);
 
         });
     };

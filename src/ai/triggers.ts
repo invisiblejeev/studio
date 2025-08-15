@@ -25,7 +25,6 @@ export const onPersonalMessageCreated = onDocumentCreated(
       console.log('No data associated with the personal message event');
       return;
     }
-
     const message = snap.data();
     const roomId = event.params.roomId;
     const senderId = message.user.id;

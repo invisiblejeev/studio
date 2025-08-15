@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, runTransaction, Timestamp } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -15,7 +15,7 @@ export interface Message {
   text?: string;
   imageUrl?: string;
   time: string; 
-  timestamp: any;
+  timestamp: Timestamp | Date; // Allow both for client-side optimism
   isDeleted?: boolean;
 }
 
@@ -50,9 +50,6 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
       lastMessage: lastMessageContent,
       lastMessageSenderId: message.user.id
   }, { merge: true });
-
-  // The logic to increment the unread count for the recipient is handled by a Firestore trigger.
-  // The sender's chat list updates from the main chat document, so no extra write is needed here.
 };
 
 
@@ -109,7 +106,7 @@ export const ensurePublicChatRoomExists = async (state: string) => {
     if (!chatSnap.exists()) {
         await setDoc(chatRef, {
             isPersonal: false,
-            users: [],
+            users: [], // Public chats don't have a defined user list
         });
     }
 };
