@@ -3,14 +3,15 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Pencil, LoaderCircle, Plus } from 'lucide-react';
+import { Briefcase, Home, ShoppingCart, Calendar, FileQuestion, Wrench, Baby, Dog, Stethoscope, Scale, Trash2, Pencil, LoaderCircle, Plus, CalendarIcon } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, doc, deleteDoc, updateDoc, onSnapshot, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getUserProfile, UserProfile } from '@/services/users';
 import { allStates } from '@/lib/states';
 import { getCurrentUser } from '@/services/auth';
 import { useToast } from '@/hooks/use-toast';
-import { subDays, formatDistanceToNowStrict } from 'date-fns';
+import { subDays, format, parse } from 'date-fns';
+import { formatDistanceToNowStrict } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -21,6 +22,10 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
+
 
 type Category = "Jobs" | "Housing" | "Marketplace" | "Events" | "Plumber" | "Babysitter" | "Pet Care" | "Doctor" | "Lawyer" | "General Chat" | "Other";
 
@@ -53,13 +58,17 @@ interface Requirement {
     state: string;
     time: string;
     timestamp: Date;
+    startDate?: string;
+    expireDate?: string;
 }
 
 
 const initialNewRequirementState = {
     title: '',
     text: '',
-    category: '' as Category
+    category: '' as Category,
+    startDate: undefined as Date | undefined,
+    expireDate: undefined as Date | undefined,
 };
 
 export default function RequirementsPage() {
@@ -74,6 +83,8 @@ export default function RequirementsPage() {
     // Edit State
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editingRequirement, setEditingRequirement] = useState<Requirement | null>(null);
+    const [editStartDate, setEditStartDate] = useState<Date | undefined>();
+    const [editExpireDate, setEditExpireDate] = useState<Date | undefined>();
 
     // Add State
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -112,6 +123,8 @@ export default function RequirementsPage() {
                         text: data.text,
                         category: data.category,
                         state: data.state,
+                        startDate: data.startDate,
+                        expireDate: data.expireDate,
                         time: timestamp ? formatDistanceToNowStrict(timestamp, { addSuffix: true }) : '',
                         timestamp: timestamp,
                     } as Requirement;
@@ -142,7 +155,8 @@ export default function RequirementsPage() {
     };
 
     const handleDeleteRequirement = async (reqToDelete: Requirement) => {
-        if (!currentUser?.isAdmin) return;
+        const canDelete = currentUser?.isAdmin || currentUser?.uid === reqToDelete.user.id;
+        if (!canDelete) return;
 
         try {
             const reqRef = doc(db, 'requirements', reqToDelete.id);
@@ -165,6 +179,8 @@ export default function RequirementsPage() {
 
     const openEditDialog = (req: Requirement) => {
         setEditingRequirement(req);
+        setEditStartDate(req.startDate ? parse(req.startDate, 'yyyy-MM-dd', new Date()) : undefined);
+        setEditExpireDate(req.expireDate ? parse(req.expireDate, 'yyyy-MM-dd', new Date()) : undefined);
         setIsEditDialogOpen(true);
     };
 
@@ -175,7 +191,7 @@ export default function RequirementsPage() {
         }
         setIsSaving(true);
         try {
-            const requirementData = {
+            const requirementData: any = {
                 user: {
                     id: currentUser.uid,
                     name: currentUser.username,
@@ -186,6 +202,8 @@ export default function RequirementsPage() {
                 category: newRequirement.category,
                 state: currentUser.state || 'unknown',
                 timestamp: serverTimestamp(),
+                startDate: newRequirement.startDate ? format(newRequirement.startDate, 'yyyy-MM-dd') : null,
+                expireDate: newRequirement.expireDate ? format(newRequirement.expireDate, 'yyyy-MM-dd') : null,
             };
             await addDoc(collection(db, 'requirements'), requirementData);
             toast({ title: "Success", description: "Your requirement has been posted." });
@@ -208,6 +226,8 @@ export default function RequirementsPage() {
                 title: editingRequirement.title,
                 text: editingRequirement.text,
                 category: editingRequirement.category,
+                startDate: editStartDate ? format(editStartDate, 'yyyy-MM-dd') : null,
+                expireDate: editExpireDate ? format(editExpireDate, 'yyyy-MM-dd') : null,
             };
             await updateDoc(reqRef, updateData);
 
@@ -266,9 +286,9 @@ export default function RequirementsPage() {
                                     <TableHead>Title</TableHead>
                                     <TableHead>Category</TableHead>
                                     <TableHead>User</TableHead>
-                                    <TableHead>State</TableHead>
+                                    <TableHead>Dates</TableHead>
                                     <TableHead>Posted</TableHead>
-                                    {(currentUser?.isAdmin) && <TableHead className="text-right">Actions</TableHead>}
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -276,6 +296,7 @@ export default function RequirementsPage() {
                                     const { icon: Icon } = categoryConfig[req.category] || categoryConfig["Other"];
                                     const stateName = allStates.find(s => s.value === req.state)?.label || req.state || '';
                                     const isAuthor = currentUser?.uid === req.user.id;
+                                    const canEdit = currentUser?.isAdmin || isAuthor;
 
                                     return (
                                         <TableRow key={req.id}>
@@ -307,10 +328,13 @@ export default function RequirementsPage() {
                                                     </div>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="capitalize">{stateName}</TableCell>
+                                             <TableCell>
+                                                {req.startDate && <div className="text-xs">Start: {format(parse(req.startDate, 'yyyy-MM-dd', new Date()), 'MMM d')}</div>}
+                                                {req.expireDate && <div className="text-xs">End: {format(parse(req.expireDate, 'yyyy-MM-dd', new Date()), 'MMM d')}</div>}
+                                            </TableCell>
                                             <TableCell>{req.time}</TableCell>
-                                             {(currentUser?.isAdmin) && (
-                                                <TableCell className="text-right">
+                                            <TableCell className="text-right">
+                                                {canEdit && (
                                                     <div className="flex gap-1 justify-end">
                                                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(req)}>
                                                             <Pencil className="h-4 w-4" />
@@ -319,8 +343,8 @@ export default function RequirementsPage() {
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
                                                     </div>
-                                                </TableCell>
-                                            )}
+                                                )}
+                                            </TableCell>
                                         </TableRow>
                                     )
                                 })}
@@ -382,6 +406,38 @@ export default function RequirementsPage() {
                                 rows={4}
                             />
                         </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label>Start Date (Optional)</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                    <Button
+                                        variant={"outline"}
+                                        className={cn("justify-start text-left font-normal", !newRequirement.startDate && "text-muted-foreground")}
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {newRequirement.startDate ? format(newRequirement.startDate, "PPP") : <span>Pick a date</span>}
+                                    </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0"><CalendarPicker mode="single" selected={newRequirement.startDate} onSelect={(d) => setNewRequirement(p => ({...p, startDate: d}))} initialFocus /></PopoverContent>
+                                </Popover>
+                            </div>
+                             <div className="grid gap-2">
+                                <Label>End Date (Optional)</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                    <Button
+                                        variant={"outline"}
+                                        className={cn("justify-start text-left font-normal", !newRequirement.expireDate && "text-muted-foreground")}
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {newRequirement.expireDate ? format(newRequirement.expireDate, "PPP") : <span>Pick a date</span>}
+                                    </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0"><CalendarPicker mode="single" selected={newRequirement.expireDate} onSelect={(d) => setNewRequirement(p => ({...p, expireDate: d}))} initialFocus /></PopoverContent>
+                                </Popover>
+                            </div>
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSaving}>Cancel</Button>
@@ -432,6 +488,38 @@ export default function RequirementsPage() {
                                     rows={4}
                                 />
                             </div>
+                            <div className="grid grid-cols-2 gap-4">
+                               <div className="grid gap-2">
+                                    <Label>Start Date (Optional)</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn("justify-start text-left font-normal", !editStartDate && "text-muted-foreground")}
+                                        >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {editStartDate ? format(editStartDate, "PPP") : <span>Pick a date</span>}
+                                        </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0"><CalendarPicker mode="single" selected={editStartDate} onSelect={setEditStartDate} initialFocus /></PopoverContent>
+                                    </Popover>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label>End Date (Optional)</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn("justify-start text-left font-normal", !editExpireDate && "text-muted-foreground")}
+                                        >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {editExpireDate ? format(editExpireDate, "PPP") : <span>Pick a date</span>}
+                                        </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0"><CalendarPicker mode="single" selected={editExpireDate} onSelect={setEditExpireDate} initialFocus /></PopoverContent>
+                                    </Popover>
+                                </div>
+                            </div>
                         </div>
                     )}
                     <DialogFooter>
@@ -444,13 +532,4 @@ export default function RequirementsPage() {
             </Dialog>
         </div>
     );
-
-    
-
-    
-
-    
-
-    
-
-    
+}

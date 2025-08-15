@@ -1,40 +1,75 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
+    // Helper function to check if a user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // USERS
+    // Users can read any profile, but can only write to their own.
     match /users/{userId} {
-      allow read: if request.auth.uid != null;
-      allow write: if request.auth.uid == userId;
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    match /users/{userId}/personalChats/{otherUserId} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    match /chats/{roomId} {
-        // Allow reads only for private chats where user is a member.
-        // Public chat documents (`/chats/california`) are not directly read by the client.
-        allow read: if resource.data.isPersonal == true && request.auth.uid in resource.data.users;
-        // Allow creating/updating chat document metadata (like last message) by any authenticated user.
-        allow write: if request.auth.uid != null;
-    }
-
+    // CHATS
+    // This rule allows read/write access to a chat room's messages.
+    // It distinguishes between public and private chats based on the roomId.
     match /chats/{roomId}/messages/{messageId} {
-        // For public chats (no '_'), allow any authenticated user to read/write.
-        // For private chats (contains '_'), only allow users who are part of the chat.
-        allow read, write: if request.auth.uid != null && (
-                            !roomId.contains('_') || request.auth.uid in roomId.split('_')
-                         );
-        // Allow a user to delete (update to soft-delete) their own message.
-        allow update: if request.auth.uid == resource.data.user.id;
+      allow read, write: if isAuthenticated() && (
+        // Public chat: roomId does not contain an underscore. Any authenticated user can access.
+        !roomId.matches('.*_.*') ||
+        // Private chat: roomId is 'uid1_uid2'. User's uid must be in the roomId.
+        (roomId.matches('.*_.*') && request.auth.uid in roomId.split('_'))
+      );
     }
     
+    // This rule allows read access to the parent chat document itself,
+    // which is needed for things like fetching chat metadata (e.g., list of users for a private chat).
+    match /chats/{roomId} {
+       allow read: if isAuthenticated() && (
+          // Public chats are open
+          !getResource().data.isPersonal ||
+          // For private chats, user must be a member
+          (getResource().data.isPersonal && request.auth.uid in getResource().data.users)
+        );
+       allow write: if isAuthenticated(); // Allow creating/updating chat docs (e.g., for lastMessage)
+    }
+
+    // REQUIREMENTS
+    // Users can read all requirements, but can only create them.
+    // They can only update/delete their own requirements, unless they are an admin.
     match /requirements/{requirementId} {
-      allow read: if request.auth.uid != null;
-      allow create: if request.auth.uid != null;
-      allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      function isOwner() {
+        return request.auth.uid == resource.data.user.id;
+      }
+      function isAdmin() {
+        // Assumes you have an 'isAdmin' field on the user's document.
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      }
+      
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (isOwner() || isAdmin());
     }
-    
+
+    // OFFERS
+    // Users can read all offers, but only admins can write/edit/delete them.
     match /offers/{offerId} {
-      allow read: if request.auth.uid != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+       function isAdmin() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      }
+
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isAdmin();
     }
   }
 }

@@ -21,7 +21,7 @@
     },
     {
       "feature": "Public Chat",
-      "description": "State-specific public group chat rooms (e.g., 'california', 'texas'). Users join based on their profile's state. Supports text and image messages."
+      "description": "State-specific public group chat rooms (e.g., 'california', 'texas'). Users join based on their profile's state. Supports text messages."
     },
     {
       "feature": "Private Chat",
@@ -102,7 +102,6 @@
                 "avatar": "string"
               },
               "text": "string (optional)",
-              "imageUrl": "string (URL, optional)",
               "timestamp": "timestamp",
               "isSpam": "boolean (optional)",
               "reason": "string (optional)"
@@ -123,7 +122,9 @@
           "state": "string",
           "timestamp": "timestamp",
           "category": "string (e.g., 'Jobs', 'Housing')",
-          "title": "string"
+          "title": "string",
+          "startDate": "string (yyyy-MM-dd, optional)",
+          "expireDate": "string (yyyy-MM-dd, optional)"
         }
       },
       {
@@ -158,8 +159,8 @@
       {
         "path": "/chats/{roomId}/messages/{messageId}",
         "permissions": {
-          "read": "Allow if the user's UID is in the `users` array of the parent chat document (for private chats) or if it's a public chat.",
-          "write": "Allow if the user is authenticated and the message belongs to them."
+          "read": "Allow if authenticated and it is a public chat (roomId has no '_') or if the user is part of the private chat (their uid is in the roomId).",
+          "write": "Allow if authenticated and it is a public chat (roomId has no '_') or if the user is part of the private chat (their uid is in the roomId)."
         }
       },
       {
@@ -167,8 +168,8 @@
         "permissions": {
           "read": "Allow if user is authenticated.",
           "create": "Allow if user is authenticated.",
-          "update": "Allow if user is an admin.",
-          "delete": "Allow if user is an admin."
+          "update": "Allow if user is an admin or if the requirement belongs to the user.",
+          "delete": "Allow if user is an admin or if the requirement belongs to the user."
         }
       },
       {
