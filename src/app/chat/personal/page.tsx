@@ -49,6 +49,7 @@ export default function PersonalChatsListPage() {
 
             if (profile) {
                 const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
+                // Query chats ordered by the last message timestamp directly from Firestore
                 const q = query(personalChatsRef, orderBy("lastMessageTimestamp", "desc"));
 
                 const unsubscribe = onSnapshot(q, (snapshot) => {

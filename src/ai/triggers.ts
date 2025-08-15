@@ -46,21 +46,14 @@ export const onPersonalMessageCreated = onDocumentCreated(
       if (recipientId) {
         const recipientChatRef = db.collection('users').doc(recipientId).collection('personalChats').doc(senderId);
         
-        // Use FieldValue.increment to atomically update the count.
-        // Also update the last message details for the recipient's chat list.
+        // Use set with merge to create the document if it doesn't exist, or update it if it does.
+        // This makes the unread count update more robust.
         await recipientChatRef.set({
             unreadCount: FieldValue.increment(1),
             lastMessage: message.text || (message.imageUrl ? "Image" : ""),
             lastMessageTimestamp: message.timestamp,
             lastMessageSenderId: senderId
-        }, { merge: true }).catch(err => {
-            // It's possible the document doesn't exist yet if this is the very first message.
-            // In a production app, we might use a transaction to create if not exists.
-            // For now, we log the error if it's not a 'not-found' error.
-            if (err.code !== 5) { // 5 = NOT_FOUND
-                console.error(`Error updating recipient's personal chat doc:`, err);
-            }
-        });
+        }, { merge: true });
 
         console.log(`Updated unread count and last message for user ${recipientId} in chat with ${senderId}`);
       }

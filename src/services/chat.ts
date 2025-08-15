@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -59,37 +59,46 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
 export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise<string> => {
     const roomId = uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
     const chatRef = doc(db, 'chats', roomId);
-    const chatSnap = await getDoc(chatRef);
+    
+    // Use a transaction to ensure atomic creation of chat and user-chat documents
+    await runTransaction(db, async (transaction) => {
+        const chatSnap = await transaction.get(chatRef);
 
-    if (!chatSnap.exists()) {
-        await setDoc(chatRef, { 
-            users: [uid1, uid2], 
-            isPersonal: true,
-            lastMessageTimestamp: serverTimestamp() 
-        });
-        
-        const user1Profile = await getUserProfile(uid1);
-        const user2Profile = await getUserProfile(uid2);
+        if (!chatSnap.exists()) {
+            const user1Profile = await getUserProfile(uid1);
+            const user2Profile = await getUserProfile(uid2);
 
-        if (user1Profile && user2Profile) {
+            if (!user1Profile || !user2Profile) {
+                throw new Error("Could not find user profiles to create personal chat.");
+            }
+            
+            // 1. Create the main chat room document
+            transaction.set(chatRef, { 
+                users: [uid1, uid2], 
+                isPersonal: true,
+                lastMessageTimestamp: serverTimestamp() 
+            });
+
+            // 2. Create the chat entry for user 1
             const user1ChatRef = doc(db, `users/${uid1}/personalChats`, uid2);
-            await setDoc(user1ChatRef, { 
+            transaction.set(user1ChatRef, { 
                 withUser: { uid: user2Profile.uid, username: user2Profile.username, avatar: user2Profile.avatar || '' }, 
                 roomId: roomId,
                 unreadCount: 0,
                 lastMessageTimestamp: serverTimestamp(),
             });
             
+            // 3. Create the chat entry for user 2
             const user2ChatRef = doc(db, `users/${uid2}/personalChats`, uid1);
-            await setDoc(user2ChatRef, { 
+            transaction.set(user2ChatRef, { 
                 withUser: { uid: user1Profile.uid, username: user1Profile.username, avatar: user1Profile.avatar || '' }, 
                 roomId: roomId,
                 unreadCount: 0,
                 lastMessageTimestamp: serverTimestamp(),
             });
         }
-    }
-    
+    });
+
     return roomId;
 }
 
