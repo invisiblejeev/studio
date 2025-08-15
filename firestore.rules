@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Helper Functions ---
+    // Helper Functions
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -16,54 +16,63 @@ service cloud.firestore {
       return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
+    // Checks if the requesting user is a member of the given chat room.
+    // This is the key function to correctly secure private chats.
     function isChatMember(roomId) {
       return request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
     }
-
-    function isPublicChat(roomId) {
-      return get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false;
-    }
     
-    // --- Collection Rules ---
+    // --- Collections ---
 
+    // Users can read any profile, but only write to their own.
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isUser(userId);
 
-      // A user can only access their own personalChats subcollection
-      match /personalChats/{otherUserId} {
+      // A user can read their own list of personal chats.
+      // A user can also write to this list to update unread counts or when a new chat is created.
+      match /personalChats/{chatId} {
         allow read, write: if isUser(userId);
       }
     }
     
+    // Chat rooms and their messages
     match /chats/{roomId} {
-      allow read: if isPublicChat(roomId) || isChatMember(roomId);
+      // Allow create for any authenticated user to start a new public or private chat.
       allow create: if isAuthenticated();
-      // Allow updates to lastMessage fields if user is a member or it's a public chat.
-      // This is crucial for sending messages.
-      allow update: if isPublicChat(roomId) || isChatMember(roomId);
       
+      // Allow read if it's a public chat OR if the user is a member of the private chat.
+      allow read: if get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || isChatMember(roomId);
+      
+      // Allow update for last message tracking if the user is a member of the chat.
+      allow update: if isChatMember(roomId);
+
+      // Message subcollection rules
       match /messages/{messageId} {
-        allow read: if isPublicChat(roomId) || isChatMember(roomId);
-        // User must be the author of the message to create it.
-        allow create: if isAuthenticated() && request.resource.data.user.id == request.auth.uid;
-        // User must be the author to update (edit/soft-delete) their message.
-        allow update: if isAuthenticated() && resource.data.user.id == request.auth.uid;
-        // Do not allow direct client-side deletes.
+        // A user can read messages if they have access to the parent chat room.
+        allow read: if get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || isChatMember(roomId);
+        
+        // A user can create a message if they are a member of the chat and the author of the message.
+        allow create: if isChatMember(roomId) && request.resource.data.user.id == request.auth.uid;
+        
+        // Allow updates (for edits/deletes) only if the user is the original author.
+        allow update: if resource.data.user.id == request.auth.uid;
+        
+        // Disallow client-side deletes completely.
         allow delete: if false;
       }
     }
 
+    // Requirements can be read by anyone, created by anyone, but only updated/deleted by the author or an admin.
     match /requirements/{reqId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      // User must be the author or an admin to update/delete.
-      allow update, delete: if isAuthenticated() && (resource.data.user.id == request.auth.uid || isAdmin());
+      allow update, delete: if (resource.data.user.id == request.auth.uid || isAdmin());
     }
 
+    // Offers can be read by anyone, but only written by an admin.
     match /offers/{offerId} {
       allow read: if isAuthenticated();
-      // Only admins can write to offers.
       allow write: if isAdmin();
     }
   }
