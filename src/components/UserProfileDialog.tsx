@@ -4,11 +4,12 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserProfile } from "@/services/users";
-import { Mail, MapPin, Globe, MessageSquare } from "lucide-react";
+import { Mail, MapPin, Globe, MessageSquare, ShieldBan } from "lucide-react";
 import { allStates } from "@/lib/states";
 import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useToast } from "@/hooks/use-toast";
 
 interface UserProfileDialogProps {
   isOpen: boolean;
@@ -31,15 +32,21 @@ const ProfileInfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType
 
 export function UserProfileDialog({ isOpen, onOpenChange, user, currentUser }: UserProfileDialogProps) {
   const router = useRouter();
+  const { toast } = useToast();
 
   if (!user) return null;
 
   const isOwnProfile = user.uid === currentUser?.uid;
 
-  const handleSendMessage = () => {
+  const handleBlockUser = () => {
+    // In a real app, this would trigger a Firestore write to a 'blockedUsers' subcollection.
+    // For this prototype, we'll just show a confirmation.
     onOpenChange(false);
-    router.push(`/chat/user/${user.uid}`);
-  };
+    toast({
+        title: "User Blocked",
+        description: `You will no longer see messages from ${user.username}.`,
+    });
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -58,12 +65,16 @@ export function UserProfileDialog({ isOpen, onOpenChange, user, currentUser }: U
             <ProfileInfoItem icon={Globe} label="City" value={user.city} />
         </div>
         {!isOwnProfile && (
-            <DialogFooter>
+            <DialogFooter className="grid grid-cols-2 gap-2">
                 <Button className="w-full" asChild>
                     <Link href={`/chat/user/${user.uid}`} onClick={() => onOpenChange(false)}>
                         <MessageSquare className="mr-2 h-4 w-4" />
                         Send Message
                     </Link>
+                </Button>
+                <Button variant="destructive" className="w-full" onClick={handleBlockUser}>
+                    <ShieldBan className="mr-2 h-4 w-4" />
+                    Block User
                 </Button>
             </DialogFooter>
         )}

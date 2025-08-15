@@ -27,7 +27,7 @@ import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 export default function PersonalChatPage({ params }: { params: { userId: string } }) {
   const router = useRouter();
   const { toast } = useToast();
-  const { userId } = React.use(params);
+  const { userId } = params;
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -438,7 +438,15 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
         user={selectedUser}
         currentUser={currentUser}
     />
-    <ImagePreviewDialog imageUrl={dialogImageUrl} onOpenChange={() => setDialogImageUrl(null)} />
+    <ImagePreviewDialog 
+        imageUrl={dialogImageUrl} 
+        onOpenChange={() => setDialogImageUrl(null)} 
+        onDelete={() => {
+            // Placeholder for delete logic
+            toast({ title: "Delete action triggered" });
+            setDialogImageUrl(null);
+        }}
+    />
      {activeMessage && (
       <MessageActionsDialog
         message={activeMessage}

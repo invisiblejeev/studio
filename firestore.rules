@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -15,64 +16,57 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-
-    // Checks if the requesting user is a member of the given chat room.
-    // This is the key function to correctly secure private chats.
+    
     function isChatMember(roomId) {
-      return request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
+      let chatData = get(/databases/$(database)/documents/chats/$(roomId)).data;
+      return request.auth.uid in chatData.users;
     }
     
-    // --- Collections ---
-
-    // Users can read any profile, but only write to their own.
+    // USERS collection
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isUser(userId);
 
-      // A user can read their own list of personal chats.
-      // A user can also write to this list to update unread counts or when a new chat is created.
-      match /personalChats/{chatId} {
+      // Allow users to create personal chat records for other users, but only if they are one of the participants.
+      match /personalChats/{otherUserId} {
         allow read, write: if isUser(userId);
+        allow create: if isAuthenticated() && (isUser(userId) || isUser(otherUserId));
       }
     }
     
-    // Chat rooms and their messages
+    // CHATS collection
     match /chats/{roomId} {
-      // Allow create for any authenticated user to start a new public or private chat.
-      allow create: if isAuthenticated();
-      
-      // Allow read if it's a public chat OR if the user is a member of the private chat.
+      // A user can read a chat document if it's a public chat, or if they are a member of the private chat.
       allow read: if get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || isChatMember(roomId);
-      
-      // Allow update for last message tracking if the user is a member of the chat.
+      // Anyone authenticated can create a chat room. The `getPersonalChatRoomId` function ensures private rooms are secure.
+      allow create: if isAuthenticated();
+      // Allow a chat member to update the last message details.
       allow update: if isChatMember(roomId);
-
-      // Message subcollection rules
+      
+      // MESSAGES subcollection
       match /messages/{messageId} {
         // A user can read messages if they have access to the parent chat room.
         allow read: if get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || isChatMember(roomId);
-        
-        // A user can create a message if they are a member of the chat and the author of the message.
+        // A user can create a message if they are a member and the author of the message.
         allow create: if isChatMember(roomId) && request.resource.data.user.id == request.auth.uid;
-        
-        // Allow updates (for edits/deletes) only if the user is the original author.
+        // A user can update (edit/delete) a message only if they are the original author.
         allow update: if resource.data.user.id == request.auth.uid;
-        
-        // Disallow client-side deletes completely.
+        // Direct deletes are not allowed to prevent accidental data loss.
         allow delete: if false;
       }
     }
 
-    // Requirements can be read by anyone, created by anyone, but only updated/deleted by the author or an admin.
+    // REQUIREMENTS collection
     match /requirements/{reqId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update, delete: if (resource.data.user.id == request.auth.uid || isAdmin());
+      allow update, delete: if isUser(resource.data.user.id) || isAdmin();
     }
 
-    // Offers can be read by anyone, but only written by an admin.
+    // OFFERS collection
     match /offers/{offerId} {
       allow read: if isAuthenticated();
+      // Only admins can create, update, or delete offers.
       allow write: if isAdmin();
     }
   }
