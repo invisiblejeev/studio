@@ -1,7 +1,7 @@
 
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { uploadImage } from './storage';
+import { imageToDataUri } from './storage';
 
 export interface UserProfile {
   uid: string;
@@ -27,9 +27,9 @@ export async function isIdentifierTaken(field: 'username' | 'email', value: stri
 
 
 export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid' | 'avatar'> & { avatarFile?: File }) {
-    let avatarUrl = "";
+    let avatarDataUri = "";
     if (data.avatarFile) {
-        avatarUrl = await uploadImage(data.avatarFile, `avatars/${uid}`);
+        avatarDataUri = await imageToDataUri(data.avatarFile);
     }
 
     const userProfileData = {
@@ -42,7 +42,7 @@ export async function createUserProfile(uid: string, data: Omit<UserProfile, 'ui
         state: data.state,
         city: data.city,
         isAdmin: false, // Default isAdmin to false for new users
-        avatar: avatarUrl,
+        avatar: avatarDataUri,
     };
     
     await setDoc(doc(db, 'users', uid), userProfileData);

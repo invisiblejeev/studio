@@ -26,7 +26,7 @@ import Autoplay from "embla-carousel-autoplay";
 import { allStates } from "@/lib/states";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { uploadImage } from "@/services/storage";
+import { imageToDataUri } from "@/services/storage";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 
@@ -195,25 +195,10 @@ export default function OffersPage() {
     }
   }
 
-  const uploadImages = async (files: File[]): Promise<string[]> => {
-      let individualProgress: { [key: string]: number } = {};
-
-      const updateOverallProgress = () => {
-          const totalProgress = Object.values(individualProgress).reduce((acc, curr) => acc + curr, 0);
-          const overallPercentage = files.length > 0 ? (totalProgress / (files.length * 100)) * 100 : 0;
-          setUploadProgress(overallPercentage);
-      };
-
-      const uploadPromises = files.map(file => {
-          return uploadImage(file, 'offer-images', (progress) => {
-              individualProgress[file.name] = progress;
-              updateOverallProgress();
-          });
-      });
-
-      const urls = await Promise.all(uploadPromises);
-      setUploadProgress(100);
-      return urls;
+  const convertImagesToDataUris = async (files: File[]): Promise<string[]> => {
+      const dataUriPromises = files.map(file => imageToDataUri(file));
+      const dataUris = await Promise.all(dataUriPromises);
+      return dataUris;
   }
 
   const handleAddOffer = async () => {
@@ -222,16 +207,19 @@ export default function OffersPage() {
           return;
       }
       setIsSaving(true);
+      setUploadProgress(50); // Simulate progress
       try {
-          let imageUrls = await uploadImages(imageFiles);
-          if (imageUrls.length === 0) {
-              imageUrls.push(`https://placehold.co/600x400.png`);
+          let imageDataUris = await convertImagesToDataUris(imageFiles);
+          setUploadProgress(100);
+
+          if (imageDataUris.length === 0) {
+              imageDataUris.push(`https://placehold.co/600x400.png`);
           }
 
           await addDoc(collection(db, 'offers'), {
               ...newOffer,
               validUntil: addValidUntil ? format(addValidUntil, 'yyyy-MM-dd') : null,
-              images: imageUrls,
+              images: imageDataUris,
           });
 
           toast({ title: "Offer Added", description: "The new offer has been successfully created." });
@@ -252,11 +240,13 @@ export default function OffersPage() {
           return;
       }
       setIsSaving(true);
+      setUploadProgress(50); // Simulate progress
       try {
           const offerRef = doc(db, 'offers', editingOffer.id);
           
-          const newImageUrls = await uploadImages(imageFiles);
-          const finalImages = [...(editingOffer.images || []), ...newImageUrls];
+          const newImageDataUris = await convertImagesToDataUris(imageFiles);
+          setUploadProgress(100);
+          const finalImages = [...(editingOffer.images || []), ...newImageDataUris];
 
           const updateData: Partial<Offer> & { [key: string]: any } = {
             ...editingOffer,
@@ -499,10 +489,10 @@ export default function OffersPage() {
                             </Card>
                         </div>
                         <DialogFooter className="flex-col gap-2">
-                           {isSaving && imageFiles.length > 0 && (
+                           {isSaving && (
                                 <div className="w-full">
                                     <Progress value={uploadProgress} className="w-full" />
-                                    <p className="text-xs text-center mt-1 text-muted-foreground">Uploading {uploadProgress.toFixed(0)}%</p>
+                                    <p className="text-xs text-center mt-1 text-muted-foreground">Processing... {uploadProgress.toFixed(0)}%</p>
                                 </div>
                             )}
                             <div className="flex gap-2 justify-end">
@@ -784,10 +774,10 @@ export default function OffersPage() {
                       </Card>
                   </div>
                     <DialogFooter className="flex-col gap-2">
-                        {isSaving && imageFiles.length > 0 && (
+                        {isSaving && (
                             <div className="w-full">
                                 <Progress value={uploadProgress} className="w-full" />
-                                <p className="text-xs text-center mt-1 text-muted-foreground">Uploading {uploadProgress.toFixed(0)}%</p>
+                                <p className="text-xs text-center mt-1 text-muted-foreground">Processing... {uploadProgress.toFixed(0)}%</p>
                             </div>
                         )}
                         <div className="flex gap-2 justify-end">

@@ -21,7 +21,7 @@ import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { Badge } from "@/components/ui/badge";
 import { MessageActionsDialog } from "@/components/MessageActionsDialog";
-import { uploadImage } from "@/services/storage";
+import { imageToDataUri } from "@/services/storage";
 import Image from "next/image";
 import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 
@@ -148,11 +148,11 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     if ((newMessage.trim() === "" && !imageFile) || !currentUser) return;
 
     setIsSending(true);
-    let imageUrl: string | undefined = undefined;
+    let imageDataUri: string | undefined = undefined;
 
     try {
         if(imageFile) {
-            imageUrl = await uploadImage(imageFile, `chat-images/${state}`);
+            imageDataUri = await imageToDataUri(imageFile);
         }
 
         await sendMessage(state, {
@@ -162,7 +162,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
               avatar: currentUser.avatar || ''
           },
           text: newMessage,
-          imageUrl: imageUrl
+          imageUrl: imageDataUri
         });
         
         setNewMessage("");

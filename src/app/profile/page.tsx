@@ -16,7 +16,7 @@ import { getCurrentUser, logOut, deleteCurrentUser } from "@/services/auth";
 import { getUserProfile, updateUserProfile, isIdentifierTaken, UserProfile, deleteUserProfile } from "@/services/users";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
-import { uploadImage } from "@/services/storage";
+import { imageToDataUri } from "@/services/storage";
 
 const formatPhoneNumber = (value: string) => {
     if (!value) return value;
@@ -223,10 +223,10 @@ export default function ProfilePage() {
 
     setIsUploading(true);
     try {
-        const imageUrl = await uploadImage(file, `avatars/${profile.uid}`);
-        await updateUserProfile(profile.uid, { avatar: imageUrl });
+        const imageDataUri = await imageToDataUri(file);
+        await updateUserProfile(profile.uid, { avatar: imageDataUri });
 
-        const updatedProfile = { ...profile, avatar: imageUrl };
+        const updatedProfile = { ...profile, avatar: imageDataUri };
         setProfile(updatedProfile);
         setInitialProfile(updatedProfile);
 

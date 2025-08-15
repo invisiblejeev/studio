@@ -19,7 +19,7 @@ import { MessageActionsDialog } from "@/components/MessageActionsDialog";
 import { doc, getDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Separator } from "@/components/ui/separator";
-import { uploadImage } from "@/services/storage";
+import { imageToDataUri } from "@/services/storage";
 import Image from "next/image";
 import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 
@@ -156,11 +156,11 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
     if ((newMessage.trim() === "" && !imageFile) || !currentUser || !roomId) return;
     
     setIsSending(true);
-    let imageUrl: string | undefined = undefined;
+    let imageDataUri: string | undefined = undefined;
 
     try {
         if(imageFile) {
-            imageUrl = await uploadImage(imageFile, `chat-images/${roomId}`);
+            imageDataUri = await imageToDataUri(imageFile);
         }
 
         await sendMessage(roomId, {
@@ -170,7 +170,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
               avatar: currentUser.avatar || '' 
           },
           text: newMessage,
-          imageUrl: imageUrl,
+          imageUrl: imageDataUri,
         });
 
         setNewMessage("");
