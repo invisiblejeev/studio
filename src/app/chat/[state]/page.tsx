@@ -274,7 +274,7 @@ export default function ChatPage() {
                               <div className={cn('p-3 rounded-lg shadow-sm', 
                                   isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
                                   msg.isDeleted ? 'bg-muted text-muted-foreground italic' : '',
-                                  !msg.text && msg.imageUrl ? 'p-1' : 'p-3',
+                                  !msg.text && msg.imageUrl ? 'p-1 bg-transparent shadow-none' : 'p-3',
                                   isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
                                   isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
                                   !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
@@ -284,7 +284,7 @@ export default function ChatPage() {
                               )}>
                                   {msg.imageUrl && !msg.isDeleted && (
                                     <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                                        <div className="relative aspect-video rounded-md overflow-hidden max-w-[320px]">
+                                        <div className="relative aspect-video rounded-md overflow-hidden">
                                           <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
                                         </div>
                                     </Link>
