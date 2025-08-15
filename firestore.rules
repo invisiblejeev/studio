@@ -3,73 +3,40 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper function to check if a user is authenticated
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    // USERS
-    // Users can read any profile, but can only write to their own.
+  
+    // Users can read anyone's profile (for avatars, usernames, admin status)
+    // but can only write to their own.
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && request.auth.uid == userId;
-    }
-    
-    match /users/{userId}/personalChats/{otherUserId} {
-        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // CHATS
-    // This rule allows read/write access to a chat room's messages.
-    // It distinguishes between public and private chats based on the roomId.
-    match /chats/{roomId}/messages/{messageId} {
-      allow read, write: if isAuthenticated() && (
-        // Public chat: roomId does not contain an underscore. Any authenticated user can access.
-        !roomId.matches('.*_.*') ||
-        // Private chat: roomId is 'uid1_uid2'. User's uid must be in the roomId.
-        (roomId.matches('.*_.*') && request.auth.uid in roomId.split('_'))
+    // Public chats (no '_') are open.
+    // Private chats ('uid1_uid2') are restricted to members.
+    match /chats/{roomId}/{any=**} {
+      allow read, write: if request.auth != null && (
+        !roomId.matches('^.*_.*$') ||
+        request.auth.uid in roomId.split('_')
       );
     }
     
-    // This rule allows read access to the parent chat document itself,
-    // which is needed for things like fetching chat metadata (e.g., list of users for a private chat).
-    match /chats/{roomId} {
-       allow read: if isAuthenticated() && (
-          // Public chats are open
-          !getResource().data.isPersonal ||
-          // For private chats, user must be a member
-          (getResource().data.isPersonal && request.auth.uid in getResource().data.users)
-        );
-       allow write: if isAuthenticated(); // Allow creating/updating chat docs (e.g., for lastMessage)
-    }
-
-    // REQUIREMENTS
-    // Users can read all requirements, but can only create them.
-    // They can only update/delete their own requirements, unless they are an admin.
+    // Requirements can be read by anyone.
+    // Create is allowed for any authenticated user.
+    // Update/delete is for the owner or an admin.
     match /requirements/{requirementId} {
-      function isOwner() {
-        return request.auth.uid == resource.data.user.id;
-      }
-      function isAdmin() {
-        // Assumes you have an 'isAdmin' field on the user's document.
-        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      }
-      
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner() || isAdmin());
+      allow read, create: if request.auth != null;
+      allow update, delete: if request.auth != null && (
+        resource.data.user.id == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
     }
 
-    // OFFERS
-    // Users can read all offers, but only admins can write/edit/delete them.
+    // Offers can be read by anyone.
+    // Write access is for admins only.
     match /offers/{offerId} {
-       function isAdmin() {
-        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      }
-
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isAdmin();
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
