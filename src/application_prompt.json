@@ -37,7 +37,7 @@
     },
     {
       "feature": "Admin Dashboard",
-      "description": "A protected page for administrators. It displays a log of detected spam messages. Admins can also add new offers directly from this dashboard."
+      "description": "A protected page for administrators. It shows charts and key metrics for community requirements and offers, allowing admins to analyze activity at a glance."
     },
     {
       "feature": "Navigation",
@@ -103,8 +103,7 @@
               },
               "text": "string (optional)",
               "timestamp": "timestamp",
-              "isSpam": "boolean (optional)",
-              "reason": "string (optional)"
+              "isDeleted": "boolean (optional)"
             }
           }
         ]
@@ -157,10 +156,17 @@
         }
       },
       {
+        "path": "/chats/{roomId}",
+        "permissions": {
+            "read": "Allow if authenticated and it is a public chat (roomId has no '_') or if the user is part of the private chat (their uid is in the roomId).",
+            "write": "Allow if authenticated."
+        }
+      },
+      {
         "path": "/chats/{roomId}/messages/{messageId}",
         "permissions": {
           "read": "Allow if authenticated and it is a public chat (roomId has no '_') or if the user is part of the private chat (their uid is in the roomId).",
-          "write": "Allow if authenticated and it is a public chat (roomId has no '_') or if the user is part of the private chat (their uid is in the roomId)."
+          "write": "Allow if authenticated and the message belongs to them."
         }
       },
       {

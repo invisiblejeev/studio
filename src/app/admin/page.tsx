@@ -3,23 +3,26 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, orderBy, limit, where, collectionGroup } from 'firebase/firestore';
-import type { Message } from '@/services/chat';
-import { ShieldCheck, MessageCircleWarning, LoaderCircle } from 'lucide-react';
-import { allStates } from '@/lib/states';
+import { collection, getDocs } from 'firebase/firestore';
+import { ShieldCheck, LoaderCircle, Tag, Bell } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface SpamMessage extends Message {
-  isSpam: boolean;
-  reason?: string;
-  state: string;
+interface ChartData {
+  name: string;
+  count: number;
+}
+
+interface AdminData {
+  requirementsByCategory: ChartData[];
+  offersByType: ChartData[];
+  totalRequirements: number;
+  totalOffers: number;
 }
 
 export default function AdminDashboardPage() {
-    const [spamMessages, setSpamMessages] = useState<SpamMessage[]>([]);
+    const [adminData, setAdminData] = useState<AdminData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
@@ -27,39 +30,32 @@ export default function AdminDashboardPage() {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                // Fetch Spam Messages using a collectionGroup query.
-                const spamQuery = query(
-                    collectionGroup(db, 'messages'), 
-                    where('isSpam', '==', true), 
-                    orderBy('timestamp', 'desc'),
-                    limit(20)
-                );
-                
-                const spamSnapshot = await getDocs(spamQuery);
-                const spamData = spamSnapshot.docs.map(doc => {
-                    const data = doc.data();
-                    const parentPath = doc.ref.parent.parent?.path;
-                    // The path is chats/{roomId}, so the roomId is the second segment.
-                    const roomId = parentPath ? parentPath.split('/')[1] : 'unknown';
-
-                    // For public chats, the room ID is the state name. For private chats, it's user IDs.
-                    // We only want to show state for public chats.
-                    const isPublicChat = allStates.some(s => s.value === roomId);
-                    const state = isPublicChat ? roomId : 'Private Chat';
-
-                    return {
-                        id: doc.id,
-                        ...data,
-                        state: state, // Extract state from document path
-                        time: data.timestamp?.toDate().toLocaleString() ?? '',
-                    } as SpamMessage
+                // Fetch Requirements
+                const reqsSnapshot = await getDocs(collection(db, 'requirements'));
+                const requirementsByCategory: { [key: string]: number } = {};
+                reqsSnapshot.forEach(doc => {
+                    const category = doc.data().category || 'Other';
+                    requirementsByCategory[category] = (requirementsByCategory[category] || 0) + 1;
                 });
-                setSpamMessages(spamData);
+                
+                // Fetch Offers
+                const offersSnapshot = await getDocs(collection(db, 'offers'));
+                const offersByType: { [key: string]: number } = {};
+                offersSnapshot.forEach(doc => {
+                    const type = doc.data().type || 'Other';
+                    offersByType[type] = (offersByType[type] || 0) + 1;
+                });
 
+                setAdminData({
+                    requirementsByCategory: Object.entries(requirementsByCategory).map(([name, count]) => ({ name, count })),
+                    offersByType: Object.entries(offersByType).map(([name, count]) => ({ name, count })),
+                    totalRequirements: reqsSnapshot.size,
+                    totalOffers: offersSnapshot.size,
+                });
 
             } catch (error) {
                 console.error("Failed to fetch admin dashboard data:", error);
-                 toast({ title: "Error", description: "Could not fetch dashboard data. Check Firestore rules and indexes.", variant: "destructive" });
+                 toast({ title: "Error", description: "Could not fetch dashboard data. Check Firestore rules.", variant: "destructive" });
             } finally {
                 setIsLoading(false);
             }
@@ -86,40 +82,71 @@ export default function AdminDashboardPage() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
                     <p className="text-muted-foreground">
-                    Monitoring panel for community activity.
+                        High-level overview of community activity.
                     </p>
                 </div>
             </div>
         </div>
-
-        <div className="grid gap-6 md:grid-cols-1">
+        
+        <div className="grid gap-4 md:grid-cols-2">
             <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><MessageCircleWarning className="text-destructive"/> Spam Log</CardTitle>
-                    <CardDescription>Recently detected spam messages.</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Requirements</CardTitle>
+                    <Tag className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Message</TableHead>
-                                <TableHead>Reason</TableHead>
-                                <TableHead>Chat</TableHead>
-                                <TableHead>User</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {spamMessages.map(msg => (
-                                <TableRow key={msg.id}>
-                                    <TableCell className="max-w-[150px] truncate">{msg.text}</TableCell>
-                                    <TableCell><Badge variant="destructive">{msg.reason || 'Keyword'}</Badge></TableCell>
-                                     <TableCell className="capitalize">{msg.state}</TableCell>
-                                    <TableCell>{msg.user.name}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                    {spamMessages.length === 0 && <p className="text-center text-sm text-muted-foreground pt-4">No spam detected recently.</p>}
+                    <div className="text-2xl font-bold">{adminData?.totalRequirements || 0}</div>
+                    <p className="text-xs text-muted-foreground">Active posts from the community</p>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Offers</CardTitle>
+                    <Bell className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{adminData?.totalOffers || 0}</div>
+                     <p className="text-xs text-muted-foreground">Coupons & deals available</p>
+                </CardContent>
+            </Card>
+        </div>
+
+
+        <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Requirements Analysis</CardTitle>
+                    <CardDescription>Breakdown of community needs by category.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                   <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={adminData?.requirementsByCategory}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+                            <YAxis fontSize={12} tickLine={false} axisLine={false} />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="count" fill="hsl(var(--primary))" name="Posts" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader>
+                    <CardTitle>Offers Analysis</CardTitle>
+                    <CardDescription>Breakdown of available offers by type.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={adminData?.offersByType}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false}/>
+                            <YAxis fontSize={12} tickLine={false} axisLine={false}/>
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="count" fill="hsl(var(--primary))" name="Offers" />
+                        </BarChart>
+                    </ResponsiveContainer>
                 </CardContent>
             </Card>
         </div>

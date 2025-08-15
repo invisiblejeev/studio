@@ -70,10 +70,8 @@ A mobile-friendly layout with a persistent bottom navigation bar for primary nav
     -   User's own messages are right-aligned with a primary background color.
     -   Other users' messages are left-aligned, showing their avatar and name.
     -   Avatars and names are clickable to open the user's profile dialog.
-    -   Images are displayed as clickable thumbnails.
 -   **Input Footer:**
     -   A multiline textarea for typing messages.
-    -   A paperclip icon to attach images.
     -   A "Send" button.
 
 ### 3.3. Personal Chats List (`/chat/personal`)
@@ -100,14 +98,12 @@ A mobile-friendly layout with a persistent bottom navigation bar for primary nav
 ### 4.1. Requirements Screen (`/requirements`)
 
 -   **Layout:** A feed of requirement cards presented in a table.
--   **Header:** Title and description.
+-   **Header:** Title, description, and an "Add Requirement" button.
 -   **Filtering:** A horizontal scrolling list of category buttons (All, Jobs, Housing, etc.) to filter the list.
 -   **Requirement Item (Table Row):**
     -   Displays a category icon, title, description, user name, and state.
     -   Includes a "Send Private Message" button linking to the user's chat.
-    -   For admins, shows "Edit" and "Delete" buttons.
--   **Floating Action Button (FAB):**
-    - A `+` button opens a dialog for any user to add a new requirement manually.
+    -   For admins or authors, shows "Edit" and "Delete" buttons.
 
 ### 4.2. Offers Screen (`/offers`)
 
@@ -139,6 +135,8 @@ A mobile-friendly layout with a persistent bottom navigation bar for primary nav
 
 ## 5. Admin Dashboard (`/admin`)
 
--   **Layout:** A single-column layout with a card for the spam log.
+-   **Layout:** A single-column layout with key metrics and analysis charts.
 -   **Header:** "Admin Dashboard" title and a shield icon.
--   **Spam Log Card:** A table showing recently detected spam messages, including the message text, reason, chat location, and user.
+-   **Key Metrics:** Cards displaying total number of active requirements and offers.
+-   **Requirements Analysis Card:** A bar chart visualizing the number of requirements per category.
+-   **Offers Analysis Card:** A bar chart visualizing the number of offers per type.
