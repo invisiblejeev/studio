@@ -4,79 +4,71 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is authenticated
-    function isAuthenticated() {
+    // Helper functions
+    function isAuth() {
       return request.auth != null;
     }
-    
-    // Helper function to check if the requesting user is an admin
+
+    function isUser(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
     function isAdmin() {
-      // For this app, we assume a user document has an 'isAdmin' boolean field.
-      // This requires a read to the user's own profile.
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      return isAuth() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Users: Can read anyone's profile, but only write to their own.
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow write: if isUser(userId);
     }
     
-    // Helper function to check if the user is the owner of a resource
-    function isOwner(userId) {
-        return request.auth.uid == userId;
+    // Admins: Read-only for clients.
+    match /admins/{userId} {
+        allow read: if isAuth();
+        allow write: if false; // Only allow server-side writes
     }
 
-    // Users can read anyone's profile (for avatars, usernames etc.),
-    // but can only write to their own.
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isOwner(userId);
-
-      // Users can only access their own personal chat list.
-      match /personalChats/{otherUserId} {
-        allow read, write: if isAuthenticated() && isOwner(userId);
-      }
-    }
-
-    // Rules for chat rooms
+    // Chats & Messages
     match /chats/{roomId} {
-      // Chat documents can be read if it's a public chat (no '_') or if the user is a participant.
-      allow read: if isAuthenticated() && (
+      // Public chats (no underscore) are readable by any authenticated user.
+      // Private chats (with underscore) are readable only by participants.
+      allow read: if isAuth() && (
                     !roomId.matches('.*_.*') || 
-                    roomId.matches('.*' + request.auth.uid + '.*')
+                    (roomId.matches('.*_.*') && request.auth.uid in roomId.split("_"))
                   );
-                  
-      // Any authenticated user can create a chat room or update its metadata (like last message).
-      allow create, update: if isAuthenticated();
 
-      // Rules for messages within a chat room
+      // Any authenticated user can create a chat room or update its metadata (last message).
+      allow create, update: if isAuth();
+
+      // Messages
       match /messages/{messageId} {
-        // Messages can be read under the same conditions as the parent chat room.
-        allow read: if isAuthenticated() && (
+        // Read access follows the same logic as the parent chat room.
+        allow read: if isAuth() && (
                       !roomId.matches('.*_.*') || 
-                      roomId.matches('.*' + request.auth.uid + '.*')
+                      (roomId.matches('.*_.*') && request.auth.uid in roomId.split("_"))
                     );
-                    
+        
         // Users can only create messages as themselves.
-        allow create: if isAuthenticated() && isOwner(request.resource.data.user.id);
+        allow create: if isAuth() && request.resource.data.user.id == request.auth.uid;
         
-        // Users can only update (soft delete) their own messages.
-        allow update: if isAuthenticated() && isOwner(resource.data.user.id);
-        
-        // Hard deletes are disallowed.
-        allow delete: if false;
+        // Users can only "delete" (soft delete) their own messages.
+        allow update: if isAuth() && resource.data.user.id == request.auth.uid;
       }
     }
 
-    // Anyone authenticated can read requirements.
-    // Users can create requirements.
-    // Only the author or an admin can update/delete.
+    // Requirements: Any auth'd user can read/create. Only author or admin can update/delete.
     match /requirements/{requirementId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isOwner(request.resource.data.user.id);
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.user.id) || isAdmin());
+      allow read, create: if isAuth();
+      allow update, delete: if isAuth() && (resource.data.user.id == request.auth.uid || isAdmin());
     }
 
-    // Anyone authenticated can read offers.
-    // Only admins can create, update, or delete offers.
+    // Offers: Any auth'd user can read. Only admins can write.
     match /offers/{offerId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isAdmin();
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
   }
 }
+
+    
