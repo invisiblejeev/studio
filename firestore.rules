@@ -4,72 +4,55 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions to make rules more readable.
+    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-
+    
     function isUser(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
+
     function isChatMember(roomId) {
-        return request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
+      return isAuthenticated() && (
+        // Public chat
+        !get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal ||
+        // Private chat member
+        request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users
+      );
     }
-
+    
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Rules for the 'users' collection.
+    // User Profiles
     match /users/{userId} {
-      // Any authenticated user can read any profile (needed for profile cards).
       allow read: if isAuthenticated();
-      // Only the user themselves can update their own profile.
       allow write: if isUser(userId);
-      
-      // Rules for the 'personalChats' subcollection.
-      match /personalChats/{otherUserId} {
-        allow read, write: if isUser(userId);
+    }
+
+    // Chat rooms and Messages
+    match /chats/{roomId} {
+      allow read, create: if isAuthenticated();
+      allow update: if isChatMember(roomId);
+
+      match /messages/{messageId} {
+        allow read, create: if isChatMember(roomId);
+        allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.user.id;
       }
     }
 
-    // Rules for the 'chats' collection.
-    match /chats/{roomId} {
-        // Allow read/write on the chat document itself if user is authenticated.
-        // For public chats, anyone can join. For private, membership is checked on message level.
-        // Create is needed for new chats (public or private). Update is for lastMessage etc.
-        allow read, create, update: if isAuthenticated();
-
-        // Rules for the 'messages' subcollection within a chat.
-        match /messages/{messageId} {
-            // Read: Allow if it's a public chat (isPersonal is false), or if the user is a member of the private chat.
-            allow read: if isAuthenticated() && (!get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal || isChatMember(roomId));
-            // Create: Allow if user is authenticated and is the author.
-            allow create: if isAuthenticated() && request.resource.data.user.id == request.auth.uid;
-            // Update: Allow soft-delete or editing only if the user is the author.
-            allow update: if isAuthenticated() && resource.data.user.id == request.auth.uid;
-            // No client-side deletes.
-            allow delete: if false;
-        }
-    }
-    
-    // Rules for the 'requirements' collection.
+    // Requirements
     match /requirements/{requirementId} {
-        // Any authenticated user can read requirements.
-        allow read: if isAuthenticated();
-        // Any authenticated user can create a requirement.
-        allow create: if isAuthenticated();
-        // Only the user who created it or an admin can update/delete.
-        allow update, delete: if isAuthenticated() && (resource.data.user.id == request.auth.uid || isAdmin());
+      allow read, create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (isAdmin() || request.auth.uid == resource.data.user.id);
     }
 
-    // Rules for the 'offers' collection.
+    // Offers
     match /offers/{offerId} {
-        // Any authenticated user can read offers.
-        allow read: if isAuthenticated();
-        // Only admins can create, update, or delete offers.
-        allow write: if isAuthenticated() && isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
   }
 }
