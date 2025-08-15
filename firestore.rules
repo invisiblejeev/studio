@@ -1,8 +1,10 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper functions to make rules more readable.
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -11,44 +13,63 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    function isAdmin() {
-      // Check for an 'isAdmin' flag on the user's profile document.
-      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    function isChatMember(roomId) {
+        return request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
     }
 
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isUser(userId);
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-    
-    match /chats/{roomId} {
+
+    // Rules for the 'users' collection.
+    match /users/{userId} {
+      // Any authenticated user can read any profile (needed for profile cards).
       allow read: if isAuthenticated();
-      // Allow any authenticated user to create a chat room document.
-      // This is necessary for both public and private chats to be initiated.
-      allow create: if isAuthenticated();
-      // Allow authenticated users to update specific fields for last message tracking.
-      allow update: if isAuthenticated();
+      // Only the user themselves can update their own profile.
+      allow write: if isUser(userId);
       
-      match /messages/{messageId} {
-        allow read: if isAuthenticated();
-        // Allow creating a message if the user is authenticated and the author.
-        allow create: if isAuthenticated() && request.resource.data.user.id == request.auth.uid;
-        // Allow updates only for soft deletes or edits by the original author.
-        allow update: if isAuthenticated() && resource.data.user.id == request.auth.uid;
-        // Do not allow direct client-side deletes.
-        allow delete: if false;
+      // Rules for the 'personalChats' subcollection.
+      match /personalChats/{otherUserId} {
+        allow read, write: if isUser(userId);
       }
     }
 
-    match /requirements/{reqId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (resource.data.user.id == request.auth.uid || isAdmin());
+    // Rules for the 'chats' collection.
+    match /chats/{roomId} {
+        // Allow read/write on the chat document itself if user is authenticated.
+        // For public chats, anyone can join. For private, membership is checked on message level.
+        // Create is needed for new chats (public or private). Update is for lastMessage etc.
+        allow read, create, update: if isAuthenticated();
+
+        // Rules for the 'messages' subcollection within a chat.
+        match /messages/{messageId} {
+            // Read: Allow if it's a public chat (isPersonal is false), or if the user is a member of the private chat.
+            allow read: if isAuthenticated() && (!get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal || isChatMember(roomId));
+            // Create: Allow if user is authenticated and is the author.
+            allow create: if isAuthenticated() && request.resource.data.user.id == request.auth.uid;
+            // Update: Allow soft-delete or editing only if the user is the author.
+            allow update: if isAuthenticated() && resource.data.user.id == request.auth.uid;
+            // No client-side deletes.
+            allow delete: if false;
+        }
+    }
+    
+    // Rules for the 'requirements' collection.
+    match /requirements/{requirementId} {
+        // Any authenticated user can read requirements.
+        allow read: if isAuthenticated();
+        // Any authenticated user can create a requirement.
+        allow create: if isAuthenticated();
+        // Only the user who created it or an admin can update/delete.
+        allow update, delete: if isAuthenticated() && (resource.data.user.id == request.auth.uid || isAdmin());
     }
 
+    // Rules for the 'offers' collection.
     match /offers/{offerId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+        // Any authenticated user can read offers.
+        allow read: if isAuthenticated();
+        // Only admins can create, update, or delete offers.
+        allow write: if isAuthenticated() && isAdmin();
     }
   }
 }

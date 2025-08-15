@@ -119,11 +119,13 @@
             "name": "string",
             "avatar": "string"
           },
+          "title": "string",
           "text": "string",
           "state": "string",
           "timestamp": "timestamp",
           "category": "string (e.g., 'Jobs', 'Housing')",
-          "title": "string"
+          "startDate": "string (yyyy-MM-dd, optional)",
+          "expireDate": "string (yyyy-MM-dd, optional)"
         }
       },
       {
@@ -173,10 +175,10 @@
       {
         "path": "/chats/{roomId}/messages/{messageId}",
         "permissions": {
-          "read": "Allow if user is authenticated.",
+          "read": "Allow if it is a public chat OR if the user is a member of the private chat.",
           "create": "Allow if user is authenticated and the author of the message.",
-          "update": "Allow if user is the author of the message.",
-          "delete": "Deny all client deletes (use soft delete via update)."
+          "update": "Allow if user is the author of the message (for editing or soft-deleting).",
+          "delete": "Deny all client deletes."
         }
       },
       {
