@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, increment, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -13,20 +13,12 @@ export interface Message {
     avatar: string;
   };
   text?: string;
-  imageUrl?: string;
   time: string; 
   timestamp: any;
-  category?: string;
-  title?: string;
-  isSpam?: boolean;
-  reason?: string;
-  state?: string; 
-  originalMessageId?: string;
-  originalRoomId?: string;
   isDeleted?: boolean;
 }
 
-export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time' | 'imageUrl'>) => {
+export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
   const messagePayload: any = {
     user: message.user,
     timestamp: serverTimestamp(),
@@ -41,12 +33,13 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     return;
   }
 
+  // Add the message to the subcollection
   await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 
   const chatDocRef = doc(db, 'chats', roomId);
   const lastMessageContent = messagePayload.text || "";
   
-  // Update the main chat document's last message details
+  // Update the main chat document's last message details for sorting and previews
   await setDoc(chatDocRef, { 
       lastMessageTimestamp: serverTimestamp(),
       lastMessage: lastMessageContent,

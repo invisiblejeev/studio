@@ -1,42 +1,68 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Users can read anyone's profile (for avatars, usernames, admin status)
-    // but can only write to their own.
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
 
-    // Public chats (no '_') are open.
-    // Private chats ('uid1_uid2') are restricted to members.
-    match /chats/{roomId}/{any=**} {
-      allow read, write: if request.auth != null && (
-        !roomId.matches('^.*_.*$') ||
-        request.auth.uid in roomId.split('_')
-      );
+    // User profile data
+    match /users/{userId} {
+      // Any authenticated user can read any other user's profile (for avatars, usernames, etc.)
+      allow read: if request.auth != null;
+      // A user can only write to their own profile
+      allow write: if request.auth.uid == userId;
     }
     
-    // Requirements can be read by anyone.
-    // Create is allowed for any authenticated user.
-    // Update/delete is for the owner or an admin.
-    match /requirements/{requirementId} {
-      allow read, create: if request.auth != null;
-      allow update, delete: if request.auth != null && (
-        resource.data.user.id == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
-      );
+    // The list of personal chats a user has
+    match /users/{userId}/personalChats/{otherUserId} {
+        // A user can only read/write their own list of chats
+        allow read, write: if request.auth.uid == userId;
     }
 
-    // Offers can be read by anyone.
-    // Write access is for admins only.
-    match /offers/{offerId} {
+    // Chat rooms (both public and private)
+    match /chats/{roomId} {
+        // Rules for the parent chat document itself
+        allow read: if request.auth != null && (
+          // Allow reading public chats
+          !roomId.contains('_') ||
+          // Allow reading private chats if the user is a member
+          (roomId.split('_')[0] == request.auth.uid || roomId.split('_')[1] == request.auth.uid)
+        );
+        
+        // Allow any authenticated user to create a room or update the last message timestamp
+        allow create, update: if request.auth.uid != null;
+        
+        // Rules for the messages subcollection within a chat room
+        match /messages/{messageId} {
+            allow read: if request.auth != null && (
+              // Allow reading public chat messages
+              !roomId.contains('_') ||
+              // Allow reading private chat messages if the user is a member
+              (roomId.split('_')[0] == request.auth.uid || roomId.split('_')[1] == request.auth.uid)
+            );
+            // Users can only create messages as themselves
+            allow create: if request.auth.uid != null && request.resource.data.user.id == request.auth.uid;
+            // Only the original author can "delete" (update) their own message
+            allow update: if request.auth.uid != null && resource.data.user.id == request.auth.uid;
+            // Disallow permanent deletion
+            allow delete: if false;
+        }
+    }
+
+    // Community requirements posts
+    match /requirements/{requirementId} {
+      // Any authenticated user can read requirements
       allow read: if request.auth != null;
-      allow write: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Any authenticated user can create a new requirement
+      allow create: if request.auth != null && request.resource.data.user.id == request.auth.uid;
+      // A user can update/delete if they are the author OR if they are an admin
+      allow update, delete: if request.auth != null && (resource.data.user.id == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+    }
+
+    // Offers and coupons
+    match /offers/{offerId} {
+      // Any authenticated user can view offers
+      allow read: if request.auth != null;
+      // Only admins can create, update, or delete offers
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
