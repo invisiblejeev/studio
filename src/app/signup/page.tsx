@@ -16,6 +16,7 @@ import { signUp } from "@/services/auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { allStates } from "@/lib/states";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { imageToDataUri } from "@/services/storage";
 
 const formatPhoneNumber = (value: string) => {
     if (!value) return value;
@@ -143,9 +144,14 @@ export default function SignupPage() {
     try {
         const user = await signUp(formData.email, formData.password);
 
+        let avatarDataUri = "";
+        if (avatarFile) {
+            avatarDataUri = await imageToDataUri(avatarFile);
+        }
+
         await createUserProfile(user.uid, {
             ...formData,
-            avatarFile: avatarFile || undefined
+            avatar: avatarDataUri
         });
 
         toast({
