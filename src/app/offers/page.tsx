@@ -28,6 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { uploadImage } from "@/services/storage";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 
 
 interface Offer {
@@ -73,6 +74,7 @@ export default function OffersPage() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const autoplay = useRef(
       Autoplay({ delay: 3000, stopOnInteraction: true })
     );
@@ -176,6 +178,7 @@ export default function OffersPage() {
     setEditValidUntil(undefined);
     setImageFiles([]);
     setImagePreviews([]);
+    setUploadProgress(0);
   };
 
   const handleDeleteOffer = async (offerId: string) => {
@@ -193,10 +196,24 @@ export default function OffersPage() {
   }
 
   const uploadImages = async (files: File[]): Promise<string[]> => {
+      let individualProgress: { [key: string]: number } = {};
+
+      const updateOverallProgress = () => {
+          const totalProgress = Object.values(individualProgress).reduce((acc, curr) => acc + curr, 0);
+          const overallPercentage = files.length > 0 ? (totalProgress / (files.length * 100)) * 100 : 0;
+          setUploadProgress(overallPercentage);
+      };
+
       const uploadPromises = files.map(file => {
-          return uploadImage(file, 'offer-images');
+          return uploadImage(file, 'offer-images', (progress) => {
+              individualProgress[file.name] = progress;
+              updateOverallProgress();
+          });
       });
-      return Promise.all(uploadPromises);
+
+      const urls = await Promise.all(uploadPromises);
+      setUploadProgress(100);
+      return urls;
   }
 
   const handleAddOffer = async () => {
@@ -481,11 +498,19 @@ export default function OffersPage() {
                                 </CardContent>
                             </Card>
                         </div>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsAddOfferOpen(false)} disabled={isSaving}>Cancel</Button>
-                            <Button onClick={handleAddOffer} disabled={isSaving}>
-                                {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Offer"}
-                            </Button>
+                        <DialogFooter className="flex-col gap-2">
+                           {isSaving && imageFiles.length > 0 && (
+                                <div className="w-full">
+                                    <Progress value={uploadProgress} className="w-full" />
+                                    <p className="text-xs text-center mt-1 text-muted-foreground">Uploading {uploadProgress.toFixed(0)}%</p>
+                                </div>
+                            )}
+                            <div className="flex gap-2 justify-end">
+                                <Button variant="outline" onClick={() => setIsAddOfferOpen(false)} disabled={isSaving}>Cancel</Button>
+                                <Button onClick={handleAddOffer} disabled={isSaving}>
+                                    {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Offer"}
+                                </Button>
+                            </div>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
@@ -758,17 +783,23 @@ export default function OffersPage() {
                           </CardContent>
                       </Card>
                   </div>
-                  <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsEditOfferOpen(false)} disabled={isSaving}>Cancel</Button>
-                      <Button onClick={handleEditOffer} disabled={isSaving}>
-                          {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Changes"}
-                      </Button>
-                  </DialogFooter>
+                    <DialogFooter className="flex-col gap-2">
+                        {isSaving && imageFiles.length > 0 && (
+                            <div className="w-full">
+                                <Progress value={uploadProgress} className="w-full" />
+                                <p className="text-xs text-center mt-1 text-muted-foreground">Uploading {uploadProgress.toFixed(0)}%</p>
+                            </div>
+                        )}
+                        <div className="flex gap-2 justify-end">
+                            <Button variant="outline" onClick={() => setIsEditOfferOpen(false)} disabled={isSaving}>Cancel</Button>
+                            <Button onClick={handleEditOffer} disabled={isSaving}>
+                                {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Changes"}
+                            </Button>
+                        </div>
+                    </DialogFooter>
               </DialogContent>
             </Dialog>
         )}
     </div>
   )
 }
-
-    
