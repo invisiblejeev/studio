@@ -69,9 +69,13 @@ A mobile-friendly layout with a persistent bottom navigation bar for primary nav
     -   Displays messages in sequence.
     -   User's own messages are right-aligned with a primary background color.
     -   Other users' messages are left-aligned, showing their avatar and name.
+    -   User's own messages can be clicked to open an edit/delete dialog if sent within 24 hours.
     -   Avatars and names are clickable to open the user's profile dialog.
+    -   Images are displayed as clickable thumbnails.
+    -   Deleted messages are shown with a muted background and italicized text.
 -   **Input Footer:**
     -   A multiline textarea for typing messages.
+    -   A paperclip icon to attach images.
     -   A "Send" button.
 
 ### 3.3. Personal Chats List (`/chat/personal`)
@@ -89,7 +93,7 @@ A mobile-friendly layout with a persistent bottom navigation bar for primary nav
 -   **Header:**
     -   A back arrow.
     -   The other user's avatar and username, which are clickable to open their profile.
--   **Functionality:** The same as the public chat but for a one-on-one conversation.
+-   **Functionality:** The same as the public chat but for a one-on-one conversation. Shows a "New Messages" separator if there are unread messages.
 
 ---
 
@@ -112,9 +116,9 @@ A mobile-friendly layout with a persistent bottom navigation bar for primary nav
     -   An image carousel for multiple offer images.
     -   Displays the offer title, description, coupon code, and validity date.
     -   For admins, "Edit" and "Delete" buttons are shown.
-    -   For regular users, a "View Deal" button is shown.
+    -   For regular users, a "View Deal" button is shown, which flips the card to reveal the coupon code.
 -   **Floating Action Button (FAB):**
-    -   **Admins:** A `+` button to open a dialog for adding a new offer.
+    -   **Admins:** A `+` button to open a dialog for adding a new offer. This dialog includes a progress bar for image uploads.
     -   **Users:** A `Megaphone` button to open a dialog with instructions on how to contact an admin to post an offer.
 
 ### 4.3. Profile Screen (`/profile`)

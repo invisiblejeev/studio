@@ -21,12 +21,8 @@
       "description": "Users have profiles with first name, last name, username, email, phone, city, state, and a profile picture. Profiles are editable."
     },
     {
-      "feature": "Public Chat",
-      "description": "State-specific public group chat rooms (e.g., 'california', 'texas'). Users join based on their profile's state. Supports text and image messages."
-    },
-    {
-      "feature": "Private Chat",
-      "description": "Users can initiate one-on-one private chats with other users. Private chat history is accessible from a dedicated 'Personal Chats' screen."
+      "feature": "Public & Private Chat",
+      "description": "State-specific public group chat rooms and one-on-one private chats. Supports text and image messages with pagination. Users can edit/delete their own messages within 24 hours."
     },
     {
       "feature": "AI-Powered Requirement Detection",
@@ -34,7 +30,7 @@
     },
     {
       "feature": "Requirements Page",
-      "description": "A dedicated page that displays all AI-detected requirements. Users can filter requirements by category. This page serves as a community needs board."
+      "description": "A dedicated page that displays all AI-detected requirements. Users can filter requirements by category and create their own posts. This page serves as a community needs board."
     },
     {
       "feature": "Coupons & Offers Page",
@@ -42,7 +38,7 @@
     },
     {
       "feature": "Admin Dashboard",
-      "description": "A protected page for administrators. It displays a log of detected spam messages and a feed of the latest AI-classified community requirements. Admins can also add new offers directly from this dashboard."
+      "description": "A protected page for administrators. It displays charts and key metrics about requirements and offers."
     },
     {
       "feature": "Navigation",
@@ -86,6 +82,14 @@
         ]
       },
       {
+        "collection": "admins",
+        "documentId": "{userId}",
+        "description": "A collection where the document ID is the UID of a user with admin privileges. Used for security rules.",
+        "schema": {
+          "role": "string (e.g., 'admin')"
+        }
+      },
+      {
         "collection": "chats",
         "documentId": "{roomId}",
         "description": "Room ID is the state name for public chats (e.g., 'hawaii') or a composite ID ('uid1_uid2') for private chats.",
@@ -94,7 +98,7 @@
           "lastMessageSenderId": "string (optional)",
           "lastMessageTimestamp": "timestamp (optional)",
           "users": "array<string> (for private chats)",
-          "isPersonal": "boolean (for private chats)"
+          "isPersonal": "boolean"
         },
         "subcollections": [
           {
@@ -109,8 +113,7 @@
               "text": "string (optional)",
               "imageUrl": "string (URL, optional)",
               "timestamp": "timestamp",
-              "isSpam": "boolean (optional)",
-              "reason": "string (optional)"
+              "isDeleted": "boolean (optional)"
             }
           }
         ]
@@ -128,9 +131,7 @@
           "state": "string",
           "timestamp": "timestamp",
           "category": "string (e.g., 'Jobs', 'Housing')",
-          "title": "string",
-          "originalMessageId": "string",
-          "originalRoomId": "string"
+          "title": "string"
         }
       },
       {
@@ -178,19 +179,28 @@
         }
       },
       {
+        "path": "/admins/{userId}",
+        "permissions": {
+          "read": "Allow if user is an admin.",
+          "write": "Deny all client writes."
+        }
+      },
+      {
         "path": "/chats/{roomId}/messages/{messageId}",
         "permissions": {
-          "read": "Allow if the user's UID is in the `users` array of the parent chat document (for private chats) or if it's a public chat.",
-          "write": "Allow if the user is authenticated and the message belongs to them."
+          "read": "Allow if it's a public chat (no '_' in roomId) OR if user's UID is in the roomId string for private chats.",
+          "create": "Allow if it's a public chat OR a private chat they are a part of.",
+          "update": "Allow if user is the author and message is less than 24 hours old.",
+          "delete": "Deny direct deletes (use soft delete via update)."
         }
       },
       {
         "path": "/requirements/{requirementId}",
         "permissions": {
           "read": "Allow if user is authenticated.",
-          "create": "Deny client-side creation (only cloud functions can create).",
-          "update": "Allow if user is an admin.",
-          "delete": "Allow if user is an admin."
+          "create": "Allow if user is authenticated.",
+          "update": "Allow if user is the author or an admin.",
+          "delete": "Allow if user is the author or an admin."
         }
       },
       {
