@@ -21,7 +21,7 @@ function docToMessage(doc: QueryDocumentSnapshot<DocumentData, DocumentData>): M
     } as Message;
 }
 
-export function createMessagesStore(roomId: string) {
+export function createMessagesStore(roomId: string, onInitialLoad?: (messages: Message[]) => void) {
     let messages: Message[] = [];
     let oldestDoc: QueryDocumentSnapshot | null = null;
     let newestDoc: QueryDocumentSnapshot | null = null;
@@ -60,6 +60,9 @@ export function createMessagesStore(roomId: string) {
 
             notify();
             notifyHasMore();
+            if (onInitialLoad) {
+                onInitialLoad(messages);
+            }
             listenForNewMessages();
 
         } catch (error) {

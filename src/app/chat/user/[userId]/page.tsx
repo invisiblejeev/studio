@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
-import { SendHorizonal, ArrowLeft, LoaderCircle, ArrowDownCircle } from "lucide-react"
+import { SendHorizonal, ArrowLeft, LoaderCircle, ArrowDownCircle, Paperclip, X } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
@@ -16,9 +16,13 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { MessageActionsDialog } from "@/components/MessageActionsDialog";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Separator } from "@/components/ui/separator";
+import { uploadImage } from "@/services/storage";
+import Image from "next/image";
+import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
+
 
 export default function PersonalChatPage({ params }: { params: { userId: string } }) {
   const router = useRouter();
@@ -42,7 +46,15 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [activeMessage, setActiveMessage] = useState<Message | null>(null);
+  const [unreadMessageId, setUnreadMessageId] = useState<string | null>(null);
+  let unreadListener: Unsubscribe | null = null;
   
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dialogImageUrl, setDialogImageUrl] = useState<string | null>(null);
+  
+
   const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'auto') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
@@ -71,8 +83,17 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
             setRoomId(personalRoomId);
             
             const personalChatRef = doc(db, `users/${user.uid}/personalChats`, userId);
-            if ((await getDoc(personalChatRef)).exists()) {
-              markAsRead(user.uid, userId);
+            const personalChatSnap = await getDoc(personalChatRef);
+            if (personalChatSnap.exists() && personalChatSnap.data().unreadCount > 0) {
+                 if (unreadListener) unreadListener();
+                 unreadListener = onSnapshot(collection(db, 'chats', personalRoomId, 'messages'), (messageSnapshot) => {
+                     let unreadCount = personalChatSnap.data().unreadCount;
+                     const unreadDocs = messageSnapshot.docs.slice(0, unreadCount);
+                     if(unreadDocs.length > 0) {
+                        setUnreadMessageId(unreadDocs[unreadDocs.length - 1].id);
+                     }
+                 });
+                 markAsRead(user.uid, userId);
             }
         }
         
@@ -83,12 +104,31 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
     if (userId) {
         fetchUsersAndRoom();
     }
+
+    return () => {
+        if (unreadListener) {
+            unreadListener();
+        }
+    }
   }, [router, userId]);
+
+  const handleInitialLoad = useCallback((messages: Message[]) => {
+    if (unreadMessageId) {
+      const unreadEl = document.getElementById(`msg-${unreadMessageId}`);
+      if (unreadEl) {
+        unreadEl.scrollIntoView({ behavior: 'auto', block: 'center' });
+        return;
+      }
+    }
+    scrollToBottom('auto');
+
+  }, [unreadMessageId, scrollToBottom]);
+
 
   useEffect(() => {
     if (!roomId || !currentUser) return;
 
-    const store = createMessagesStore(roomId);
+    const store = createMessagesStore(roomId, handleInitialLoad);
     messagesStoreRef.current = store;
 
     const unsubscribeMessages = store.subscribe(newMessages => {
@@ -103,21 +143,26 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
         unsubscribeLoading();
         unsubscribeHasMore();
     };
-  }, [roomId, currentUser]);
+  }, [roomId, currentUser, handleInitialLoad]);
 
   useEffect(() => {
-     if (!showScrollToBottom) {
+     if (!showScrollToBottom && !unreadMessageId) {
        scrollToBottom('smooth');
      }
-  }, [messages, showScrollToBottom, scrollToBottom]);
+  }, [messages, showScrollToBottom, scrollToBottom, unreadMessageId]);
 
 
   const handleSendMessage = useCallback(async () => {
-    if (newMessage.trim() === "" || !currentUser || !roomId) return;
+    if ((newMessage.trim() === "" && !imageFile) || !currentUser || !roomId) return;
     
     setIsSending(true);
+    let imageUrl: string | undefined = undefined;
 
     try {
+        if(imageFile) {
+            imageUrl = await uploadImage(imageFile, `chat-images/${roomId}`);
+        }
+
         await sendMessage(roomId, {
           user: { 
               id: currentUser.uid, 
@@ -125,9 +170,12 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
               avatar: currentUser.avatar || '' 
           },
           text: newMessage,
+          imageUrl: imageUrl,
         });
 
         setNewMessage("");
+        setImageFile(null);
+        setImagePreview(null);
     } catch (error) {
         console.error("Error sending message:", error);
         toast({
@@ -138,7 +186,27 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
     } finally {
         setIsSending(false);
     }
-  }, [newMessage, currentUser, roomId, toast]);
+  }, [newMessage, currentUser, roomId, toast, imageFile]);
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const removeImagePreview = () => {
+      setImageFile(null);
+      setImagePreview(null);
+      if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+      }
+  }
   
 
   const handleShowProfile = async (userIdToShow: string) => {
@@ -199,7 +267,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
       )
   }
 
-  const canSendMessage = newMessage.trim() !== "" && !isSending;
+  const canSendMessage = (newMessage.trim() !== "" || !!imageFile) && !isSending;
 
   return (
     <>
@@ -244,6 +312,12 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
 
                   return (
                     <React.Fragment key={msg.id}>
+                    {unreadMessageId === msg.id && (
+                        <div className="relative my-4">
+                            <Separator />
+                            <div className="absolute left-1/2 -translate-x-1/2 -top-3 bg-muted/50 px-2 text-xs text-muted-foreground rounded-full">New Messages</div>
+                        </div>
+                    )}
                     <div id={`msg-${msg.id}`} className={cn('flex items-end gap-2 group', isYou ? 'justify-end' : 'justify-start')}>
                       {!isYou && isLastInSequence && (
                           <Avatar className={cn('h-8 w-8 cursor-pointer')} onClick={() => handleShowProfile(msg.user.id)}>
@@ -260,7 +334,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
                         <div 
                           className={cn('rounded-lg shadow-sm', 
                             isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
-                            'p-3',
+                            'p-2',
                             isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
                             isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
                             !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
@@ -271,7 +345,12 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
                           )}
                           onClick={() => canEditOrDelete && setActiveMessage(msg)}
                         >
-                          <p className={cn("text-sm whitespace-pre-wrap", msg.isDeleted && "italic text-muted-foreground")}>{msg.text}</p>
+                          {msg.imageUrl && (
+                                <div className="relative aspect-square w-48 h-48 cursor-pointer" onClick={(e) => { e.stopPropagation(); setDialogImageUrl(msg.imageUrl || null)}}>
+                                    <Image src={msg.imageUrl} alt="sent image" layout="fill" className="object-cover rounded-md" />
+                                </div>
+                            )}
+                          {msg.text && <p className={cn("text-sm whitespace-pre-wrap p-1", msg.isDeleted && "italic text-muted-foreground")}>{msg.text}</p>}
                         </div>
                           {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                       </div>
@@ -318,6 +397,14 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
         )}
       </div>
       <div className="p-4 border-t bg-background shrink-0">
+          {imagePreview && (
+              <div className="relative w-24 h-24 mb-2">
+                  <Image src={imagePreview} alt="Image preview" layout="fill" className="object-cover rounded-md"/>
+                  <Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={removeImagePreview}>
+                      <X className="h-4 w-4" />
+                  </Button>
+              </div>
+          )}
           <div className="relative">
               <Textarea 
                 placeholder={currentUser ? `Message ${otherUser.username}...` : "Loading chat..."}
@@ -334,6 +421,10 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
                 disabled={isSending || !currentUser}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                  <Button size="icon" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isSending || !currentUser}>
+                      <Paperclip className="w-5 h-5"/>
+                  </Button>
+                  <input type="file" ref={fileInputRef} onChange={handleImageFileChange} className="hidden" accept="image/*" />
                   <Button size="icon" onClick={handleSendMessage} disabled={!canSendMessage}>
                     {isSending ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <SendHorizonal className="w-5 h-5" />}
                   </Button>
@@ -347,6 +438,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
         user={selectedUser}
         currentUser={currentUser}
     />
+    <ImagePreviewDialog imageUrl={dialogImageUrl} onOpenChange={() => setDialogImageUrl(null)} />
      {activeMessage && (
       <MessageActionsDialog
         message={activeMessage}

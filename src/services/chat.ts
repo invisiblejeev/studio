@@ -13,6 +13,7 @@ export interface Message {
     avatar: string;
   };
   text?: string;
+  imageUrl?: string;
   time: string; 
   timestamp: any;
   isDeleted?: boolean;
@@ -27,8 +28,12 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   if (message.text && message.text.trim() !== '') {
     messagePayload.text = message.text;
   }
+  
+  if (message.imageUrl) {
+    messagePayload.imageUrl = message.imageUrl;
+  }
 
-  if (!messagePayload.text) {
+  if (!messagePayload.text && !messagePayload.imageUrl) {
     console.log("Attempted to send an empty message. Aborting.");
     return;
   }
@@ -37,7 +42,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 
   const chatDocRef = doc(db, 'chats', roomId);
-  const lastMessageContent = messagePayload.text || "";
+  const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
   
   // Update the main chat document's last message details for sorting and previews
   await setDoc(chatDocRef, { 
@@ -147,5 +152,6 @@ export const deleteMessage = async (roomId: string, messageId: string) => {
     await updateDoc(messageRef, {
         text: 'This message was deleted',
         isDeleted: true,
+        imageUrl: null, // Remove image on delete
     });
 };
