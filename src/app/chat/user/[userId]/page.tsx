@@ -19,7 +19,7 @@ import { UserProfileDialog } from "@/components/UserProfileDialog";
 export default function PersonalChatPage({ params }: { params: { userId: string } }) {
   const router = useRouter();
   const { toast } = useToast();
-  const { userId } = params;
+  const { userId } = React.use(params);
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -248,5 +248,3 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
     </>
   );
 }
-
-    

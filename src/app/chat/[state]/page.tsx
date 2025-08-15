@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 export default function ChatPage({ params }: { params: { state: string } }) {
   const router = useRouter();
   const { toast } = useToast();
-  const { state } = params;
+  const { state } = React.use(params);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -276,5 +276,3 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     </>
   );
 }
-
-    
