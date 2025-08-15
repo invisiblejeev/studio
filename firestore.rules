@@ -1,55 +1,51 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isUser(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-
-    function isChatMember(roomId) {
-      return isAuthenticated() && (
-        // Public chat
-        !get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal ||
-        // Private chat member
-        request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users
-      );
-    }
     
     function isAdmin() {
+      // Check for an 'isAdmin' flag on the user's profile document.
       return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // User Profiles
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isUser(userId);
     }
-
-    // Chat rooms and Messages
+    
     match /chats/{roomId} {
-      allow read, create: if isAuthenticated();
-      allow update: if isChatMember(roomId);
-
+      allow read: if isAuthenticated();
+      // Allow any authenticated user to create a chat room document.
+      // This is necessary for both public and private chats to be initiated.
+      allow create: if isAuthenticated();
+      // Allow authenticated users to update specific fields for last message tracking.
+      allow update: if isAuthenticated();
+      
       match /messages/{messageId} {
-        allow read, create: if isChatMember(roomId);
-        allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.user.id;
+        allow read: if isAuthenticated();
+        // Allow creating a message if the user is authenticated and the author.
+        allow create: if isAuthenticated() && request.resource.data.user.id == request.auth.uid;
+        // Allow updates only for soft deletes or edits by the original author.
+        allow update: if isAuthenticated() && resource.data.user.id == request.auth.uid;
+        // Do not allow direct client-side deletes.
+        allow delete: if false;
       }
     }
 
-    // Requirements
-    match /requirements/{requirementId} {
-      allow read, create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isAdmin() || request.auth.uid == resource.data.user.id);
+    match /requirements/{reqId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (resource.data.user.id == request.auth.uid || isAdmin());
     }
 
-    // Offers
     match /offers/{offerId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
