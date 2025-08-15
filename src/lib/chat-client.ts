@@ -1,33 +1,15 @@
 
 "use client";
 
-import { db } from '@/lib/firebase';
-import { collection, onSnapshot, orderBy, query, limit, startAfter, getDocs, endBefore, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
-
-const PAGE_SIZE = 50;
-
-function docToMessage(doc: QueryDocumentSnapshot<DocumentData, DocumentData>): Message {
-    const data = doc.data();
-    const timestamp = data.timestamp?.toDate();
-    return {
-        id: doc.id,
-        user: data.user,
-        text: data.text,
-        imageUrl: data.imageUrl,
-        time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-        timestamp: timestamp,
-        isDeleted: data.isDeleted || false,
-    } as Message;
-}
+import { createFirebaseMessageApi } from './firebase-chat';
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
 
 export function createMessagesStore(roomId: string, onInitialLoad?: (messages: Message[]) => void) {
     let messages: Message[] = [];
     let oldestDoc: QueryDocumentSnapshot | null = null;
-    let newestDoc: QueryDocumentSnapshot | null = null;
     let hasMore = true;
     let isLoading = false;
-    let isLiveListening = false;
     
     let subscribers: ((messages: Message[]) => void)[] = [];
     let loadingSubscribers: ((loading: boolean) => void)[] = [];
@@ -37,42 +19,52 @@ export function createMessagesStore(roomId: string, onInitialLoad?: (messages: M
     const notifyLoading = () => loadingSubscribers.forEach(cb => cb(isLoading));
     const notifyHasMore = () => hasMoreSubscribers.forEach(cb => cb(hasMore));
     
-    let liveUnsubscribe: (() => void) | null = null;
+    const firebaseApi = createFirebaseMessageApi(roomId);
+
+    const handleUpdates = (newMessages: Message[], newOldestDoc: QueryDocumentSnapshot | null, newHasMore: boolean) => {
+        const messageMap = new Map(messages.map(m => [m.id, m]));
+        
+        newMessages.forEach(msg => {
+            messageMap.set(msg.id, msg);
+        });
+
+        const allMessages = Array.from(messageMap.values());
+        allMessages.sort((a, b) => a.timestamp?.toMillis() - b.timestamp?.toMillis());
+        
+        messages = allMessages;
+        if(newOldestDoc){
+            oldestDoc = newOldestDoc;
+        }
+        hasMore = newHasMore;
+        notify();
+        notifyHasMore();
+    };
 
     const loadInitialMessages = async () => {
         if (isLoading) return;
         isLoading = true;
         notifyLoading();
 
-        try {
-            const q = query(
-                collection(db, 'chats', roomId, 'messages'),
-                orderBy('timestamp', 'desc'),
-                limit(PAGE_SIZE)
-            );
-            const querySnapshot = await getDocs(q);
+        firebaseApi.listenForMessages((initialMessages, firstDoc, initialHasMore) => {
+            messages = initialMessages;
+            oldestDoc = firstDoc;
+            hasMore = initialHasMore;
             
-            const newMessages = querySnapshot.docs.map(docToMessage).reverse();
-            messages = newMessages;
-            oldestDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
-            newestDoc = querySnapshot.docs[0];
-            hasMore = querySnapshot.docs.length === PAGE_SIZE;
-
             notify();
             notifyHasMore();
             if (onInitialLoad) {
                 onInitialLoad(messages);
             }
-            listenForNewMessages();
-
-        } catch (error) {
-            console.error(`[ChatClient] Error fetching initial messages for room ${roomId}:`, error);
-            hasMore = false;
-            notifyHasMore();
-        } finally {
+            
             isLoading = false;
             notifyLoading();
-        }
+
+            // Now, listen for live updates
+            firebaseApi.listenForMessages((liveMessages, _, __) => {
+                handleUpdates(liveMessages, null, hasMore);
+            }, null);
+
+        });
     };
 
     const loadMore = async () => {
@@ -80,65 +72,14 @@ export function createMessagesStore(roomId: string, onInitialLoad?: (messages: M
         isLoading = true;
         notifyLoading();
 
-        try {
-            const q = query(
-                collection(db, 'chats', roomId, 'messages'),
-                orderBy('timestamp', 'desc'),
-                startAfter(oldestDoc),
-                limit(PAGE_SIZE)
-            );
-            const querySnapshot = await getDocs(q);
-            
-            if (querySnapshot.empty) {
-                hasMore = false;
-            } else {
-                const olderMessages = querySnapshot.docs.map(docToMessage).reverse();
-                messages = [...olderMessages, ...messages];
-                oldestDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
-                hasMore = querySnapshot.docs.length === PAGE_SIZE;
-            }
+        await firebaseApi.loadMoreMessages(oldestDoc, (olderMessages, newOldestDoc, newHasMore) => {
+            messages = [...olderMessages, ...messages];
+            oldestDoc = newOldestDoc;
+            hasMore = newHasMore;
             notify();
             notifyHasMore();
-
-        } catch (error) {
-            console.error(`[ChatClient] Error fetching more messages for room ${roomId}:`, error);
-        } finally {
             isLoading = false;
             notifyLoading();
-        }
-    };
-
-    const listenForNewMessages = () => {
-        if (isLiveListening) return;
-        isLiveListening = true;
-        
-        const q = query(
-            collection(db, 'chats', roomId, 'messages'),
-            orderBy('timestamp', 'desc'),
-            limit(1) // Initially just get the very latest to see if we have it
-        );
-        
-        liveUnsubscribe = onSnapshot(q, (snapshot) => {
-            snapshot.docChanges().forEach(change => {
-                if (change.type === 'added') {
-                    const newMessage = docToMessage(change.doc);
-                    // Avoid adding duplicates on initial load.
-                    if (messages.find(m => m.id === newMessage.id)) return;
-                    
-                    messages = [...messages, newMessage];
-                    newestDoc = change.doc;
-                    notify();
-                } else if (change.type === 'modified') {
-                    const modifiedMessage = docToMessage(change.doc);
-                    messages = messages.map(m => m.id === modifiedMessage.id ? modifiedMessage : m);
-                    notify();
-                } else if (change.type === 'removed') {
-                     messages = messages.filter(m => m.id !== change.doc.id);
-                     notify();
-                }
-            });
-        }, (error) => {
-            console.error(`[ChatClient] Error in snapshot listener for room ${roomId}:`, error);
         });
     };
     
@@ -168,9 +109,7 @@ export function createMessagesStore(roomId: string, onInitialLoad?: (messages: M
             };
         },
         cleanup: () => {
-            if (liveUnsubscribe) {
-                liveUnsubscribe();
-            }
+            firebaseApi.cleanup();
             subscribers = [];
             loadingSubscribers = [];
             hasMoreSubscribers = [];
