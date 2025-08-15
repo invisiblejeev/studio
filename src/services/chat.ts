@@ -51,23 +51,8 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
       lastMessageSenderId: message.user.id
   }, { merge: true });
 
-  // The logic to increment the unread count for the recipient is now handled by a Firestore trigger.
-  // We still need to update the SENDER's own chat document for sorting purposes and UI consistency.
-  const chatSnap = await getDoc(chatDocRef);
-  if (chatSnap.exists() && chatSnap.data().isPersonal) {
-      const users = chatSnap.data().users;
-      const recipientId = users.find((uid: string) => uid !== message.user.id);
-
-      if (recipientId) {
-        const senderChatRef = doc(db, `users/${message.user.id}/personalChats`, recipientId);
-        // We update the sender's document to reflect the new last message immediately.
-        await setDoc(senderChatRef, {
-            lastMessage: lastMessageContent,
-            lastMessageTimestamp: serverTimestamp(),
-            lastMessageSenderId: message.user.id
-        }, { merge: true });
-      }
-  }
+  // The logic to increment the unread count for the recipient is handled by a Firestore trigger.
+  // The sender's chat list updates from the main chat document, so no extra write is needed here.
 };
 
 
