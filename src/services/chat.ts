@@ -26,7 +26,7 @@ export interface Message {
   isDeleted?: boolean;
 }
 
-export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
+export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time' | 'imageUrl'>) => {
   const messagePayload: any = {
     user: message.user,
     timestamp: serverTimestamp(),
@@ -36,11 +36,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     messagePayload.text = message.text;
   }
 
-  if (message.imageUrl) {
-    messagePayload.imageUrl = message.imageUrl;
-  }
-
-  if (!messagePayload.text && !messagePayload.imageUrl) {
+  if (!messagePayload.text) {
     console.log("Attempted to send an empty message. Aborting.");
     return;
   }
@@ -48,7 +44,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
 
   const chatDocRef = doc(db, 'chats', roomId);
-  const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
+  const lastMessageContent = messagePayload.text || "";
   
   // Update the main chat document's last message details
   await setDoc(chatDocRef, { 

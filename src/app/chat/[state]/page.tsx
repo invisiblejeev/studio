@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
-import { Paperclip, SendHorizonal, MessageSquare, LoaderCircle, X, Users, Trash2 } from "lucide-react"
+import { SendHorizonal, MessageSquare, LoaderCircle, Users, Trash2 } from "lucide-react"
 import { useRouter, useParams } from 'next/navigation';
 import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -15,20 +15,17 @@ import { getUserProfile, UserProfile, getUserCountByState } from "@/services/use
 import { sendMessage, Message, ensurePublicChatRoomExists, deleteMessage } from "@/services/chat";
 import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { Badge } from "@/components/ui/badge";
-import { uploadImage } from "@/services/storage";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 
 
 export default function ChatPage() {
@@ -40,18 +37,14 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [memberCount, setMemberCount] = useState(0);
   const [totalUnread, setTotalUnread] = useState(0);
 
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
-  const [imageToPreview, setImageToPreview] = useState<string | null>(null);
 
   const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current) {
@@ -132,17 +125,11 @@ export default function ChatPage() {
 
 
   const handleSendMessage = useCallback(async () => {
-    if ((newMessage.trim() === "" && !imageFile) || !currentUser) return;
+    if (newMessage.trim() === "" || !currentUser) return;
 
-    setIsUploading(true);
+    setIsSending(true);
     
-    let imageUrl: string | undefined = undefined;
-
     try {
-        if (imageFile) {
-            imageUrl = await uploadImage(imageFile, `chat-images/${state}`);
-        }
-
         await sendMessage(state, {
           user: {
               id: currentUser.uid,
@@ -150,15 +137,9 @@ export default function ChatPage() {
               avatar: currentUser.avatar || ''
           },
           text: newMessage,
-          imageUrl: imageUrl,
         });
         
         setNewMessage("");
-        setImageFile(null);
-        setImagePreview(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
     } catch (error) {
         console.error("Error sending message:", error);
         toast({
@@ -167,39 +148,9 @@ export default function ChatPage() {
             variant: "destructive"
         });
     } finally {
-        setIsUploading(false);
+        setIsSending(false);
     }
-  }, [newMessage, imageFile, currentUser, state, toast]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 1024 * 1024 * 5) { // 5MB limit
-      toast({
-        title: "Image Too Large",
-        description: "Please select an image smaller than 5MB.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-        const dataUrl = reader.result as string;
-        setImagePreview(dataUrl);
-    }
-  };
-  
-  const clearImagePreview = () => {
-    setImagePreview(null);
-    setImageFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  }
+  }, [newMessage, currentUser, state, toast]);
 
   const handleDelete = async (messageId: string) => {
     try {
@@ -217,7 +168,7 @@ export default function ChatPage() {
   };
 
   const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
-  const canSendMessage = !!currentUser && (newMessage.trim() !== "" || !!imageFile) && !isUploading;
+  const canSendMessage = !!currentUser && newMessage.trim() !== "" && !isSending;
 
 
   return (
@@ -251,7 +202,6 @@ export default function ChatPage() {
 
                   const isFirstInSequence = !prevMessage || prevMessage.user.id !== msg.user.id;
                   const isLastInSequence = !nextMessage || nextMessage.user.id !== msg.user.id;
-                  const isImageOnly = msg.imageUrl && !msg.text;
 
                   return (
                     <div key={msg.id} className={cn('flex items-end gap-2', isYou ? 'justify-end' : 'justify-start')}>
@@ -265,7 +215,7 @@ export default function ChatPage() {
 
                       <div className={cn('flex flex-col', 
                         isYou ? 'items-end' : 'items-start',
-                        isImageOnly ? 'max-w-[75%]' : 'max-w-xs lg:max-w-md'
+                        'max-w-xs lg:max-w-md'
                       )}>
                           {!isYou && isFirstInSequence && (
                               <p className="text-xs text-muted-foreground mb-1 px-3 cursor-pointer hover:underline" onClick={() => handleShowProfile(msg.user.id)}>{msg.user.name}</p>
@@ -275,7 +225,6 @@ export default function ChatPage() {
                               <div className={cn('p-3 rounded-lg shadow-sm', 
                                   isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
                                   msg.isDeleted ? 'bg-muted text-muted-foreground italic' : '',
-                                  isImageOnly ? 'p-1 bg-transparent shadow-none' : 'p-3',
                                   isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
                                   isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
                                   !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
@@ -283,11 +232,6 @@ export default function ChatPage() {
                                   !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
                                   'rounded-lg'
                               )}>
-                                  {msg.imageUrl && !msg.isDeleted && (
-                                    <div className="relative aspect-video rounded-md overflow-hidden cursor-pointer" onClick={() => setImageToPreview(msg.imageUrl!)}>
-                                      <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
-                                    </div>
-                                  )}
                                   {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                               </div>
                             </ContextMenuTrigger>
@@ -315,7 +259,7 @@ export default function ChatPage() {
                     </div>
                   )
                 })}
-                {isUploading && !imagePreview && (
+                {isSending && (
                   <div className="flex items-end gap-2 justify-end">
                       <div className="flex flex-col items-end">
                         <div className={cn('rounded-lg shadow-sm bg-primary text-primary-foreground', 'rounded-br-none p-3' )}>
@@ -335,18 +279,10 @@ export default function ChatPage() {
         </ScrollArea>
       </div>
       <div className="p-4 border-t bg-background shrink-0">
-          {imagePreview && (
-              <div className="mb-2 relative w-24 h-24">
-                  <Image src={imagePreview} alt="Image preview" fill className="rounded-md object-cover" />
-                  <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={clearImagePreview}>
-                      <X className="h-4 w-4" />
-                  </Button>
-              </div>
-          )}
           <div className="relative">
               <Textarea 
                 placeholder={currentUser ? "Type your message..." : "Loading chat..."}
-                className="pr-28 min-h-[48px]"
+                className="pr-20 min-h-[48px]"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={(e) => {
@@ -356,15 +292,11 @@ export default function ChatPage() {
                   }
                 }}
                 maxRows={5}
-                disabled={isUploading || !currentUser}
+                disabled={isSending || !currentUser}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                   <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => fileInputRef.current?.click()} disabled={isUploading || !currentUser}>
-                       <Paperclip className="w-5 h-5" />
-                   </Button>
-                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading || !currentUser} />
                   <Button size="icon" onClick={handleSendMessage} disabled={!canSendMessage}>
-                      {isUploading ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <SendHorizonal className="w-5 h-5" />}
+                      {isSending ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <SendHorizonal className="w-5 h-5" />}
                   </Button>
               </div>
           </div>
@@ -375,10 +307,6 @@ export default function ChatPage() {
         onOpenChange={setIsProfileDialogOpen}
         user={selectedUser}
         currentUser={currentUser}
-    />
-    <ImagePreviewDialog 
-        imageUrl={imageToPreview}
-        onOpenChange={() => setImageToPreview(null)}
     />
     </>
   );
