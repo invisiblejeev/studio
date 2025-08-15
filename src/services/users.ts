@@ -34,13 +34,17 @@ export async function createUserProfile(uid: string, data: Omit<UserProfile, 'ui
 
     const userProfileData = {
         uid,
-        ...data,
+        firstName: data.firstName,
+        lastName: data.lastName,
         username: data.username.toLowerCase(),
         email: data.email.toLowerCase(),
+        phone: data.phone,
+        state: data.state,
+        city: data.city,
         isAdmin: false, // Default isAdmin to false for new users
         avatar: avatarUrl,
     };
-    delete (userProfileData as any).avatarFile;
+    
     await setDoc(doc(db, 'users', uid), userProfileData);
 }
 
