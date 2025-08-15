@@ -3,7 +3,17 @@
 
 import type { Message } from '@/services/chat';
 import { createFirebaseMessageApi } from './firebase-chat';
-import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import type { QueryDocumentSnapshot, Timestamp } from 'firebase/firestore';
+
+// Helper to get milliseconds from either a Firestore Timestamp or a JS Date
+const getMillis = (timestamp: Timestamp | Date | undefined | null): number => {
+    if (!timestamp) return 0;
+    if ('toMillis' in timestamp) { // Firestore Timestamp
+        return timestamp.toMillis();
+    }
+    return timestamp.getTime(); // JS Date
+}
+
 
 export function createMessagesStore(roomId: string, onInitialLoad?: (messages: Message[]) => void) {
     let messages: Message[] = [];
@@ -29,7 +39,7 @@ export function createMessagesStore(roomId: string, onInitialLoad?: (messages: M
         });
 
         const allMessages = Array.from(messageMap.values());
-        allMessages.sort((a, b) => a.timestamp?.toMillis() - b.timestamp?.toMillis());
+        allMessages.sort((a, b) => getMillis(a.timestamp) - getMillis(b.timestamp));
         
         messages = allMessages;
         if(newOldestDoc){

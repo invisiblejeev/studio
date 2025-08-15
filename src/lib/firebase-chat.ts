@@ -2,20 +2,23 @@
 "use client";
 
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, orderBy, query, limit, startAfter, getDocs, DocumentData, QueryDocumentSnapshot, Unsubscribe } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, limit, startAfter, getDocs, DocumentData, QueryDocumentSnapshot, Unsubscribe, Timestamp } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 
 const PAGE_SIZE = 50;
 
 function docToMessage(doc: QueryDocumentSnapshot<DocumentData>): Message {
     const data = doc.data();
-    const timestamp = data.timestamp?.toDate();
+    // Keep timestamp as a Firestore Timestamp object for accurate sorting.
+    const timestamp: Timestamp | null = data.timestamp;
+    
     return {
         id: doc.id,
         user: data.user,
         text: data.text,
         imageUrl: data.imageUrl,
-        time: timestamp ? timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+        // Format time directly from the Timestamp object
+        time: timestamp ? timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
         timestamp: timestamp,
         isDeleted: data.isDeleted || false,
     } as Message;
