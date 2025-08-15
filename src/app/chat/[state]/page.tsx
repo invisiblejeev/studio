@@ -9,7 +9,7 @@ import { allStates } from "@/lib/states";
 import { SendHorizonal, MessageSquare, LoaderCircle, Users } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile, getUserCountByState } from "@/services/users";
 import { sendMessage, Message, ensurePublicChatRoomExists } from "@/services/chat";
@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 export default function ChatPage({ params }: { params: { state: string } }) {
   const router = useRouter();
   const { toast } = useToast();
-  const state = params.state;
+  const { state } = React.use(params);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
