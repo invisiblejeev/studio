@@ -27,7 +27,7 @@ export async function isIdentifierTaken(field: 'username' | 'email', value: stri
 
 
 export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid' | 'avatar'> & { avatarFile?: File }) {
-    let avatarUrl = `https://i.pravatar.cc/150?u=${data.username}`;
+    let avatarUrl = "";
     if (data.avatarFile) {
         avatarUrl = await uploadImage(data.avatarFile, `avatars/${uid}`);
     }
