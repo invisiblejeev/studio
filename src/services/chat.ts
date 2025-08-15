@@ -121,6 +121,19 @@ export const ensurePublicChatRoomExists = async (state: string) => {
     }
 };
 
+export const markAsRead = async (userId: string, otherUserId: string) => {
+    if (!userId || !otherUserId) return;
+    const chatRef = doc(db, `users/${userId}/personalChats`, otherUserId);
+    try {
+        await updateDoc(chatRef, { unreadCount: 0 });
+    } catch(e) {
+        // Can happen if doc doesn't exist, which is fine
+        if ((e as any).code !== 'not-found') {
+            console.error("Could not mark chat as read:", e);
+        }
+    }
+};
+
 export const updateMessage = async (roomId: string, messageId: string, newText: string) => {
     const messageRef = doc(db, 'chats', roomId, 'messages', messageId);
     await updateDoc(messageRef, {
@@ -136,5 +149,3 @@ export const deleteMessage = async (roomId: string, messageId: string) => {
         isDeleted: true,
     });
 };
-
-    

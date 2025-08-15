@@ -5,8 +5,10 @@ import { db } from '@/lib/firebase';
 import { collection, onSnapshot, orderBy, query, doc } from 'firebase/firestore';
 import type { Message } from '@/services/chat';
 
-export const getMessages = (roomId: string, callback: (messages: Message[]) => void) => {
+export const getMessages = (roomId: string, callback: (messages: Message[]) => void, onInitialLoad?: (messages: Message[]) => void) => {
   const q = query(collection(db, 'chats', roomId, 'messages'), orderBy('timestamp', 'asc'));
+
+  let initialLoad = true;
 
   // The unsubscribe function for the messages listener
   const unsubscribeMessages = onSnapshot(q, (querySnapshot) => {
@@ -23,6 +25,12 @@ export const getMessages = (roomId: string, callback: (messages: Message[]) => v
         isDeleted: data.isDeleted || false,
       } as Message
     });
+    
+    if (initialLoad && onInitialLoad) {
+      onInitialLoad(messages);
+      initialLoad = false;
+    }
+    
     callback(messages);
   },
   (error) => {

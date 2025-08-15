@@ -5,17 +5,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
-import { SendHorizonal, ArrowLeft, LoaderCircle } from "lucide-react"
+import { SendHorizonal, ArrowLeft, LoaderCircle, ArrowDownCircle } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { sendMessage, getPersonalChatRoomId, Message, updateMessage, deleteMessage } from "@/services/chat";
+import { sendMessage, getPersonalChatRoomId, Message, updateMessage, deleteMessage, markAsRead } from "@/services/chat";
 import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { MessageActionsDialog } from "@/components/MessageActionsDialog";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Separator } from "@/components/ui/separator";
 
 export default function PersonalChatPage({ params }: { params: { userId: string } }) {
   const router = useRouter();
@@ -29,19 +32,29 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
   const [roomId, setRoomId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const unreadMessageRef = useRef<HTMLDivElement>(null);
+  
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [firstUnreadIndex, setFirstUnreadIndex] = useState(-1);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-
   const [activeMessage, setActiveMessage] = useState<Message | null>(null);
 
+  const scrollToRef = useCallback((ref: React.RefObject<HTMLDivElement>, behavior: 'smooth' | 'auto' = 'auto') => {
+    ref.current?.scrollIntoView({ behavior, block: 'start' });
+  }, []);
+  
+  const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'auto') => {
+    scrollToRef(messagesEndRef, behavior);
+  }, [scrollToRef]);
 
-  const scrollToBottom = useCallback(() => {
-    if (scrollAreaRef.current) {
-        const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
-        if (viewport) {
-            viewport.scrollTop = viewport.scrollHeight;
-        }
-    }
+  const handleScroll = useCallback((e: any) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    const isScrolledUp = scrollHeight - scrollTop > clientHeight + 200;
+    setShowScrollToBottom(isScrolledUp);
   }, []);
 
   useEffect(() => {
@@ -56,6 +69,19 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
         if (profile && otherProfile) {
             const personalRoomId = await getPersonalChatRoomId(user.uid, userId);
             setRoomId(personalRoomId);
+            
+            // Listen for unread count
+            const personalChatRef = doc(db, `users/${user.uid}/personalChats`, userId);
+            const unsubscribe = onSnapshot(personalChatRef, (doc) => {
+                const data = doc.data();
+                setUnreadCount(data?.unreadCount || 0);
+            });
+            
+            // Mark messages as read when entering the chat
+            if ((await getDoc(personalChatRef)).exists()) {
+              markAsRead(user.uid, userId);
+            }
+            return () => unsubscribe();
         }
         
       } else {
@@ -69,15 +95,29 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
 
   useEffect(() => {
     if (!roomId || !currentUser) return;
+
+    const onInitialMessagesLoad = (initialMessages: Message[]) => {
+      if (unreadCount > 0 && initialMessages.length > 0) {
+        const index = initialMessages.length - unreadCount;
+        setFirstUnreadIndex(index);
+        setTimeout(() => scrollToRef(unreadMessageRef, 'auto'), 100);
+      } else {
+        scrollToBottom('auto');
+      }
+    };
+
     const unsubscribe = getMessages(roomId, (newMessages) => {
       setMessages(newMessages);
-    });
+    }, onInitialMessagesLoad);
+    
     return () => unsubscribe();
-  }, [roomId, currentUser]);
+  }, [roomId, currentUser, unreadCount, scrollToBottom, scrollToRef]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+     if (!showScrollToBottom) {
+       scrollToBottom('smooth');
+     }
+  }, [messages, showScrollToBottom, scrollToBottom]);
 
 
   const handleSendMessage = useCallback(async () => {
@@ -109,12 +149,12 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
   }, [newMessage, currentUser, roomId, toast]);
   
 
-  const handleShowProfile = async (userId: string) => {
-    if (userId === currentUser?.uid) {
+  const handleShowProfile = async (userIdToShow: string) => {
+    if (userIdToShow === currentUser?.uid) {
         router.push('/profile');
         return;
     }
-    const userProfile = await getUserProfile(userId);
+    const userProfile = await getUserProfile(userIdToShow);
     if (userProfile) {
         setSelectedUser(userProfile);
         setIsProfileDialogOpen(true);
@@ -171,7 +211,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
 
   return (
     <>
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       <header className="flex items-center justify-start p-4 border-b gap-4 shrink-0 bg-background">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
@@ -185,7 +225,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
           </div>
       </header>
        <div className="flex-1 overflow-y-auto bg-muted/20">
-        <ScrollArea className="h-full" ref={scrollAreaRef}>
+        <ScrollArea className="h-full" ref={scrollAreaRef} onScroll={handleScroll}>
             <div className="p-4 space-y-1">
                 {messages.map((msg, index) => {
                   const isYou = msg.user.id === currentUser?.uid;
@@ -197,8 +237,19 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
                   
                   const canEditOrDelete = isYou && !msg.isDeleted && isMessageEditable(msg.timestamp);
 
+                  const isFirstUnread = index === firstUnreadIndex;
+
                   return (
-                    <div key={msg.id} className={cn('flex items-end gap-2 group', isYou ? 'justify-end' : 'justify-start')}>
+                    <React.Fragment key={msg.id}>
+                    {isFirstUnread && (
+                        <div ref={unreadMessageRef} className="relative py-4">
+                            <Separator />
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-2 bg-muted/20">
+                                <span className="text-xs font-semibold text-muted-foreground">New Messages</span>
+                            </div>
+                        </div>
+                    )}
+                    <div id={`msg-${msg.id}`} className={cn('flex items-end gap-2 group', isYou ? 'justify-end' : 'justify-start')}>
                       {!isYou && isLastInSequence && (
                           <Avatar className={cn('h-8 w-8 cursor-pointer')} onClick={() => handleShowProfile(msg.user.id)}>
                             <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
@@ -239,8 +290,10 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
                       )}
                         {isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
                     </div>
+                    </React.Fragment>
                   )
                 })}
+                <div ref={messagesEndRef} />
                  {isSending && (
                   <div className="flex items-end gap-2 justify-end">
                       <div className="flex flex-col items-end">
@@ -259,6 +312,15 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
               )}
             </div>
         </ScrollArea>
+        {showScrollToBottom && (
+            <Button 
+                size="icon" 
+                className="absolute bottom-28 right-6 rounded-full shadow-lg"
+                onClick={() => scrollToBottom('smooth')}
+            >
+                <ArrowDownCircle className="w-6 h-6" />
+            </Button>
+        )}
       </div>
       <div className="p-4 border-t bg-background shrink-0">
           <div className="relative">

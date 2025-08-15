@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
-import { SendHorizonal, MessageSquare, LoaderCircle, Users } from "lucide-react"
+import { SendHorizonal, MessageSquare, LoaderCircle, Users, ArrowDownCircle } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -33,23 +33,28 @@ export default function ChatPage({ params }: { params: { state: string } }) {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isSending, setIsSending] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [memberCount, setMemberCount] = useState(0);
   const [totalUnread, setTotalUnread] = useState(0);
 
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const [activeMessage, setActiveMessage] = useState<Message | null>(null);
 
 
-  const scrollToBottom = useCallback(() => {
-    if (scrollAreaRef.current) {
-        const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
-        if (viewport) {
-            viewport.scrollTop = viewport.scrollHeight;
-        }
-    }
+  const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'auto') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
+
+  const handleScroll = useCallback((e: any) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    // Show button if user has scrolled up more than a certain amount
+    const isScrolledUp = scrollHeight - scrollTop > clientHeight + 200;
+    setShowScrollToBottom(isScrolledUp);
+  }, []);
+
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -72,9 +77,13 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     
     getUserCountByState(state).then(setMemberCount);
 
+    const onInitialMessagesLoad = () => {
+        scrollToBottom('auto');
+    }
+
     const unsubscribe = getMessages(state, (newMessages) => {
       setMessages(newMessages);
-    });
+    }, onInitialMessagesLoad);
     
     // Listen for total unread count
     if (currentUser.uid) {
@@ -98,11 +107,14 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     return () => {
         unsubscribe();
     };
-  }, [state, currentUser]);
+  }, [state, currentUser, scrollToBottom]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    // Only auto-scroll on new messages if the user is already near the bottom
+     if (!showScrollToBottom) {
+       scrollToBottom('smooth');
+     }
+  }, [messages, showScrollToBottom, scrollToBottom]);
 
 
   const handleShowProfile = async (userId: string) => {
@@ -188,7 +200,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
 
   return (
     <>
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       <header className="flex items-center justify-between p-4 border-b shrink-0 bg-background">
           <div>
             <h2 className="text-xl font-bold">{currentStateName} Community</h2>
@@ -208,7 +220,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
           </Button>
       </header>
       <div className="flex-1 overflow-y-auto bg-muted/20">
-        <ScrollArea className="h-full" ref={scrollAreaRef}>
+        <ScrollArea className="h-full" ref={scrollAreaRef} onScroll={handleScroll}>
             <div className="p-4 space-y-1">
                 {messages.map((msg, index) => {
                   const isYou = msg.user.id === currentUser?.uid;
@@ -221,7 +233,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                   const canEditOrDelete = isYou && !msg.isDeleted && isMessageEditable(msg.timestamp);
 
                   return (
-                    <div key={msg.id} className={cn('flex items-end gap-2 group', isYou ? 'justify-end' : 'justify-start')}>
+                    <div key={msg.id} id={`msg-${msg.id}`} className={cn('flex items-end gap-2 group', isYou ? 'justify-end' : 'justify-start')}>
                       {!isYou && isLastInSequence && (
                           <Avatar className={cn('h-8 w-8 cursor-pointer')} onClick={() => handleShowProfile(msg.user.id)}>
                               <AvatarImage src={msg.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
@@ -269,6 +281,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                     </div>
                   )
                 })}
+                 <div ref={messagesEndRef} />
                 {isSending && (
                   <div className="flex items-end gap-2 justify-end">
                       <div className="flex flex-col items-end">
@@ -287,6 +300,15 @@ export default function ChatPage({ params }: { params: { state: string } }) {
               )}
             </div>
         </ScrollArea>
+        {showScrollToBottom && (
+            <Button 
+                size="icon" 
+                className="absolute bottom-28 right-6 rounded-full shadow-lg"
+                onClick={() => scrollToBottom('smooth')}
+            >
+                <ArrowDownCircle className="w-6 h-6" />
+            </Button>
+        )}
       </div>
       <div className="p-4 border-t bg-background shrink-0">
           <div className="relative">
