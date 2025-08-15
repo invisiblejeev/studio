@@ -24,6 +24,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 
 export default function PersonalChatPage() {
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function PersonalChatPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [imageToPreview, setImageToPreview] = useState<string | null>(null);
 
   const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current) {
@@ -254,11 +256,9 @@ export default function PersonalChatPage() {
                                   'rounded-lg'
                               )}>
                                   {msg.imageUrl && !msg.isDeleted && (
-                                    <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                                      <div className="relative aspect-video rounded-md overflow-hidden">
-                                        <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
-                                      </div>
-                                    </Link>
+                                    <div className="relative aspect-video rounded-md overflow-hidden cursor-pointer" onClick={() => setImageToPreview(msg.imageUrl!)}>
+                                      <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
+                                    </div>
                                   )}
                                   {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                               </div>
@@ -344,6 +344,10 @@ export default function PersonalChatPage() {
         onOpenChange={setIsProfileDialogOpen}
         user={selectedUser}
         currentUser={currentUser}
+    />
+    <ImagePreviewDialog 
+        imageUrl={imageToPreview}
+        onOpenChange={() => setImageToPreview(null)}
     />
     </>
   );
