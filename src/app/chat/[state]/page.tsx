@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
-import { SendHorizonal, MessageSquare, LoaderCircle, Users, Trash2 } from "lucide-react"
+import { SendHorizonal, MessageSquare, LoaderCircle, Users } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile, getUserCountByState } from "@/services/users";
-import { sendMessage, Message, ensurePublicChatRoomExists, deleteMessage } from "@/services/chat";
+import { sendMessage, Message, ensurePublicChatRoomExists } from "@/services/chat";
 import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -20,17 +20,10 @@ import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { Badge } from "@/components/ui/badge";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
 
 
 export default function ChatPage({ params }: { params: { state: string } }) {
   const router = useRouter();
-  const { state } = params;
   const { toast } = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -68,14 +61,14 @@ export default function ChatPage({ params }: { params: { state: string } }) {
   }, [router]);
   
   useEffect(() => {
-    if (!state || !currentUser) return;
+    if (!params.state || !currentUser) return;
 
     // Proactively ensure the public chat room document exists.
-    ensurePublicChatRoomExists(state);
+    ensurePublicChatRoomExists(params.state);
     
-    getUserCountByState(state).then(setMemberCount);
+    getUserCountByState(params.state).then(setMemberCount);
 
-    const unsubscribe = getMessages(state, (newMessages) => {
+    const unsubscribe = getMessages(params.state, (newMessages) => {
       setMessages(newMessages);
     });
     
@@ -101,7 +94,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     return () => {
         unsubscribe();
     };
-  }, [state, currentUser]);
+  }, [params.state, currentUser]);
 
   useEffect(() => {
     scrollToBottom();
@@ -129,7 +122,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     setIsSending(true);
     
     try {
-        await sendMessage(state, {
+        await sendMessage(params.state, {
           user: {
               id: currentUser.uid,
               name: currentUser.username,
@@ -149,24 +142,9 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     } finally {
         setIsSending(false);
     }
-  }, [newMessage, currentUser, state, toast]);
+  }, [newMessage, currentUser, params.state, toast]);
 
-  const handleDelete = async (messageId: string) => {
-    try {
-      await deleteMessage(state, messageId);
-      toast({
-        title: 'Message Deleted',
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete message.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
+  const currentStateName = allStates.find(s => s.value === params.state)?.label || "Select State";
   const canSendMessage = !!currentUser && newMessage.trim() !== "" && !isSending;
 
 
@@ -219,30 +197,17 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                           {!isYou && isFirstInSequence && (
                               <p className="text-xs text-muted-foreground mb-1 px-3 cursor-pointer hover:underline" onClick={() => handleShowProfile(msg.user.id)}>{msg.user.name}</p>
                           )}
-                           <ContextMenu>
-                            <ContextMenuTrigger>
-                              <div className={cn('p-3 rounded-lg shadow-sm', 
-                                  isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
-                                  msg.isDeleted ? 'bg-muted text-muted-foreground italic' : '',
-                                  isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
-                                  isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
-                                  !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
-                                  !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
-                                  !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
-                                  'rounded-lg'
-                              )}>
-                                  {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-                              </div>
-                            </ContextMenuTrigger>
-                            <ContextMenuContent>
-                              {isYou && !msg.isDeleted && (
-                                <ContextMenuItem onClick={() => handleDelete(msg.id)} className="text-destructive">
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
-                                </ContextMenuItem>
-                              )}
-                            </ContextMenuContent>
-                          </ContextMenu>
+                          <div className={cn('p-3 rounded-lg shadow-sm', 
+                              isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
+                              isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
+                              isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
+                              !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
+                              !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
+                              !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
+                              'rounded-lg'
+                          )}>
+                              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                          </div>
                           {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                       </div>
 

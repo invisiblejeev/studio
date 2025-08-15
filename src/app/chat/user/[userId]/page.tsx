@@ -5,26 +5,19 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
-import { SendHorizonal, ArrowLeft, LoaderCircle, Trash2 } from "lucide-react"
+import { SendHorizonal, ArrowLeft, LoaderCircle } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
-import { sendMessage, getPersonalChatRoomId, Message, deleteMessage } from "@/services/chat";
+import { sendMessage, getPersonalChatRoomId, Message } from "@/services/chat";
 import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
 
 export default function PersonalChatPage({ params }: { params: { userId: string } }) {
   const router = useRouter();
-  const { userId: otherUserId } = params;
   const { toast } = useToast();
   
   const [messages, setMessages] = useState<Message[]>([]);
@@ -52,11 +45,11 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
       if (user) {
         const profile = await getUserProfile(user.uid);
         setCurrentUser(profile);
-        const otherProfile = await getUserProfile(otherUserId);
+        const otherProfile = await getUserProfile(params.userId);
         setOtherUser(otherProfile);
 
         if (profile && otherProfile) {
-            const personalRoomId = await getPersonalChatRoomId(user.uid, otherUserId);
+            const personalRoomId = await getPersonalChatRoomId(user.uid, params.userId);
             setRoomId(personalRoomId);
         }
         
@@ -64,10 +57,10 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
         router.push('/');
       }
     };
-    if (otherUserId) {
+    if (params.userId) {
         fetchUsersAndRoom();
     }
-  }, [router, otherUserId]);
+  }, [router, params.userId]);
 
   useEffect(() => {
     if (!roomId || !currentUser) return;
@@ -110,22 +103,6 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
     }
   }, [newMessage, currentUser, roomId, toast]);
   
-
-  const handleDelete = async (messageId: string) => {
-    if (!roomId) return;
-    try {
-      await deleteMessage(roomId, messageId);
-      toast({
-        title: 'Message Deleted',
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete message.',
-        variant: 'destructive',
-      });
-    }
-  };
 
   const handleShowProfile = async (userId: string) => {
     if (userId === currentUser?.uid) {
@@ -192,31 +169,18 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
                         isYou ? 'items-end' : 'items-start',
                         'max-w-xs lg:max-w-md'
                       )}>
-                           <ContextMenu>
-                            <ContextMenuTrigger>
-                              <div className={cn('rounded-lg shadow-sm', 
-                                  isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
-                                  msg.isDeleted ? 'bg-muted text-muted-foreground italic' : '',
-                                  'p-3',
-                                  isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
-                                  isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
-                                  !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
-                                  !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
-                                  !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
-                                  'rounded-lg'
-                              )}>
-                                  {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-                              </div>
-                            </ContextMenuTrigger>
-                            <ContextMenuContent>
-                              {isYou && !msg.isDeleted && (
-                                <ContextMenuItem onClick={() => handleDelete(msg.id)} className="text-destructive">
-                                   <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
-                                </ContextMenuItem>
-                              )}
-                            </ContextMenuContent>
-                          </ContextMenu>
+                          <div className={cn('rounded-lg shadow-sm', 
+                              isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
+                              'p-3',
+                              isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
+                              isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
+                              !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
+                              !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
+                              !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
+                              'rounded-lg'
+                          )}>
+                              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                          </div>
                           {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                       </div>
 
