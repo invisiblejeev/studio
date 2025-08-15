@@ -49,7 +49,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
       lastMessageTimestamp: serverTimestamp(),
       lastMessage: lastMessageContent,
       lastMessageSenderId: message.user.id
-  }, { merge: true }).catch(e => console.error("Failed to update chat timestamp:", e));
+  }, { merge: true });
 
   // The logic to increment the unread count for the recipient is now handled by a Firestore trigger.
   // We still need to update the SENDER's own chat document for sorting purposes and UI consistency.
@@ -61,17 +61,11 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
       if (recipientId) {
         const senderChatRef = doc(db, `users/${message.user.id}/personalChats`, recipientId);
         // We update the sender's document to reflect the new last message immediately.
-        await updateDoc(senderChatRef, {
+        await setDoc(senderChatRef, {
             lastMessage: lastMessageContent,
             lastMessageTimestamp: serverTimestamp(),
             lastMessageSenderId: message.user.id
-        }).catch(e => {
-             // This can happen if the doc doesn't exist yet, which is fine.
-             // The trigger will create it if needed.
-             if (e.code !== 'not-found') {
-                console.log("Sender personal chat doc may not exist yet, which is okay.", e.code)
-             }
-        });
+        }, { merge: true });
       }
   }
 };
