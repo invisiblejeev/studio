@@ -1,14 +1,15 @@
 
 {
   "appName": "Indian Community Chat App (USA)",
-  "appDescription": "A mobile-first chat application designed to connect the Indian community within different states in the USA. It features state-specific public chat rooms, private messaging, and dedicated pages for community needs and offers.",
+  "appDescription": "A mobile-first chat application designed to connect the Indian community within different states in the USA. It features state-specific public chat rooms, private messaging, and AI-powered content moderation and categorization to identify community needs.",
   "techStack": [
     "Next.js (App Router)",
     "React",
     "TypeScript",
     "Tailwind CSS",
     "ShadCN UI",
-    "Firebase (Firestore, Authentication, Storage)"
+    "Firebase (Firestore, Authentication, Storage)",
+    "Genkit (for AI functionality)"
   ],
   "coreFeatures": [
     {
@@ -21,15 +22,19 @@
     },
     {
       "feature": "Public Chat",
-      "description": "State-specific public group chat rooms (e.g., 'california', 'texas'). Users join based on their profile's state. Supports text messages."
+      "description": "State-specific public group chat rooms (e.g., 'california', 'texas'). Users join based on their profile's state. Supports text and image messages."
     },
     {
       "feature": "Private Chat",
       "description": "Users can initiate one-on-one private chats with other users. Private chat history is accessible from a dedicated 'Personal Chats' screen."
     },
     {
+      "feature": "AI-Powered Requirement Detection",
+      "description": "An AI flow automatically analyzes messages in public chats to detect user needs. It categorizes messages into types like 'Jobs', 'Housing', 'Marketplace', etc., and creates a structured 'requirement' post."
+    },
+    {
       "feature": "Requirements Page",
-      "description": "A dedicated page that displays community needs. Users can manually post new requirements (e.g., 'Jobs', 'Housing') through a form. They can also filter requirements by category. This page serves as a community needs board."
+      "description": "A dedicated page that displays all AI-detected requirements. Users can filter requirements by category. This page serves as a community needs board."
     },
     {
       "feature": "Coupons & Offers Page",
@@ -37,7 +42,7 @@
     },
     {
       "feature": "Admin Dashboard",
-      "description": "A protected page for administrators. It shows charts and key metrics for community requirements and offers, allowing admins to analyze activity at a glance."
+      "description": "A protected page for administrators. It displays a log of detected spam messages and a feed of the latest AI-classified community requirements. Admins can also add new offers directly from this dashboard."
     },
     {
       "feature": "Navigation",
@@ -102,8 +107,10 @@
                 "avatar": "string"
               },
               "text": "string (optional)",
+              "imageUrl": "string (URL, optional)",
               "timestamp": "timestamp",
-              "isDeleted": "boolean (optional)"
+              "isSpam": "boolean (optional)",
+              "reason": "string (optional)"
             }
           }
         ]
@@ -122,8 +129,8 @@
           "timestamp": "timestamp",
           "category": "string (e.g., 'Jobs', 'Housing')",
           "title": "string",
-          "startDate": "string (yyyy-MM-dd, optional)",
-          "expireDate": "string (yyyy-MM-dd, optional)"
+          "originalMessageId": "string",
+          "originalRoomId": "string"
         }
       },
       {
@@ -142,7 +149,22 @@
     ]
   },
   "aiFunctionality": {
-    "genkitFlows": []
+    "genkitFlows": [
+      {
+        "name": "categorizeMessageFlow",
+        "path": "src/ai/flows/categorize-message.ts",
+        "description": "Analyzes a user's chat message to determine if it represents a specific need or requirement.",
+        "input": {
+          "text": "string (The user's message)"
+        },
+        "output": {
+          "category": "enum ('Jobs', 'Housing', 'Marketplace', 'Events', 'Plumber', 'Babysitter', 'Pet Care', 'Doctor', 'Lawyer', 'General Chat', 'Other')",
+          "title": "string (A concise title for the post, e.g., 'Roommate Needed')",
+          "reason": "string (optional, explanation for the categorization)"
+        },
+        "trigger": "A Firestore trigger on document creation in `chats/{roomId}/messages/{messageId}`. It processes messages from public chats and creates a new document in the `requirements` collection if the category is not 'General Chat' or 'Other'."
+      }
+    ]
   },
   "securityRules": {
     "file": "firestore.rules",
@@ -156,26 +178,19 @@
         }
       },
       {
-        "path": "/chats/{roomId}",
-        "permissions": {
-            "read": "Allow if authenticated and it is a public chat (roomId has no '_') or if the user is part of the private chat (their uid is in the roomId).",
-            "write": "Allow if authenticated."
-        }
-      },
-      {
         "path": "/chats/{roomId}/messages/{messageId}",
         "permissions": {
-          "read": "Allow if authenticated and it is a public chat (roomId has no '_') or if the user is part of the private chat (their uid is in the roomId).",
-          "write": "Allow if authenticated and the message belongs to them."
+          "read": "Allow if the user's UID is in the `users` array of the parent chat document (for private chats) or if it's a public chat.",
+          "write": "Allow if the user is authenticated and the message belongs to them."
         }
       },
       {
         "path": "/requirements/{requirementId}",
         "permissions": {
           "read": "Allow if user is authenticated.",
-          "create": "Allow if user is authenticated.",
-          "update": "Allow if user is an admin or if the requirement belongs to the user.",
-          "delete": "Allow if user is an admin or if the requirement belongs to the user."
+          "create": "Deny client-side creation (only cloud functions can create).",
+          "update": "Allow if user is an admin.",
+          "delete": "Allow if user is an admin."
         }
       },
       {

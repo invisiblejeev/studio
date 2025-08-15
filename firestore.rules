@@ -3,64 +3,61 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAuth() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
+    // Helper function to check if a user is an administrator.
+    // This checks for the existence of a document in an 'admins' collection.
     function isAdmin() {
-      // In a real production app, use custom claims.
-      // For this app, checking an 'admins' collection is a secure pattern.
       return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    // User profiles can be read by anyone authenticated, but only written by the owner.
+    // Users can read any profile (to see avatars/names in chat),
+    // but can only write to their own profile.
     match /users/{userId} {
-      allow read: if isAuth();
-      allow write: if isOwner(userId);
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
+    }
 
-      // Personal chat list under each user
-      match /personalChats/{otherUserId} {
-        allow read, write: if isOwner(userId);
+    // Rules for chat rooms. Distinguishes between public and private chats.
+    match /chats/{roomId} {
+      // Allow reading the chat document itself if it's a public chat,
+      // or if the user is a member of the private chat.
+      allow get: if request.auth != null &&
+                   (!('isPersonal' in resource.data) || resource.data.isPersonal == false || (resource.data.isPersonal == true && request.auth.uid in resource.data.users));
+
+      // Allow creating/updating chat documents (e.g., for lastMessage)
+      allow write: if request.auth != null;
+
+      // Rules for messages within a chat room.
+      match /messages/{messageId} {
+        // Allow reading messages if it's a public chat (no underscore in roomId)
+        // or if the user's UID is part of the private chat's roomId.
+        allow read: if request.auth != null &&
+                       (!roomId.matches('.*_.*') || request.auth.uid in roomId.split('_'));
+
+        // Allow creating messages if authenticated.
+        // Allow updating (for soft-delete) only if the user is the author.
+        allow create: if request.auth != null;
+        allow update: if request.auth != null && request.resource.data.user.id == request.auth.uid;
       }
+    }
+
+    // Any authenticated user can view requirements.
+    // Only the author or an admin can create, update or delete.
+    match /requirements/{requirementId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && (resource.data.user.id == request.auth.uid || isAdmin());
+    }
+
+    // Any authenticated user can view offers.
+    // Only admins can create, update, or delete offers.
+    match /offers/{offerId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
     }
     
-    // Admins collection is read-only for clients.
-    match /admins/{userId} {
-      allow read: if isAuth();
-      allow write: if false; // Only allow server-side/console writes
-    }
-
-    match /chats/{roomId} {
-      // CHAT METADATA (e.g., last message)
-      // Anyone authenticated can create/update chat metadata.
-      // Reading is controlled by the message rules below.
-      allow read, create, update: if isAuth();
-
-      // MESSAGES SUBCOLLECTION
-      match /messages/{messageId} {
-        // PUBLIC CHATS (e.g., 'california') - roomId does not contain '_'
-        allow read, write: if isAuth() && !roomId.matches('.*_.*');
-        
-        // PRIVATE CHATS (e.g., 'uid1_uid2') - roomId contains '_'
-        allow read, write: if isAuth() && roomId.matches('.*_.*') && request.auth.uid in roomId.split('_');
-      }
-    }
-
-    // Requirements can be read/created by any authenticated user.
-    // Only the author or an admin can update/delete.
-    match /requirements/{requirementId} {
-      allow read, create: if isAuth();
-      allow update, delete: if isAuth() && (resource.data.user.id == request.auth.uid || isAdmin());
-    }
-
-    // Offers can be read by anyone, but only written by an admin.
-    match /offers/{offerId} {
-      allow read: if isAuth();
-      allow write: if isAdmin();
+    // Admins collection is read-only for clients to prevent tampering.
+    match /admins/{adminId} {
+      allow read, write: if false;
     }
   }
 }
