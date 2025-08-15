@@ -587,32 +587,6 @@ export default function OffersPage() {
         </div>
       )}
 
-        {!currentUser?.isAdmin && (
-            <Dialog open={isPromoteDialogOpen} onOpenChange={setIsPromoteDialogOpen}>
-                <DialogTrigger asChild>
-                     <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg z-30 md:bottom-8 md:right-8 flex items-center justify-center">
-                        <Megaphone className="h-6 w-6" />
-                    </Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Promote Your Business</DialogTitle>
-                        <DialogDescription>
-                            Want to feature your coupon or offer here? Contact an administrator to get it listed.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <p>To have your offer or coupon added to the Indian Community Chat app, please send an email with the details of your offer to:</p>
-                        <p className="font-semibold my-2 text-center text-lg">admin@indiancommunity.com</p>
-                        <p>An administrator will review your submission and add it to the page if it's a good fit for our community.</p>
-                    </div>
-                    <DialogFooter>
-                        <Button onClick={() => setIsPromoteDialogOpen(false)}>Close</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        )}
-
       {currentUser?.isAdmin && editingOffer && (
             <Dialog open={isEditOfferOpen} onOpenChange={(isOpen) => {
                 if (!isOpen) resetDialogState();
@@ -751,3 +725,5 @@ export default function OffersPage() {
     </div>
   )
 }
+
+    
