@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { SendHorizonal, ArrowLeft, LoaderCircle, Trash2 } from "lucide-react"
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
@@ -22,9 +22,9 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 
-export default function PersonalChatPage() {
+export default function PersonalChatPage({ params }: { params: { userId: string } }) {
   const router = useRouter();
-  const { userId: otherUserId } = useParams() as { userId: string };
+  const { userId: otherUserId } = params;
   const { toast } = useToast();
   
   const [messages, setMessages] = useState<Message[]>([]);

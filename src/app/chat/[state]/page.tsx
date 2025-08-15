@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
 import { SendHorizonal, MessageSquare, LoaderCircle, Users, Trash2 } from "lucide-react"
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
@@ -28,10 +28,9 @@ import {
 } from "@/components/ui/context-menu"
 
 
-export default function ChatPage() {
+export default function ChatPage({ params }: { params: { state: string } }) {
   const router = useRouter();
-  const params = useParams();
-  const state = params.state as string;
+  const { state } = params;
   const { toast } = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
