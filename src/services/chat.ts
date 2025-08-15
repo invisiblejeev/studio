@@ -121,12 +121,20 @@ export const ensurePublicChatRoomExists = async (state: string) => {
     }
 };
 
+export const updateMessage = async (roomId: string, messageId: string, newText: string) => {
+    const messageRef = doc(db, 'chats', roomId, 'messages', messageId);
+    await updateDoc(messageRef, {
+        text: newText,
+    });
+};
+
 export const deleteMessage = async (roomId: string, messageId: string) => {
     const messageRef = doc(db, 'chats', roomId, 'messages', messageId);
     // Soft delete: update the message to indicate it's deleted.
     await updateDoc(messageRef, {
         text: 'This message was deleted',
-        imageUrl: null,
         isDeleted: true,
     });
 };
+
+    
