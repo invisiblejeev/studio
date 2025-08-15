@@ -284,7 +284,7 @@ export default function ChatPage() {
                               )}>
                                   {msg.imageUrl && !msg.isDeleted && (
                                     <Link href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                                        <div className="relative aspect-square rounded-md overflow-hidden max-w-[300px]">
+                                        <div className="relative aspect-video rounded-md overflow-hidden max-w-[320px]">
                                           <Image src={msg.imageUrl} alt="Chat image" fill className="object-cover" />
                                         </div>
                                     </Link>
