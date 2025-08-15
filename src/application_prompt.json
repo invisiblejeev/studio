@@ -59,7 +59,7 @@
           "phone": "string (optional)",
           "state": "string (optional, e.g., 'california')",
           "city": "string (optional)",
-          "avatar": "string (URL to image, optional)",
+          "avatar": "string (Data URI, optional)",
           "isAdmin": "boolean"
         },
         "subcollections": [
@@ -103,7 +103,7 @@
                 "avatar": "string"
               },
               "text": "string (optional)",
-              "imageUrl": "string (URL, optional)",
+              "imageUrl": "string (Data URI, optional)",
               "timestamp": "timestamp",
               "isDeleted": "boolean (optional)"
             }
@@ -134,7 +134,7 @@
         "schema": {
           "title": "string",
           "description": "string",
-          "images": "array<string> (URLs)",
+          "images": "array<string> (Data URIs)",
           "code": "string (optional)",
           "validUntil": "string (yyyy-MM-dd, optional)",
           "type": "string (e.g., 'Discount', 'Deal', optional)",
@@ -173,10 +173,18 @@
         }
       },
       {
+        "path": "/chats/{roomId}",
+        "permissions": {
+          "read": "Allow if it is a public chat OR if the user is a member of the private chat.",
+          "create": "Allow if user is authenticated.",
+          "update": "Allow if the user is a member of the chat."
+        }
+      },
+      {
         "path": "/chats/{roomId}/messages/{messageId}",
         "permissions": {
           "read": "Allow if it is a public chat OR if the user is a member of the private chat.",
-          "create": "Allow if user is authenticated and the author of the message and a member of the chat.",
+          "create": "Allow if user is authenticated, the author of the message, and a member of the chat.",
           "update": "Allow if user is the author of the message (for editing or soft-deleting).",
           "delete": "Deny all client deletes."
         }
