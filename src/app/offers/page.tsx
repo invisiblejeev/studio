@@ -27,6 +27,7 @@ import { allStates } from "@/lib/states";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { uploadImage } from "@/services/storage";
+import { Separator } from "@/components/ui/separator";
 
 
 interface Offer {
@@ -344,120 +345,141 @@ export default function OffersPage() {
                             <Plus className="mr-2 h-4 w-4" /> Add Offer
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-2xl">
                         <DialogHeader>
                             <DialogTitle>Add New Offer</DialogTitle>
                             <DialogDescription>Create a new coupon or offer for the community.</DialogDescription>
                         </DialogHeader>
-                        <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="title">Title</Label>
-                                <Input id="title" value={newOffer.title} onChange={(e) => setNewOffer({...newOffer, title: e.target.value})} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="description">Description</Label>
-                                <Textarea id="description" value={newOffer.description} onChange={(e) => setNewOffer({...newOffer, description: e.target.value})} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="code">Coupon Code</Label>
-                                    <Input id="code" placeholder="e.g., DIWALI20" value={newOffer.code} onChange={(e) => setNewOffer({...newOffer, code: e.target.value})} />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="type">Offer Type</Label>
-                                    <Select onValueChange={(value) => setNewOffer({...newOffer, type: value})} value={newOffer.type}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select Type" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Discount">Discount</SelectItem>
-                                            <SelectItem value="Deal">Deal</SelectItem>
-                                            <SelectItem value="Service">Service</SelectItem>
-                                            <SelectItem value="Other">Other</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label>Valid Until</Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                    <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                        "justify-start text-left font-normal",
-                                        !addValidUntil && "text-muted-foreground"
-                                        )}
-                                    >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {addValidUntil ? format(addValidUntil, "PPP") : <span>Pick a date</span>}
-                                    </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
-                                        <Calendar
-                                            mode="single"
-                                            selected={addValidUntil}
-                                            onSelect={setAddValidUntil}
-                                            initialFocus
-                                        />
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label>Available States</Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                    <Button variant="outline" className="justify-start w-full">
-                                        {newOffer.states?.includes('all') ? 'All States' : `${newOffer.states?.length || 0} states selected`}
-                                    </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-[300px] p-0">
-                                        <div className="p-4">
-                                            <div className="flex items-center space-x-2 mb-2">
-                                                <Checkbox
-                                                    id="all-states-add"
-                                                    checked={newOffer.states?.includes('all')}
-                                                    onCheckedChange={() => handleStateSelection('all', false)}
-                                                />
-                                                <Label htmlFor="all-states-add" className="font-semibold">All States</Label>
-                                            </div>
-                                            <hr className="my-2" />
-                                            <ScrollArea className="h-40">
-                                                {allStates.map(state => (
-                                                    <div key={state.value} className="flex items-center space-x-2 mt-1">
-                                                        <Checkbox
-                                                            id={`add-${state.value}`}
-                                                            checked={newOffer.states?.includes(state.value) || newOffer.states?.includes('all')}
-                                                            disabled={newOffer.states?.includes('all')}
-                                                            onCheckedChange={() => handleStateSelection(state.value, false)}
-                                                        />
-                                                        <Label htmlFor={`add-${state.value}`}>{state.label}</Label>
-                                                    </div>
-                                                ))}
-                                            </ScrollArea>
+                        <div className="space-y-6 py-4 max-h-[70vh] overflow-y-auto pr-4">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Offer Details</CardTitle>
+                                    <CardDescription>Provide the main information about the offer.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="title">Title</Label>
+                                        <Input id="title" value={newOffer.title} onChange={(e) => setNewOffer({...newOffer, title: e.target.value})} placeholder="e.g. 20% Off All T-Shirts" />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="description">Description</Label>
+                                        <Textarea id="description" value={newOffer.description} onChange={(e) => setNewOffer({...newOffer, description: e.target.value})} placeholder="Describe the deal in more detail..."/>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="code">Coupon Code</Label>
+                                            <Input id="code" placeholder="e.g., DIWALI20" value={newOffer.code} onChange={(e) => setNewOffer({...newOffer, code: e.target.value})} />
                                         </div>
-                                    </PopoverContent>
-                            </Popover>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label>Offer Images</Label>
-                                <div className="flex items-center gap-4">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="type">Offer Type</Label>
+                                            <Select onValueChange={(value) => setNewOffer({...newOffer, type: value})} value={newOffer.type}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select Type" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Discount">Discount</SelectItem>
+                                                    <SelectItem value="Deal">Deal</SelectItem>
+                                                    <SelectItem value="Service">Service</SelectItem>
+                                                    <SelectItem value="Other">Other</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Availability</CardTitle>
+                                    <CardDescription>Specify when and where the offer is available.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid gap-2">
+                                        <Label>Valid Until</Label>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                            <Button
+                                                variant={"outline"}
+                                                className={cn(
+                                                "justify-start text-left font-normal",
+                                                !addValidUntil && "text-muted-foreground"
+                                                )}
+                                            >
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {addValidUntil ? format(addValidUntil, "PPP") : <span>Pick an expiration date (optional)</span>}
+                                            </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0">
+                                                <Calendar
+                                                    mode="single"
+                                                    selected={addValidUntil}
+                                                    onSelect={setAddValidUntil}
+                                                    initialFocus
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>Available States</Label>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                            <Button variant="outline" className="justify-start w-full">
+                                                {newOffer.states?.includes('all') ? 'All States' : `${newOffer.states?.length || 0} states selected`}
+                                            </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[300px] p-0">
+                                                <div className="p-4">
+                                                    <div className="flex items-center space-x-2 mb-2">
+                                                        <Checkbox
+                                                            id="all-states-add"
+                                                            checked={newOffer.states?.includes('all')}
+                                                            onCheckedChange={() => handleStateSelection('all', false)}
+                                                        />
+                                                        <Label htmlFor="all-states-add" className="font-semibold">All States</Label>
+                                                    </div>
+                                                    <Separator className="my-2" />
+                                                    <ScrollArea className="h-40">
+                                                        {allStates.map(state => (
+                                                            <div key={state.value} className="flex items-center space-x-2 mt-1">
+                                                                <Checkbox
+                                                                    id={`add-${state.value}`}
+                                                                    checked={newOffer.states?.includes(state.value) || newOffer.states?.includes('all')}
+                                                                    disabled={newOffer.states?.includes('all')}
+                                                                    onCheckedChange={() => handleStateSelection(state.value, false)}
+                                                                />
+                                                                <Label htmlFor={`add-${state.value}`}>{state.label}</Label>
+                                                            </div>
+                                                        ))}
+                                                    </ScrollArea>
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Media</CardTitle>
+                                    <CardDescription>Upload images for your offer.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
                                     <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                                        <Upload className="mr-2 h-4 w-4" /> Upload
+                                        <Upload className="mr-2 h-4 w-4" /> Upload Images
                                     </Button>
                                     <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
-                                </div>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                    {imagePreviews.map((preview, index) => (
-                                        <div key={index} className="relative w-20 h-20">
-                                            <Image src={preview} alt={`preview ${index}`} layout="fill" className="rounded-md object-cover" />
-                                            <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeUploadedImage(index)}>
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                                    <div className="flex flex-wrap gap-2 mt-4">
+                                        {imagePreviews.map((preview, index) => (
+                                            <div key={index} className="relative w-24 h-24">
+                                                <Image src={preview} alt={`preview ${index}`} layout="fill" className="rounded-md object-cover border" />
+                                                <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeUploadedImage(index)}>
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setIsAddOfferOpen(false)} disabled={isSaving}>Cancel</Button>
@@ -488,7 +510,7 @@ export default function OffersPage() {
               <div className={cn("relative h-full w-full transform-style-3d transition-transform duration-700", flippedOffers.has(offer.id) && "rotate-y-180")}>
                 {/* Card Front */}
                 <div className="backface-hidden w-full h-full">
-                    <Card className="overflow-hidden flex flex-col h-full">
+                    <Card className="overflow-hidden flex flex-col h-full rounded-lg">
                     <CardHeader className="p-0 relative">
                         <Carousel className="w-full"
                             plugins={[autoplay.current]}
@@ -560,7 +582,7 @@ export default function OffersPage() {
                 </div>
                 {/* Card Back */}
                 <div className="absolute top-0 left-0 w-full h-full backface-hidden rotate-y-180">
-                     <Card className="flex flex-col h-full items-center justify-center bg-muted">
+                     <Card className="flex flex-col h-full items-center justify-center bg-muted rounded-lg">
                         <CardHeader>
                             <CardTitle>Coupon Code</CardTitle>
                         </CardHeader>
@@ -592,126 +614,149 @@ export default function OffersPage() {
                 if (!isOpen) resetDialogState();
                 setIsEditOfferOpen(isOpen);
             }}>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent className="sm:max-w-2xl">
                   <DialogHeader>
                       <DialogTitle>Edit Offer</DialogTitle>
                       <DialogDescription>Update the details for this offer.</DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
-                      <div className="grid gap-2">
-                          <Label htmlFor="title-edit">Title</Label>
-                          <Input id="title-edit" value={editingOffer.title} onChange={(e) => setEditingOffer({...editingOffer, title: e.target.value})} />
-                      </div>
-                      <div className="grid gap-2">
-                          <Label htmlFor="description-edit">Description</Label>
-                          <Textarea id="description-edit" value={editingOffer.description} onChange={(e) => setEditingOffer({...editingOffer, description: e.target.value})} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                          <div className="grid gap-2">
-                              <Label htmlFor="code-edit">Coupon Code</Label>
-                              <Input id="code-edit" placeholder="e.g., DIWALI20" value={editingOffer.code || ''} onChange={(e) => setEditingOffer({...editingOffer, code: e.target.value})} />
-                          </div>
-                          <div className="grid gap-2">
-                              <Label htmlFor="type-edit">Offer Type</Label>
-                              <Select onValueChange={(value) => setEditingOffer({...editingOffer, type: value})} value={editingOffer.type || ''}>
-                                  <SelectTrigger>
-                                      <SelectValue placeholder="Select Type" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                      <SelectItem value="Discount">Discount</SelectItem>
-                                      <SelectItem value="Deal">Deal</SelectItem>
-                                      <SelectItem value="Service">Service</SelectItem>
-                                      <SelectItem value="Other">Other</SelectItem>
-                                  </SelectContent>
-                              </Select>
-                          </div>
-                      </div>
-                      <div className="grid gap-2">
-                          <Label>Valid Until</Label>
-                          <Popover>
-                              <PopoverTrigger asChild>
-                              <Button
-                                  variant={"outline"}
-                                  className={cn(
-                                  "justify-start text-left font-normal",
-                                  !editValidUntil && "text-muted-foreground"
-                                  )}
-                              >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {editValidUntil ? format(editValidUntil, "PPP") : <span>Pick a date</span>}
+                  <div className="space-y-6 py-4 max-h-[70vh] overflow-y-auto pr-4">
+                      <Card>
+                          <CardHeader>
+                              <CardTitle>Offer Details</CardTitle>
+                              <CardDescription>Provide the main information about the offer.</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                              <div className="grid gap-2">
+                                  <Label htmlFor="title-edit">Title</Label>
+                                  <Input id="title-edit" value={editingOffer.title} onChange={(e) => setEditingOffer({...editingOffer, title: e.target.value})} />
+                              </div>
+                              <div className="grid gap-2">
+                                  <Label htmlFor="description-edit">Description</Label>
+                                  <Textarea id="description-edit" value={editingOffer.description} onChange={(e) => setEditingOffer({...editingOffer, description: e.target.value})} />
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="grid gap-2">
+                                      <Label htmlFor="code-edit">Coupon Code</Label>
+                                      <Input id="code-edit" placeholder="e.g., DIWALI20" value={editingOffer.code || ''} onChange={(e) => setEditingOffer({...editingOffer, code: e.target.value})} />
+                                  </div>
+                                  <div className="grid gap-2">
+                                      <Label htmlFor="type-edit">Offer Type</Label>
+                                      <Select onValueChange={(value) => setEditingOffer({...editingOffer, type: value})} value={editingOffer.type || ''}>
+                                          <SelectTrigger>
+                                              <SelectValue placeholder="Select Type" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                              <SelectItem value="Discount">Discount</SelectItem>
+                                              <SelectItem value="Deal">Deal</SelectItem>
+                                              <SelectItem value="Service">Service</SelectItem>
+                                              <SelectItem value="Other">Other</SelectItem>
+                                          </SelectContent>
+                                      </Select>
+                                  </div>
+                              </div>
+                          </CardContent>
+                      </Card>
+
+                      <Card>
+                          <CardHeader>
+                              <CardTitle>Availability</CardTitle>
+                              <CardDescription>Specify when and where the offer is available.</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                              <div className="grid gap-2">
+                                  <Label>Valid Until</Label>
+                                  <Popover>
+                                      <PopoverTrigger asChild>
+                                      <Button
+                                          variant={"outline"}
+                                          className={cn(
+                                          "justify-start text-left font-normal",
+                                          !editValidUntil && "text-muted-foreground"
+                                          )}
+                                      >
+                                          <CalendarIcon className="mr-2 h-4 w-4" />
+                                          {editValidUntil ? format(editValidUntil, "PPP") : <span>Pick a date</span>}
+                                      </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0">
+                                          <Calendar
+                                              mode="single"
+                                              selected={editValidUntil}
+                                              onSelect={setEditValidUntil}
+                                              initialFocus
+                                          />
+                                      </PopoverContent>
+                                  </Popover>
+                              </div>
+                              <div className="grid gap-2">
+                                  <Label>Available States</Label>
+                                  <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button variant="outline" className="justify-start w-full">
+                                            {editingOffer.states?.includes('all') ? 'All States' : `${editingOffer.states?.length || 0} states selected`}
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-[300px] p-0">
+                                          <div className="p-4">
+                                              <div className="flex items-center space-x-2 mb-2">
+                                                  <Checkbox
+                                                      id="all-states-edit"
+                                                      checked={editingOffer.states?.includes('all')}
+                                                      onCheckedChange={() => handleStateSelection('all', true)}
+                                                  />
+                                                  <Label htmlFor="all-states-edit" className="font-semibold">All States</Label>
+                                              </div>
+                                              <Separator className="my-2" />
+                                              <ScrollArea className="h-40">
+                                                  {allStates.map(state => (
+                                                      <div key={state.value} className="flex items-center space-x-2 mt-1">
+                                                          <Checkbox
+                                                              id={`edit-${state.value}`}
+                                                              checked={editingOffer.states?.includes(state.value) || editingOffer.states?.includes('all')}
+                                                              disabled={editingOffer.states?.includes('all')}
+                                                              onCheckedChange={() => handleStateSelection(state.value, true)}
+                                                          />
+                                                          <Label htmlFor={`edit-${state.value}`}>{state.label}</Label>
+                                                      </div>
+                                                  ))}
+                                              </ScrollArea>
+                                          </div>
+                                      </PopoverContent>
+                                  </Popover>
+                              </div>
+                          </CardContent>
+                      </Card>
+                      
+                      <Card>
+                          <CardHeader>
+                              <CardTitle>Media</CardTitle>
+                              <CardDescription>Manage images for your offer.</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                              <div className="flex flex-wrap gap-2">
+                                  {(editingOffer.images || []).map((image, index) => (
+                                      <div key={`existing-${index}`} className="relative w-24 h-24">
+                                          <Image src={image} alt={`existing offer image ${index}`} layout="fill" className="rounded-md object-cover border" />
+                                          <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeImage(index, true)}>
+                                              <X className="h-4 w-4" />
+                                          </Button>
+                                      </div>
+                                  ))}
+                                  {imagePreviews.map((preview, index) => (
+                                      <div key={`new-${index}`} className="relative w-24 h-24">
+                                          <Image src={preview} alt={`new preview ${index}`} layout="fill" className="rounded-md object-cover border" />
+                                          <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeUploadedImage(index)}>
+                                              <X className="h-4 w-4" />
+                                          </Button>
+                                      </div>
+                                  ))}
+                              </div>
+                              <Button variant="outline" className="mt-4" onClick={() => fileInputRef.current?.click()}>
+                                  <Upload className="mr-2 h-4 w-4" /> Add More Images
                               </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                  <Calendar
-                                      mode="single"
-                                      selected={editValidUntil}
-                                      onSelect={setEditValidUntil}
-                                      initialFocus
-                                  />
-                              </PopoverContent>
-                          </Popover>
-                      </div>
-                       <div className="grid gap-2">
-                          <Label>Available States</Label>
-                           <Popover>
-                               <PopoverTrigger asChild>
-                                <Button variant="outline" className="justify-start w-full">
-                                    {editingOffer.states?.includes('all') ? 'All States' : `${editingOffer.states?.length || 0} states selected`}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[300px] p-0">
-                                     <div className="p-4">
-                                        <div className="flex items-center space-x-2 mb-2">
-                                            <Checkbox
-                                                id="all-states-edit"
-                                                checked={editingOffer.states?.includes('all')}
-                                                onCheckedChange={() => handleStateSelection('all', true)}
-                                            />
-                                            <Label htmlFor="all-states-edit" className="font-semibold">All States</Label>
-                                        </div>
-                                        <hr className="my-2" />
-                                        <ScrollArea className="h-40">
-                                            {allStates.map(state => (
-                                                <div key={state.value} className="flex items-center space-x-2 mt-1">
-                                                    <Checkbox
-                                                        id={`edit-${state.value}`}
-                                                        checked={editingOffer.states?.includes(state.value) || editingOffer.states?.includes('all')}
-                                                        disabled={editingOffer.states?.includes('all')}
-                                                        onCheckedChange={() => handleStateSelection(state.value, true)}
-                                                    />
-                                                    <Label htmlFor={`edit-${state.value}`}>{state.label}</Label>
-                                                </div>
-                                            ))}
-                                        </ScrollArea>
-                                    </div>
-                                </PopoverContent>
-                           </Popover>
-                        </div>
-                      <div className="grid gap-2">
-                          <Label>Offer Images</Label>
-                          <div className="flex flex-wrap gap-2">
-                              {(editingOffer.images || []).map((image, index) => (
-                                  <div key={`existing-${index}`} className="relative w-20 h-20">
-                                      <Image src={image} alt={`existing offer image ${index}`} layout="fill" className="rounded-md object-cover" />
-                                      <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeImage(index, true)}>
-                                          <X className="h-4 w-4" />
-                                      </Button>
-                                  </div>
-                              ))}
-                              {imagePreviews.map((preview, index) => (
-                                  <div key={`new-${index}`} className="relative w-20 h-20">
-                                      <Image src={preview} alt={`new preview ${index}`} layout="fill" className="rounded-md object-cover" />
-                                      <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeUploadedImage(index)}>
-                                          <X className="h-4 w-4" />
-                                      </Button>
-                                  </div>
-                              ))}
-                          </div>
-                          <Button variant="outline" className="mt-2" onClick={() => fileInputRef.current?.click()}>
-                              <Upload className="mr-2 h-4 w-4" /> Add More Images
-                          </Button>
-                          <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
-                      </div>
+                              <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" />
+                          </CardContent>
+                      </Card>
                   </div>
                   <DialogFooter>
                       <Button variant="outline" onClick={() => setIsEditOfferOpen(false)} disabled={isSaving}>Cancel</Button>
