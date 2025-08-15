@@ -1,8 +1,9 @@
 
 "use client";
 
-import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import Image from "next/image";
+import { cn } from "@/lib/utils";
 
 interface ImagePreviewDialogProps {
   imageUrl: string | null;
@@ -20,6 +21,7 @@ export function ImagePreviewDialog({ imageUrl, onOpenChange }: ImagePreviewDialo
   return (
     <Dialog open={!!imageUrl} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-4xl w-auto bg-transparent border-none shadow-none p-0">
+           <DialogTitle className="sr-only">Image Preview</DialogTitle>
           {imageUrl && (
              <div className="relative aspect-video">
                 <Image 
