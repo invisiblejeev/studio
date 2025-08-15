@@ -19,6 +19,7 @@ import { UserProfileDialog } from "@/components/UserProfileDialog";
 export default function PersonalChatPage({ params }: { params: { userId: string } }) {
   const router = useRouter();
   const { toast } = useToast();
+  const userId = params.userId;
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -45,11 +46,11 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
       if (user) {
         const profile = await getUserProfile(user.uid);
         setCurrentUser(profile);
-        const otherProfile = await getUserProfile(params.userId);
+        const otherProfile = await getUserProfile(userId);
         setOtherUser(otherProfile);
 
         if (profile && otherProfile) {
-            const personalRoomId = await getPersonalChatRoomId(user.uid, params.userId);
+            const personalRoomId = await getPersonalChatRoomId(user.uid, userId);
             setRoomId(personalRoomId);
         }
         
@@ -57,10 +58,10 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
         router.push('/');
       }
     };
-    if (params.userId) {
+    if (userId) {
         fetchUsersAndRoom();
     }
-  }, [router, params.userId]);
+  }, [router, userId]);
 
   useEffect(() => {
     if (!roomId || !currentUser) return;

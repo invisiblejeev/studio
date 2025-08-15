@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 export default function ChatPage({ params }: { params: { state: string } }) {
   const router = useRouter();
   const { toast } = useToast();
+  const state = params.state;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -61,14 +62,14 @@ export default function ChatPage({ params }: { params: { state: string } }) {
   }, [router]);
   
   useEffect(() => {
-    if (!params.state || !currentUser) return;
+    if (!state || !currentUser) return;
 
     // Proactively ensure the public chat room document exists.
-    ensurePublicChatRoomExists(params.state);
+    ensurePublicChatRoomExists(state);
     
-    getUserCountByState(params.state).then(setMemberCount);
+    getUserCountByState(state).then(setMemberCount);
 
-    const unsubscribe = getMessages(params.state, (newMessages) => {
+    const unsubscribe = getMessages(state, (newMessages) => {
       setMessages(newMessages);
     });
     
@@ -94,7 +95,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     return () => {
         unsubscribe();
     };
-  }, [params.state, currentUser]);
+  }, [state, currentUser]);
 
   useEffect(() => {
     scrollToBottom();
@@ -122,7 +123,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     setIsSending(true);
     
     try {
-        await sendMessage(params.state, {
+        await sendMessage(state, {
           user: {
               id: currentUser.uid,
               name: currentUser.username,
@@ -142,9 +143,9 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     } finally {
         setIsSending(false);
     }
-  }, [newMessage, currentUser, params.state, toast]);
+  }, [newMessage, currentUser, state, toast]);
 
-  const currentStateName = allStates.find(s => s.value === params.state)?.label || "Select State";
+  const currentStateName = allStates.find(s => s.value === state)?.label || "Select State";
   const canSendMessage = !!currentUser && newMessage.trim() !== "" && !isSending;
 
 
