@@ -176,7 +176,7 @@
         "path": "/chats/{roomId}/messages/{messageId}",
         "permissions": {
           "read": "Allow if it is a public chat OR if the user is a member of the private chat.",
-          "create": "Allow if user is authenticated and the author of the message.",
+          "create": "Allow if user is authenticated and the author of the message and a member of the chat.",
           "update": "Allow if user is the author of the message (for editing or soft-deleting).",
           "delete": "Deny all client deletes."
         }
@@ -200,5 +200,3 @@
     ]
   }
 }
-
-    
