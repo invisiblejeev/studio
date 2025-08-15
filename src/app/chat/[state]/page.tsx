@@ -254,6 +254,7 @@ export default function ChatPage() {
 
                   const isFirstInSequence = !prevMessage || prevMessage.user.id !== msg.user.id;
                   const isLastInSequence = !nextMessage || nextMessage.user.id !== msg.user.id;
+                  const isImageOnly = msg.imageUrl && !msg.text;
 
                   return (
                     <div key={msg.id} className={cn('flex items-end gap-2', isYou ? 'justify-end' : 'justify-start')}>
@@ -265,7 +266,10 @@ export default function ChatPage() {
                       )}
                       {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
-                      <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
+                      <div className={cn('flex flex-col', 
+                        isYou ? 'items-end' : 'items-start',
+                        isImageOnly ? 'max-w-[75%]' : 'max-w-xs lg:max-w-md'
+                      )}>
                           {!isYou && isFirstInSequence && (
                               <p className="text-xs text-muted-foreground mb-1 px-3 cursor-pointer hover:underline" onClick={() => handleShowProfile(msg.user.id)}>{msg.user.name}</p>
                           )}
@@ -274,7 +278,7 @@ export default function ChatPage() {
                               <div className={cn('p-3 rounded-lg shadow-sm', 
                                   isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
                                   msg.isDeleted ? 'bg-muted text-muted-foreground italic' : '',
-                                  !msg.text && msg.imageUrl ? 'p-1 bg-transparent shadow-none' : 'p-3',
+                                  isImageOnly ? 'p-1 bg-transparent shadow-none' : 'p-3',
                                   isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
                                   isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
                                   !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :

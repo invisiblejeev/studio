@@ -230,6 +230,7 @@ export default function PersonalChatPage() {
 
                   const isFirstInSequence = !prevMessage || prevMessage.user.id !== msg.user.id;
                   const isLastInSequence = !nextMessage || nextMessage.user.id !== msg.user.id;
+                  const isImageOnly = msg.imageUrl && !msg.text;
 
                   return (
                     <div key={msg.id} className={cn('flex items-end gap-2', isYou ? 'justify-end' : 'justify-start')}>
@@ -241,13 +242,16 @@ export default function PersonalChatPage() {
                       )}
                       {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
 
-                       <div className={cn('flex flex-col max-w-xs lg:max-w-md', isYou ? 'items-end' : 'items-start')}>
+                       <div className={cn('flex flex-col', 
+                        isYou ? 'items-end' : 'items-start',
+                        isImageOnly ? 'max-w-[75%]' : 'max-w-xs lg:max-w-md'
+                      )}>
                            <ContextMenu>
                             <ContextMenuTrigger>
                               <div className={cn('rounded-lg shadow-sm', 
                                   isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
                                   msg.isDeleted ? 'bg-muted text-muted-foreground italic' : '',
-                                   !msg.text && msg.imageUrl ? 'p-1 bg-transparent shadow-none' : 'p-3',
+                                  isImageOnly ? 'p-1 bg-transparent shadow-none' : 'p-3',
                                   isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
                                   isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
                                   !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
