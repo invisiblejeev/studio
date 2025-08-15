@@ -245,11 +245,100 @@ export default function RequirementsPage() {
 
     return (
         <div className="space-y-6 p-4 bg-gray-50 min-h-screen pb-24 relative">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Community Requirements</h1>
-              <p className="text-muted-foreground">
-                  Community-posted needs and opportunities from the last 7 days.
-              </p>
+            <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight">Community Requirements</h1>
+                  <p className="text-muted-foreground">
+                      Community-posted needs and opportunities from the last 7 days.
+                  </p>
+                </div>
+                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                    <DialogTrigger asChild>
+                         <Button>
+                            <Plus className="mr-2 h-4 w-4" /> Add Requirement
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Post a Requirement</DialogTitle>
+                            <DialogDescription>
+                                Share a need with the community. Select a category, give it a title, and describe it.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="add-category">Category</Label>
+                                <Select onValueChange={(value: Category) => setNewRequirement(prev => ({...prev, category: value}))}>
+                                    <SelectTrigger id="add-category">
+                                        <SelectValue placeholder="Select a category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {categories.map(cat => (
+                                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="add-title">Title</Label>
+                                <Input
+                                    id="add-title"
+                                    value={newRequirement.title}
+                                    onChange={(e) => setNewRequirement({ ...newRequirement, title: e.target.value })}
+                                    placeholder="e.g., 'Looking for a 2BR apartment'"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="add-text">Description</Label>
+                                <Textarea
+                                    id="add-text"
+                                    value={newRequirement.text}
+                                    onChange={(e) => setNewRequirement({ ...newRequirement, text: e.target.value })}
+                                    placeholder="Provide more details about your requirement..."
+                                    rows={4}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label>Start Date (Optional)</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn("justify-start text-left font-normal", !newRequirement.startDate && "text-muted-foreground")}
+                                        >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {newRequirement.startDate ? format(newRequirement.startDate, "PPP") : <span>Pick a date</span>}
+                                        </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0"><CalendarPicker mode="single" selected={newRequirement.startDate} onSelect={(d) => setNewRequirement(p => ({...p, startDate: d}))} initialFocus /></PopoverContent>
+                                    </Popover>
+                                </div>
+                                 <div className="grid gap-2">
+                                    <Label>End Date (Optional)</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn("justify-start text-left font-normal", !newRequirement.expireDate && "text-muted-foreground")}
+                                        >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {newRequirement.expireDate ? format(newRequirement.expireDate, "PPP") : <span>Pick a date</span>}
+                                        </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0"><CalendarPicker mode="single" selected={newRequirement.expireDate} onSelect={(d) => setNewRequirement(p => ({...p, expireDate: d}))} initialFocus /></PopoverContent>
+                                    </Popover>
+                                </div>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSaving}>Cancel</Button>
+                            <Button onClick={handleAddRequirement} disabled={isSaving}>
+                                {isSaving ? <LoaderCircle className="animate-spin" /> : "Post Requirement"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
 
             <div className="flex space-x-2 overflow-x-auto pb-2">
@@ -359,94 +448,6 @@ export default function RequirementsPage() {
                     </div>
                 )
             )}
-
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                    <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg z-30 md:bottom-8 md:right-8">
-                        <Plus className="h-6 w-6" />
-                    </Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Post a Requirement</DialogTitle>
-                        <DialogDescription>
-                            Share a need with the community. Select a category, give it a title, and describe it.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="add-category">Category</Label>
-                            <Select onValueChange={(value: Category) => setNewRequirement(prev => ({...prev, category: value}))}>
-                                <SelectTrigger id="add-category">
-                                    <SelectValue placeholder="Select a category" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {categories.map(cat => (
-                                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="add-title">Title</Label>
-                            <Input
-                                id="add-title"
-                                value={newRequirement.title}
-                                onChange={(e) => setNewRequirement({ ...newRequirement, title: e.target.value })}
-                                placeholder="e.g., 'Looking for a 2BR apartment'"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="add-text">Description</Label>
-                            <Textarea
-                                id="add-text"
-                                value={newRequirement.text}
-                                onChange={(e) => setNewRequirement({ ...newRequirement, text: e.target.value })}
-                                placeholder="Provide more details about your requirement..."
-                                rows={4}
-                            />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                                <Label>Start Date (Optional)</Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                    <Button
-                                        variant={"outline"}
-                                        className={cn("justify-start text-left font-normal", !newRequirement.startDate && "text-muted-foreground")}
-                                    >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {newRequirement.startDate ? format(newRequirement.startDate, "PPP") : <span>Pick a date</span>}
-                                    </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0"><CalendarPicker mode="single" selected={newRequirement.startDate} onSelect={(d) => setNewRequirement(p => ({...p, startDate: d}))} initialFocus /></PopoverContent>
-                                </Popover>
-                            </div>
-                             <div className="grid gap-2">
-                                <Label>End Date (Optional)</Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                    <Button
-                                        variant={"outline"}
-                                        className={cn("justify-start text-left font-normal", !newRequirement.expireDate && "text-muted-foreground")}
-                                    >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {newRequirement.expireDate ? format(newRequirement.expireDate, "PPP") : <span>Pick a date</span>}
-                                    </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0"><CalendarPicker mode="single" selected={newRequirement.expireDate} onSelect={(d) => setNewRequirement(p => ({...p, expireDate: d}))} initialFocus /></PopoverContent>
-                                </Popover>
-                            </div>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSaving}>Cancel</Button>
-                        <Button onClick={handleAddRequirement} disabled={isSaving}>
-                            {isSaving ? <LoaderCircle className="animate-spin" /> : "Post Requirement"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent>
