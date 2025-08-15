@@ -32,20 +32,8 @@ export const getMessages = (roomId: string, callback: (messages: Message[]) => v
     callback([]);
   });
   
-  // Also listen to the parent chat document to ensure rules are triggered correctly.
-  // This is a workaround for a potential race condition in Firestore security rules.
-  const unsubscribeChatDoc = onSnapshot(doc(db, 'chats', roomId), 
-    (doc) => {
-      // We don't need to do anything with the data, just establish the listener.
-    },
-    (error) => {
-      console.error(`[ChatClient] Error fetching chat document for room ${roomId}:`, error);
-    }
-  );
-
-  // Return a function that unsubscribes from both listeners
+  // Return a function that unsubscribes from the messages listener
   return () => {
     unsubscribeMessages();
-    unsubscribeChatDoc();
   };
 };
