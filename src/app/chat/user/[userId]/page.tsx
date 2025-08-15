@@ -333,7 +333,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
                       )}>
                         <div 
                           className={cn('rounded-lg shadow-sm', 
-                            isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
+                            msg.isDeleted ? 'bg-muted/60' : (isYou ? 'bg-primary text-primary-foreground' : 'bg-card'),
                             'p-2',
                             isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
                             isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
-import { SendHorizonal, MessageSquare, LoaderCircle, Users, ArrowDownCircle, Paperclip } from "lucide-react"
+import { SendHorizonal, MessageSquare, LoaderCircle, Users, ArrowDownCircle, Paperclip, X } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -308,7 +308,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                           
                           <div 
                             className={cn('p-2 rounded-lg shadow-sm', 
-                              isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
+                              msg.isDeleted ? 'bg-muted/60' : (isYou ? 'bg-primary text-primary-foreground' : 'bg-card'),
                               isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
                               isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
                               !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
