@@ -24,13 +24,24 @@ export const getMessages = (roomId: string, callback: (messages: Message[]) => v
       } as Message
     });
     callback(messages);
+  },
+  (error) => {
+    console.error(`[ChatClient] Error fetching messages for room ${roomId}:`, error);
+    // If there's an error (like permission-denied), we'll get an empty array.
+    // This prevents the app from crashing and shows an empty chat, which is better than a broken page.
+    callback([]);
   });
   
   // Also listen to the parent chat document to ensure rules are triggered correctly.
   // This is a workaround for a potential race condition in Firestore security rules.
-  const unsubscribeChatDoc = onSnapshot(doc(db, 'chats', roomId), (doc) => {
-    // We don't need to do anything with the data, just establish the listener.
-  });
+  const unsubscribeChatDoc = onSnapshot(doc(db, 'chats', roomId), 
+    (doc) => {
+      // We don't need to do anything with the data, just establish the listener.
+    },
+    (error) => {
+      console.error(`[ChatClient] Error fetching chat document for room ${roomId}:`, error);
+    }
+  );
 
   // Return a function that unsubscribes from both listeners
   return () => {
@@ -38,5 +49,3 @@ export const getMessages = (roomId: string, callback: (messages: Message[]) => v
     unsubscribeChatDoc();
   };
 };
-
-    
