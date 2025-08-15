@@ -26,6 +26,7 @@ import Autoplay from "embla-carousel-autoplay";
 import { allStates } from "@/lib/states";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { uploadImage } from "@/services/storage";
 
 
 interface Offer {
@@ -186,12 +187,7 @@ export default function OffersPage() {
 
   const uploadImages = async (files: File[]): Promise<string[]> => {
       const uploadPromises = files.map(file => {
-          return new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.readAsDataURL(file);
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = (error) => reject(error);
-          });
+          return uploadImage(file, 'offer-images');
       });
       return Promise.all(uploadPromises);
   }
@@ -328,7 +324,10 @@ export default function OffersPage() {
             </p>
         </div>
         {currentUser?.isAdmin && (
-            <Dialog open={isAddOfferOpen} onOpenChange={setIsAddOfferOpen}>
+            <Dialog open={isAddOfferOpen} onOpenChange={(isOpen) => {
+                if (!isOpen) resetDialogState();
+                setIsAddOfferOpen(isOpen);
+            }}>
                 <DialogTrigger asChild>
                     <Button onClick={openAddDialog}>
                         <Plus className="mr-2 h-4 w-4" /> Add Offer
@@ -450,7 +449,7 @@ export default function OffersPage() {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => { setIsAddOfferOpen(false); resetDialogState(); }} disabled={isSaving}>Cancel</Button>
+                        <Button variant="outline" onClick={() => setIsAddOfferOpen(false)} disabled={isSaving}>Cancel</Button>
                         <Button onClick={handleAddOffer} disabled={isSaving}>
                             {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Offer"}
                         </Button>
@@ -603,7 +602,10 @@ export default function OffersPage() {
         )}
 
       {currentUser?.isAdmin && editingOffer && (
-            <Dialog open={isEditOfferOpen} onOpenChange={setIsEditOfferOpen}>
+            <Dialog open={isEditOfferOpen} onOpenChange={(isOpen) => {
+                if (!isOpen) resetDialogState();
+                setIsEditOfferOpen(isOpen);
+            }}>
               <DialogContent className="sm:max-w-md">
                   <DialogHeader>
                       <DialogTitle>Edit Offer</DialogTitle>
@@ -726,7 +728,7 @@ export default function OffersPage() {
                       </div>
                   </div>
                   <DialogFooter>
-                      <Button variant="outline" onClick={() => { setIsEditOfferOpen(false); resetDialogState(); }} disabled={isSaving}>Cancel</Button>
+                      <Button variant="outline" onClick={() => setIsEditOfferOpen(false)} disabled={isSaving}>Cancel</Button>
                       <Button onClick={handleEditOffer} disabled={isSaving}>
                           {isSaving ? <LoaderCircle className="animate-spin" /> : "Save Changes"}
                       </Button>
@@ -737,5 +739,3 @@ export default function OffersPage() {
     </div>
   )
 }
-
-    

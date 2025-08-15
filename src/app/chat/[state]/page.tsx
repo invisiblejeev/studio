@@ -21,6 +21,7 @@ import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { Badge } from "@/components/ui/badge";
+import { uploadImage } from "@/services/storage";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -129,49 +130,41 @@ export default function ChatPage() {
   const handleSendMessage = useCallback(async () => {
     if ((newMessage.trim() === "" && !imageFile) || !currentUser) return;
 
-    if (imageFile) {
-        setIsUploading(true);
-    }
+    setIsUploading(true);
     
     let imageUrl: string | undefined = undefined;
 
-    if (imageFile) {
-        try {
-            imageUrl = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(imageFile);
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = (error) => reject(error);
-            });
-        } catch (error) {
-            console.error("Error processing image:", error);
-            toast({
-                title: "Image Upload Failed",
-                description: "Could not process the image. Please try again.",
-                variant: "destructive"
-            });
-            setIsUploading(false);
-            return;
+    try {
+        if (imageFile) {
+            imageUrl = await uploadImage(imageFile, `chat-images/${state}`);
         }
-    }
 
-    sendMessage(state, {
-      user: {
-          id: currentUser.uid,
-          name: currentUser.username,
-          avatar: currentUser.avatar || ''
-      },
-      text: newMessage,
-      imageUrl: imageUrl,
-    });
-    
-    setNewMessage("");
-    setImageFile(null);
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+        await sendMessage(state, {
+          user: {
+              id: currentUser.uid,
+              name: currentUser.username,
+              avatar: currentUser.avatar || ''
+          },
+          text: newMessage,
+          imageUrl: imageUrl,
+        });
+        
+        setNewMessage("");
+        setImageFile(null);
+        setImagePreview(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+    } catch (error) {
+        console.error("Error sending message:", error);
+        toast({
+            title: "Send Failed",
+            description: "Could not send the message. Please try again.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsUploading(false);
     }
-    setIsUploading(false);
   }, [newMessage, imageFile, currentUser, state, toast]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -320,12 +313,13 @@ export default function ChatPage() {
                     </div>
                   )
                 })}
-                {isUploading && (
+                {isUploading && !imagePreview && (
                   <div className="flex items-end gap-2 justify-end">
                       <div className="flex flex-col items-end">
-                        <div className={cn('rounded-lg shadow-sm bg-primary text-primary-foreground', 'rounded-br-none p-1' )}>
-                            <div className="flex items-center justify-center h-24 w-24 bg-primary-foreground/20 rounded-md">
-                              <LoaderCircle className="w-6 h-6 animate-spin" />
+                        <div className={cn('rounded-lg shadow-sm bg-primary text-primary-foreground', 'rounded-br-none p-3' )}>
+                            <div className="flex items-center gap-2">
+                              <LoaderCircle className="w-4 h-4 animate-spin" />
+                              <p className="text-sm">Sending...</p>
                             </div>
                         </div>
                       </div>

@@ -1,6 +1,7 @@
 
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { uploadImage } from './storage';
 
 export interface UserProfile {
   uid: string;
@@ -25,14 +26,21 @@ export async function isIdentifierTaken(field: 'username' | 'email', value: stri
 }
 
 
-export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid'>) {
+export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid' | 'avatar'> & { avatarFile?: File }) {
+    let avatarUrl = `https://i.pravatar.cc/150?u=${data.username}`;
+    if (data.avatarFile) {
+        avatarUrl = await uploadImage(data.avatarFile, `avatars/${uid}`);
+    }
+
     const userProfileData = {
         uid,
         ...data,
         username: data.username.toLowerCase(),
         email: data.email.toLowerCase(),
         isAdmin: false, // Default isAdmin to false for new users
+        avatar: avatarUrl,
     };
+    delete (userProfileData as any).avatarFile;
     await setDoc(doc(db, 'users', uid), userProfileData);
 }
 
@@ -73,5 +81,3 @@ export async function getUserCountByState(state: string): Promise<number> {
         return 0;
     }
 }
-
-    

@@ -6,15 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast";
-import { IndianRupee, CheckCircle2, XCircle, LoaderCircle, Eye, EyeOff } from "lucide-react"
+import { IndianRupee, CheckCircle2, XCircle, LoaderCircle, Eye, EyeOff, Camera } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createUserProfile, isIdentifierTaken } from "@/services/users";
 import { useDebounce } from "use-debounce";
 import { signUp } from "@/services/auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { allStates } from "@/lib/states";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const formatPhoneNumber = (value: string) => {
     if (!value) return value;
@@ -40,6 +41,10 @@ export default function SignupPage() {
     city: '',
     state: ''
   });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
@@ -73,7 +78,6 @@ export default function SignupPage() {
   
   useEffect(() => {
     if (debouncedEmail) {
-      // A simple regex for basic email format validation before hitting the DB
       if (/^\S+@\S+\.\S+$/.test(debouncedEmail)) {
         checkIdentifier('email', debouncedEmail, setEmailStatus);
       } else {
@@ -99,6 +103,19 @@ export default function SignupPage() {
       setEmailStatus("checking");
     }
   }
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        setAvatarFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setAvatarPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
 
   const handleSignUp = async () => {
     setIsLoading(true);
@@ -126,18 +143,10 @@ export default function SignupPage() {
     try {
         const user = await signUp(formData.email, formData.password);
 
-        const profileData = {
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            username: formData.username,
-            email: formData.email,
-            phone: formData.phone,
-            state: formData.state,
-            city: formData.city,
-            avatar: `https://i.pravatar.cc/150?u=${formData.username}`
-        };
-
-        await createUserProfile(user.uid, profileData);
+        await createUserProfile(user.uid, {
+            ...formData,
+            avatarFile: avatarFile || undefined
+        });
 
         toast({
             title: "Signup Successful!",
@@ -173,6 +182,21 @@ export default function SignupPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <Card className="mx-auto w-full max-w-md">
         <CardHeader className="text-center">
+           <div className="relative mx-auto w-24 h-24 mb-4">
+              <Avatar className="w-full h-full text-2xl">
+                  <AvatarImage src={avatarPreview || undefined} data-ai-hint="person avatar" />
+                  <AvatarFallback>{formData.firstName.charAt(0)}{formData.lastName.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <Button
+                  size="icon"
+                  className="absolute bottom-0 right-0 rounded-full"
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+              >
+                  <Camera className="w-4 h-4" />
+              </Button>
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
+          </div>
           <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
           <CardDescription>
             Enter your details below to create your account.

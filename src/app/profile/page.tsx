@@ -16,6 +16,7 @@ import { getCurrentUser, logOut, deleteCurrentUser } from "@/services/auth";
 import { getUserProfile, updateUserProfile, isIdentifierTaken, UserProfile, deleteUserProfile } from "@/services/users";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
+import { uploadImage } from "@/services/storage";
 
 const formatPhoneNumber = (value: string) => {
     if (!value) return value;
@@ -198,7 +199,6 @@ export default function ProfilePage() {
       }
 
       try {
-          // I'm assuming an empty string will signify no avatar
           await updateUserProfile(profile.uid, { avatar: "" });
           const updatedProfile = { ...profile, avatar: "" };
           setProfile(updatedProfile);
@@ -223,25 +223,17 @@ export default function ProfilePage() {
 
     setIsUploading(true);
     try {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            const dataUrl = reader.result as string;
-            await updateUserProfile(profile.uid, { avatar: dataUrl });
-            const updatedProfile = { ...profile, avatar: dataUrl };
-            setProfile(updatedProfile);
-            setInitialProfile(updatedProfile);
-            toast({
-                title: "Success",
-                description: "Profile picture uploaded successfully.",
-            });
-            setIsUploading(false);
-            setIsImageDialogOpen(false);
-        };
-        reader.onerror = (error) => {
-            throw error;
-        }
+        const imageUrl = await uploadImage(file, `avatars/${profile.uid}`);
+        await updateUserProfile(profile.uid, { avatar: imageUrl });
 
+        const updatedProfile = { ...profile, avatar: imageUrl };
+        setProfile(updatedProfile);
+        setInitialProfile(updatedProfile);
+
+        toast({
+            title: "Success",
+            description: "Profile picture uploaded successfully.",
+        });
     } catch (error) {
         console.error("Failed to upload image: ", error);
         toast({
@@ -249,8 +241,9 @@ export default function ProfilePage() {
             description: "Could not upload the new profile picture. Please try again.",
             variant: "destructive"
         });
-        setIsUploading(false);
     } finally {
+        setIsUploading(false);
+        setIsImageDialogOpen(false);
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
