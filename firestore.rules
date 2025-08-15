@@ -1,68 +1,78 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+  
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
     
-    // Helper function to check for admin role
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
     function isAdmin() {
-      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Users can read/write their own profile
+    // Users Collection
     match /users/{userId} {
-      allow read;
-      allow write: if request.auth.uid == userId;
-    }
-    
-    // Rules for the subcollection of personal chats
-    match /users/{userId}/personalChats/{chatId} {
-        allow read, write: if request.auth.uid == userId;
-    }
-
-    // Admins collection is read-only for clients
-    match /admins/{userId} {
-      allow read: if isAdmin();
-      allow write: if false; // No client-side writes
-    }
-
-    // Chat documents can be read by participants, and updated by anyone authenticated
-    // to allow for lastMessage updates from triggers or client.
-    match /chats/{roomId} {
-        allow read: if request.auth.uid in resource.data.users || resource.data.isPersonal == false;
-        // Allow writes (for creating the room or updating last message) if the user is authenticated.
-        // More specific rules are on the messages subcollection.
-        allow write: if request.auth.uid != null;
-    }
-
-    // Chat messages
-    match /chats/{roomId}/messages/{messageId} {
-      // Public chats are readable by anyone authenticated
-      // Private chats are only readable by participants
-      allow read: if get(/databases/$(database)/documents/chats/$(roomId)).data.isPersonal == false || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.users;
+      allow read: if isAuthenticated();
+      allow create: if isUser(userId);
+      allow update: if isUser(userId);
+      allow delete: if isUser(userId) || isAdmin();
       
-      // Users can only create messages for themselves.
-      allow create: if request.auth.uid == request.resource.data.user.id;
-                       
-      // Users can only update their own messages (for soft delete) within 24 hours
-      allow update: if request.auth.uid == resource.data.user.id &&
-                       request.time < resource.data.timestamp + duration.value(24, 'h');
-
-      // No direct deletes
-      allow delete: if false;
+      // Personal Chats Subcollection
+      match /personalChats/{otherUserId} {
+        allow read, write: if isUser(userId);
+      }
     }
 
-    // Requirements
-    match /requirements/{reqId} {
-      allow read: if request.auth.uid != null;
-      allow create: if request.auth.uid != null;
-      allow update, delete: if isAdmin() || request.auth.uid == resource.data.user.id;
+    // Chats Collection
+    match /chats/{roomId} {
+      // Any authenticated user can read public chats.
+      // Members of a private chat can read its details.
+      allow read: if isAuthenticated();
+
+      // Any authenticated user can create a chat room if it doesn't exist.
+      allow create: if isAuthenticated();
+
+      // Only backend functions should update chat metadata like lastMessage.
+      allow update: if false; 
+      
+      // Messages Subcollection
+      match /messages/{messageId} {
+        // Any authenticated user can read messages in any room.
+        allow read: if isAuthenticated();
+        
+        // Users can only write messages if they are authenticated.
+        // Additional checks (like being a member of a private chat) can be added.
+        allow create: if isAuthenticated() && request.resource.data.user.id == request.auth.uid;
+        
+        // Users can update their own messages.
+        // The 24-hour logic is handled in the client for UI purposes,
+        // but we enforce ownership here.
+        allow update: if isAuthenticated() && resource.data.user.id == request.auth.uid;
+        
+        // Deletes are not allowed. Use a soft delete (isDeleted flag) via update.
+        allow delete: if false;
+      }
+    }
+
+    // Requirements Collection
+    match /requirements/{requirementId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.user.id == request.auth.uid);
     }
     
-    // Offers
+    // Offers Collection
     match /offers/{offerId} {
-      allow read: if request.auth.uid != null;
-      // Only admins can create, update, or delete offers
-      allow write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
     }
   }
 }

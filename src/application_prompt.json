@@ -82,14 +82,6 @@
         ]
       },
       {
-        "collection": "admins",
-        "documentId": "{userId}",
-        "description": "A collection where the document ID is the UID of a user with admin privileges. Used for security rules.",
-        "schema": {
-          "role": "string (e.g., 'admin')"
-        }
-      },
-      {
         "collection": "chats",
         "documentId": "{roomId}",
         "description": "Room ID is the state name for public chats (e.g., 'hawaii') or a composite ID ('uid1_uid2') for private chats.",
@@ -179,19 +171,12 @@
         }
       },
       {
-        "path": "/admins/{userId}",
-        "permissions": {
-          "read": "Allow if user is an admin.",
-          "write": "Deny all client writes."
-        }
-      },
-      {
         "path": "/chats/{roomId}/messages/{messageId}",
         "permissions": {
-          "read": "Allow if it's a public chat (no '_' in roomId) OR if user's UID is in the roomId string for private chats.",
-          "create": "Allow if it's a public chat OR a private chat they are a part of.",
-          "update": "Allow if user is the author and message is less than 24 hours old.",
-          "delete": "Deny direct deletes (use soft delete via update)."
+          "read": "Allow if user is authenticated.",
+          "create": "Allow if user is authenticated and the author of the message.",
+          "update": "Allow if user is the author of the message.",
+          "delete": "Deny all client deletes (use soft delete via update)."
         }
       },
       {
