@@ -13,7 +13,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile, getUserCountByState } from "@/services/users";
 import { sendMessage, Message, ensurePublicChatRoomExists, updateMessage, deleteMessage } from "@/services/chat";
-import { getMessages } from "@/lib/chat-client";
+import { createMessagesStore } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
@@ -40,6 +40,10 @@ export default function ChatPage({ params }: { params: { state: string } }) {
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const messagesStoreRef = useRef<ReturnType<typeof createMessagesStore> | null>(null);
 
   const [activeMessage, setActiveMessage] = useState<Message | null>(null);
 
@@ -50,10 +54,14 @@ export default function ChatPage({ params }: { params: { state: string } }) {
 
   const handleScroll = useCallback((e: any) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
-    // Show button if user has scrolled up more than a certain amount
     const isScrolledUp = scrollHeight - scrollTop > clientHeight + 200;
     setShowScrollToBottom(isScrolledUp);
-  }, []);
+
+    // Load more when user scrolls to the top
+    if (scrollTop < 50 && hasMore && !isLoadingMore && messagesStoreRef.current) {
+        messagesStoreRef.current.loadMore();
+    }
+  }, [hasMore, isLoadingMore]);
 
 
   useEffect(() => {
@@ -72,48 +80,43 @@ export default function ChatPage({ params }: { params: { state: string } }) {
   useEffect(() => {
     if (!state || !currentUser) return;
 
-    // Proactively ensure the public chat room document exists.
     ensurePublicChatRoomExists(state);
     
     getUserCountByState(state).then(setMemberCount);
-
-    const onInitialMessagesLoad = () => {
-        scrollToBottom('auto');
-    }
-
-    const unsubscribe = getMessages(state, (newMessages) => {
-      setMessages(newMessages);
-    }, onInitialMessagesLoad);
     
-    // Listen for total unread count
+    const store = createMessagesStore(state);
+    messagesStoreRef.current = store;
+
+    const unsubscribeMessages = store.subscribe(setMessages);
+    const unsubscribeLoading = store.subscribeToLoading(setIsLoadingMore);
+    const unsubscribeHasMore = store.subscribeToHasMore(setHasMore);
+
+    let unsubscribeUnread: () => void = () => {};
     if (currentUser.uid) {
         const personalChatsRef = collection(db, `users/${currentUser.uid}/personalChats`);
         const unreadQuery = query(personalChatsRef, where('unreadCount', '>', 0));
-        const unsubscribeUnread = onSnapshot(unreadQuery, (snapshot) => {
+        unsubscribeUnread = onSnapshot(unreadQuery, (snapshot) => {
             let total = 0;
             snapshot.docs.forEach(doc => {
                 total += doc.data().unreadCount || 0;
             });
             setTotalUnread(total);
         });
-
-        return () => {
-            unsubscribe();
-            unsubscribeUnread();
-        };
     }
 
-
     return () => {
-        unsubscribe();
+        store.cleanup();
+        unsubscribeMessages();
+        unsubscribeLoading();
+        unsubscribeHasMore();
+        unsubscribeUnread();
     };
-  }, [state, currentUser, scrollToBottom]);
+  }, [state, currentUser]);
 
   useEffect(() => {
-    // Only auto-scroll on new messages if the user is already near the bottom
-     if (!showScrollToBottom) {
-       scrollToBottom('smooth');
-     }
+    if (!showScrollToBottom) {
+      scrollToBottom('smooth');
+    }
   }, [messages, showScrollToBottom, scrollToBottom]);
 
 
@@ -222,6 +225,20 @@ export default function ChatPage({ params }: { params: { state: string } }) {
       <div className="flex-1 overflow-y-auto bg-muted/20">
         <ScrollArea className="h-full" ref={scrollAreaRef} onScroll={handleScroll}>
             <div className="p-4 space-y-1">
+                {hasMore && (
+                    <div className="text-center my-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => messagesStoreRef.current?.loadMore()}
+                            disabled={isLoadingMore}
+                        >
+                            {isLoadingMore ? <LoaderCircle className="w-4 h-4 animate-spin mr-2"/> : null}
+                            Load Older Messages
+                        </Button>
+                    </div>
+                )}
+
                 {messages.map((msg, index) => {
                   const isYou = msg.user.id === currentUser?.uid;
                   const prevMessage = messages[index - 1];

@@ -11,12 +11,12 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { sendMessage, getPersonalChatRoomId, Message, updateMessage, deleteMessage, markAsRead } from "@/services/chat";
-import { getMessages } from "@/lib/chat-client";
+import { createMessagesStore } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { MessageActionsDialog } from "@/components/MessageActionsDialog";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Separator } from "@/components/ui/separator";
 
@@ -33,29 +33,29 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
   const [isSending, setIsSending] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const unreadMessageRef = useRef<HTMLDivElement>(null);
   
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [firstUnreadIndex, setFirstUnreadIndex] = useState(-1);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const messagesStoreRef = useRef<ReturnType<typeof createMessagesStore> | null>(null);
 
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [activeMessage, setActiveMessage] = useState<Message | null>(null);
-
-  const scrollToRef = useCallback((ref: React.RefObject<HTMLDivElement>, behavior: 'smooth' | 'auto' = 'auto') => {
-    ref.current?.scrollIntoView({ behavior, block: 'start' });
-  }, []);
   
   const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'auto') => {
-    scrollToRef(messagesEndRef, behavior);
-  }, [scrollToRef]);
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  }, []);
 
   const handleScroll = useCallback((e: any) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
     const isScrolledUp = scrollHeight - scrollTop > clientHeight + 200;
     setShowScrollToBottom(isScrolledUp);
-  }, []);
+
+    if (scrollTop < 50 && hasMore && !isLoadingMore && messagesStoreRef.current) {
+        messagesStoreRef.current.loadMore();
+    }
+  }, [hasMore, isLoadingMore]);
 
   useEffect(() => {
     const fetchUsersAndRoom = async () => {
@@ -70,18 +70,10 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
             const personalRoomId = await getPersonalChatRoomId(user.uid, userId);
             setRoomId(personalRoomId);
             
-            // Listen for unread count
             const personalChatRef = doc(db, `users/${user.uid}/personalChats`, userId);
-            const unsubscribe = onSnapshot(personalChatRef, (doc) => {
-                const data = doc.data();
-                setUnreadCount(data?.unreadCount || 0);
-            });
-            
-            // Mark messages as read when entering the chat
             if ((await getDoc(personalChatRef)).exists()) {
               markAsRead(user.uid, userId);
             }
-            return () => unsubscribe();
         }
         
       } else {
@@ -96,22 +88,22 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
   useEffect(() => {
     if (!roomId || !currentUser) return;
 
-    const onInitialMessagesLoad = (initialMessages: Message[]) => {
-      if (unreadCount > 0 && initialMessages.length > 0) {
-        const index = initialMessages.length - unreadCount;
-        setFirstUnreadIndex(index);
-        setTimeout(() => scrollToRef(unreadMessageRef, 'auto'), 100);
-      } else {
-        scrollToBottom('auto');
-      }
-    };
+    const store = createMessagesStore(roomId);
+    messagesStoreRef.current = store;
 
-    const unsubscribe = getMessages(roomId, (newMessages) => {
-      setMessages(newMessages);
-    }, onInitialMessagesLoad);
+    const unsubscribeMessages = store.subscribe(newMessages => {
+        setMessages(newMessages);
+    });
+    const unsubscribeLoading = store.subscribeToLoading(setIsLoadingMore);
+    const unsubscribeHasMore = store.subscribeToHasMore(setHasMore);
     
-    return () => unsubscribe();
-  }, [roomId, currentUser, unreadCount, scrollToBottom, scrollToRef]);
+    return () => {
+        store.cleanup();
+        unsubscribeMessages();
+        unsubscribeLoading();
+        unsubscribeHasMore();
+    };
+  }, [roomId, currentUser]);
 
   useEffect(() => {
      if (!showScrollToBottom) {
@@ -227,6 +219,19 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
        <div className="flex-1 overflow-y-auto bg-muted/20">
         <ScrollArea className="h-full" ref={scrollAreaRef} onScroll={handleScroll}>
             <div className="p-4 space-y-1">
+                {hasMore && (
+                     <div className="text-center my-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => messagesStoreRef.current?.loadMore()}
+                            disabled={isLoadingMore}
+                        >
+                            {isLoadingMore ? <LoaderCircle className="w-4 h-4 animate-spin mr-2"/> : null}
+                            Load Older Messages
+                        </Button>
+                    </div>
+                )}
                 {messages.map((msg, index) => {
                   const isYou = msg.user.id === currentUser?.uid;
                   const prevMessage = messages[index - 1];
@@ -237,18 +242,8 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
                   
                   const canEditOrDelete = isYou && !msg.isDeleted && isMessageEditable(msg.timestamp);
 
-                  const isFirstUnread = index === firstUnreadIndex;
-
                   return (
                     <React.Fragment key={msg.id}>
-                    {isFirstUnread && (
-                        <div ref={unreadMessageRef} className="relative py-4">
-                            <Separator />
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-2 bg-muted/20">
-                                <span className="text-xs font-semibold text-muted-foreground">New Messages</span>
-                            </div>
-                        </div>
-                    )}
                     <div id={`msg-${msg.id}`} className={cn('flex items-end gap-2 group', isYou ? 'justify-end' : 'justify-start')}>
                       {!isYou && isLastInSequence && (
                           <Avatar className={cn('h-8 w-8 cursor-pointer')} onClick={() => handleShowProfile(msg.user.id)}>
