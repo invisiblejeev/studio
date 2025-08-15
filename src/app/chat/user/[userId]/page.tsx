@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
-import { SendHorizonal, ArrowLeft, LoaderCircle, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { SendHorizonal, ArrowLeft, LoaderCircle, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
@@ -15,13 +15,12 @@ import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { MessageActionsDialog } from "@/components/MessageActionsDialog";
 
 export default function PersonalChatPage({ params }: { params: { userId: string } }) {
   const router = useRouter();
   const { toast } = useToast();
-  const { userId } = React.use(params);
+  const userId = React.use(params).userId;
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -33,9 +32,8 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
-  // For editing messages
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState("");
+  const [activeMessage, setActiveMessage] = useState<Message | null>(null);
+
 
   const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current) {
@@ -125,27 +123,17 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
     }
   }
   
-  const handleEditMessage = (message: Message) => {
-    setEditingMessageId(message.id);
-    setEditingText(message.text || "");
-  };
-  
-  const handleCancelEdit = () => {
-    setEditingMessageId(null);
-    setEditingText("");
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingMessageId || editingText.trim() === "" || !currentUser || !roomId) return;
+  const handleSaveEdit = async (messageId: string, newText: string) => {
+    if (!currentUser || !roomId) return;
     
     try {
-        await updateMessage(roomId, editingMessageId, editingText);
+        await updateMessage(roomId, messageId, newText);
         toast({ title: "Message Updated" });
     } catch (error) {
         toast({ title: "Error", description: "Could not update message.", variant: "destructive"});
         console.error(error);
     } finally {
-        handleCancelEdit();
+        setActiveMessage(null);
     }
   };
   
@@ -157,6 +145,8 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
     } catch (error) {
         toast({ title: "Error", description: "Could not delete message.", variant: "destructive"});
         console.error(error);
+    } finally {
+      setActiveMessage(null);
     }
   }
 
@@ -217,66 +207,26 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
                       )}
                       {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
                       
-                       {isYou && canEditOrDelete && (
-                          <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-1">
-                                <div className="flex flex-col">
-                                    <Button variant="ghost" size="sm" className="justify-start" onClick={() => handleEditMessage(msg)}>
-                                        <Pencil className="mr-2 h-4 w-4" /> Edit
-                                    </Button>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="sm" className="justify-start text-destructive hover:text-destructive">
-                                                <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>This action cannot be undone. This will permanently delete your message.</AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteMessage(msg.id)}>Delete</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </div>
-                              </PopoverContent>
-                          </Popover>
-                      )}
-
                        <div className={cn('flex flex-col', 
                         isYou ? 'items-end' : 'items-start',
                         'max-w-xs lg:max-w-md'
                       )}>
-                          {editingMessageId === msg.id ? (
-                            <div className="w-full">
-                                <Textarea value={editingText} onChange={(e) => setEditingText(e.target.value)} className="mb-2" />
-                                <div className="flex gap-2 justify-end">
-                                    <Button size="sm" variant="ghost" onClick={handleCancelEdit}>Cancel</Button>
-                                    <Button size="sm" onClick={handleSaveEdit}>Save</Button>
-                                </div>
-                            </div>
-                          ) : (
-                             <div className={cn('rounded-lg shadow-sm', 
-                                isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
-                                'p-3',
-                                isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
-                                isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
-                                !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
-                                !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
-                                !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
-                                'rounded-lg'
-                             )}>
-                                <p className={cn("text-sm whitespace-pre-wrap", msg.isDeleted && "italic text-muted-foreground")}>{msg.text}</p>
-                             </div>
+                        <div 
+                          className={cn('rounded-lg shadow-sm', 
+                            isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
+                            'p-3',
+                            isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
+                            isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
+                            !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
+                            !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
+                            !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
+                            'rounded-lg',
+                            canEditOrDelete && "cursor-pointer"
                           )}
+                          onClick={() => canEditOrDelete && setActiveMessage(msg)}
+                        >
+                          <p className={cn("text-sm whitespace-pre-wrap", msg.isDeleted && "italic text-muted-foreground")}>{msg.text}</p>
+                        </div>
                           {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                       </div>
 
@@ -340,8 +290,15 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
         user={selectedUser}
         currentUser={currentUser}
     />
+     {activeMessage && (
+      <MessageActionsDialog
+        message={activeMessage}
+        isOpen={!!activeMessage}
+        onOpenChange={(isOpen) => !isOpen && setActiveMessage(null)}
+        onEdit={handleSaveEdit}
+        onDelete={handleDeleteMessage}
+      />
+    )}
     </>
   );
 }
-
-    

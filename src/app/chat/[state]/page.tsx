@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { allStates } from "@/lib/states";
-import { SendHorizonal, MessageSquare, LoaderCircle, Users, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { SendHorizonal, MessageSquare, LoaderCircle, Users, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -20,8 +20,7 @@ import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { MessageActionsDialog } from "@/components/MessageActionsDialog";
 
 
 export default function ChatPage({ params }: { params: { state: string } }) {
@@ -40,9 +39,7 @@ export default function ChatPage({ params }: { params: { state: string } }) {
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
-  // For editing messages
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState("");
+  const [activeMessage, setActiveMessage] = useState<Message | null>(null);
 
 
   const scrollToBottom = useCallback(() => {
@@ -151,27 +148,16 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     }
   }, [newMessage, currentUser, state, toast]);
 
-  const handleEditMessage = (message: Message) => {
-    setEditingMessageId(message.id);
-    setEditingText(message.text || "");
-  };
-  
-  const handleCancelEdit = () => {
-    setEditingMessageId(null);
-    setEditingText("");
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingMessageId || editingText.trim() === "" || !currentUser) return;
-    
+  const handleSaveEdit = async (messageId: string, newText: string) => {
+    if (!currentUser) return;
     try {
-        await updateMessage(state, editingMessageId, editingText);
+        await updateMessage(state, messageId, newText);
         toast({ title: "Message Updated" });
     } catch (error) {
         toast({ title: "Error", description: "Could not update message.", variant: "destructive"});
         console.error(error);
     } finally {
-        handleCancelEdit();
+        setActiveMessage(null);
     }
   };
   
@@ -183,6 +169,8 @@ export default function ChatPage({ params }: { params: { state: string } }) {
     } catch (error) {
         toast({ title: "Error", description: "Could not delete message.", variant: "destructive"});
         console.error(error);
+    } finally {
+        setActiveMessage(null);
     }
   }
 
@@ -242,40 +230,6 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                       )}
                       {!isYou && !isLastInSequence && <div className='w-8 h-8 shrink-0'/>}
                       
-                      {isYou && canEditOrDelete && (
-                          <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-1">
-                                <div className="flex flex-col">
-                                    <Button variant="ghost" size="sm" className="justify-start" onClick={() => handleEditMessage(msg)}>
-                                        <Pencil className="mr-2 h-4 w-4" /> Edit
-                                    </Button>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="sm" className="justify-start text-destructive hover:text-destructive">
-                                                <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>This action cannot be undone. This will permanently delete your message.</AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteMessage(msg.id)}>Delete</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </div>
-                              </PopoverContent>
-                          </Popover>
-                      )}
-
                       <div className={cn('flex flex-col', 
                         isYou ? 'items-end' : 'items-start',
                         'max-w-xs lg:max-w-md'
@@ -283,28 +237,22 @@ export default function ChatPage({ params }: { params: { state: string } }) {
                           {!isYou && isFirstInSequence && (
                               <p className="text-xs text-muted-foreground mb-1 px-3 cursor-pointer hover:underline" onClick={() => handleShowProfile(msg.user.id)}>{msg.user.name}</p>
                           )}
-
-                          {editingMessageId === msg.id ? (
-                            <div className="w-full">
-                                <Textarea value={editingText} onChange={(e) => setEditingText(e.target.value)} className="mb-2" />
-                                <div className="flex gap-2 justify-end">
-                                    <Button size="sm" variant="ghost" onClick={handleCancelEdit}>Cancel</Button>
-                                    <Button size="sm" onClick={handleSaveEdit}>Save</Button>
-                                </div>
-                            </div>
-                          ) : (
-                             <div className={cn('p-3 rounded-lg shadow-sm', 
+                          
+                          <div 
+                            className={cn('p-3 rounded-lg shadow-sm', 
                               isYou ? 'bg-primary text-primary-foreground' : 'bg-card',
                               isFirstInSequence && !isLastInSequence && isYou ? 'rounded-br-none' :
                               isFirstInSequence && !isLastInSequence && !isYou ? 'rounded-bl-none' :
                               !isFirstInSequence && !isLastInSequence ? 'rounded-br-none rounded-bl-none' :
                               !isFirstInSequence && isLastInSequence && isYou ? 'rounded-tr-none' :
                               !isFirstInSequence && isLastInSequence && !isYou ? 'rounded-tl-none' :
-                              'rounded-lg'
-                             )}>
-                                <p className={cn("text-sm whitespace-pre-wrap", msg.isDeleted && "italic text-muted-foreground")}>{msg.text}</p>
-                             </div>
-                          )}
+                              'rounded-lg',
+                              canEditOrDelete && 'cursor-pointer'
+                            )}
+                            onClick={() => canEditOrDelete && setActiveMessage(msg)}
+                          >
+                            <p className={cn("text-sm whitespace-pre-wrap", msg.isDeleted && "italic text-muted-foreground")}>{msg.text}</p>
+                          </div>
 
                           {isLastInSequence && <p className="text-xs text-muted-foreground mt-1 px-3">{msg.time}</p>}
                       </div>
@@ -370,8 +318,15 @@ export default function ChatPage({ params }: { params: { state: string } }) {
         user={selectedUser}
         currentUser={currentUser}
     />
+    {activeMessage && (
+      <MessageActionsDialog
+        message={activeMessage}
+        isOpen={!!activeMessage}
+        onOpenChange={(isOpen) => !isOpen && setActiveMessage(null)}
+        onEdit={handleSaveEdit}
+        onDelete={handleDeleteMessage}
+      />
+    )}
     </>
   );
 }
-
-    
