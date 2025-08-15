@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
-import { getUserProfile, UserProfile } from "@/services/users";
+import { getUserProfile, UserProfile, getUserCountByState } from "@/services/users";
 import { sendMessage, Message, ensurePublicChatRoomExists, updateMessage, deleteMessage } from "@/services/chat";
 import { getMessages } from "@/lib/chat-client";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +27,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 export default function ChatPage({ params }: { params: { state: string } }) {
   const router = useRouter();
   const { toast } = useToast();
-  const { state } = React.use(params);
+  const state = React.use(params).state;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
