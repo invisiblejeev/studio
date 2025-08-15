@@ -8,7 +8,7 @@ import { BottomNav } from '@/components/BottomNav';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
-const showBottomNavRoutes = ['/chat', '/requirements', '/offers', '/profile', '/admin'];
+const noBottomNavRoutes = ['/', '/signup', '/chat/personal'];
 
 export default function RootLayout({
   children,
@@ -22,13 +22,8 @@ export default function RootLayout({
     setIsMounted(true);
   }, []);
 
-  // A bit more complex logic to show nav for /chat, /chat/california, but not /chat/user/some-id or /chat/personal
-  const showNav = isMounted && showBottomNavRoutes.some(route => {
-    if (pathname.startsWith('/chat/user/') || pathname === '/chat/personal') {
-        return false;
-    }
-    return pathname.startsWith(route)
-  });
+  // Simple check to hide nav on specific routes or route patterns.
+  const showNav = isMounted && !noBottomNavRoutes.includes(pathname) && !pathname.startsWith('/chat/user/');
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -42,7 +37,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <div className="flex flex-col h-screen">
-          <main className={cn("flex-1 overflow-y-auto", showNav && "pb-16")}>
+          <main className={cn("flex-1 bg-background", showNav ? "pb-16" : "pb-0")}>
             {children}
           </main>
           {showNav && <BottomNav />}
