@@ -207,8 +207,8 @@ export default function PersonalChatPage() {
 
   return (
     <>
-    <div className="flex flex-col h-full bg-background rounded-xl border">
-      <header className="flex items-center justify-start p-4 border-b gap-4 shrink-0">
+    <div className="flex flex-col h-full">
+      <header className="flex items-center justify-start p-4 border-b gap-4 shrink-0 bg-background">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -220,7 +220,8 @@ export default function PersonalChatPage() {
             <h2 className="text-xl font-bold">{otherUser.username}</h2>
           </div>
       </header>
-       <ScrollArea className="flex-1" ref={scrollAreaRef}>
+       <div className="flex-1 overflow-y-auto bg-muted/20">
+        <ScrollArea className="h-full" ref={scrollAreaRef}>
             <div className="p-4 space-y-1">
                 {messages.map((msg, index) => {
                   const isYou = msg.user.id === currentUser?.uid;
@@ -304,7 +305,8 @@ export default function PersonalChatPage() {
               )}
             </div>
         </ScrollArea>
-      <div className="p-4 border-t bg-card rounded-b-xl shrink-0">
+      </div>
+      <div className="p-4 border-t bg-background shrink-0">
            {imagePreview && (
               <div className="mb-2 relative w-24 h-24">
                   <Image src={imagePreview} alt="Image preview" fill className="rounded-md object-cover" />
