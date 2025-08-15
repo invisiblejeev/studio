@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
-import { SendHorizonal, ArrowLeft, LoaderCircle, Pencil, Trash2 } from "lucide-react"
+import { SendHorizonal, ArrowLeft, LoaderCircle } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
@@ -20,7 +20,7 @@ import { MessageActionsDialog } from "@/components/MessageActionsDialog";
 export default function PersonalChatPage({ params }: { params: { userId: string } }) {
   const router = useRouter();
   const { toast } = useToast();
-  const userId = React.use(params).userId;
+  const { userId } = React.use(params);
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
