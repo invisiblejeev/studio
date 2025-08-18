@@ -25,13 +25,13 @@ export async function isIdentifierTaken(field: 'username' | 'email', value: stri
 }
 
 
-export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid'>) {
+export async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid' | 'isAdmin'>) {
     const userProfileData = {
         uid,
         ...data,
         username: data.username.toLowerCase(),
         email: data.email.toLowerCase(),
-        isAdmin: false, // Default isAdmin to false for new users
+        // isAdmin field is no longer set by default.
     };
     
     await setDoc(doc(db, 'users', uid), userProfileData);
@@ -49,13 +49,20 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
   const userRef = doc(db, 'users', uid);
-  const updatedData = { ...data };
+  const updatedData: { [key: string]: any } = { ...data };
+  
   if (data.username) {
     updatedData.username = data.username.toLowerCase();
   }
   if (data.email) {
     updatedData.email = data.email.toLowerCase();
   }
+  // Ensure isAdmin is not accidentally overwritten by a client-side update
+  // unless it's explicitly part of the update object (which it shouldn't be from the profile page)
+  if ('isAdmin' in updatedData) {
+      delete updatedData.isAdmin;
+  }
+
   await updateDoc(userRef, updatedData);
 }
 
