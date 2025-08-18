@@ -37,7 +37,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <div className="flex flex-col h-screen">
-          <main className={cn("flex-1 bg-background", showNav ? "pb-16" : "pb-0")}>
+          <main className={cn("flex-1 bg-background overflow-y-auto no-scrollbar", showNav ? "pb-16" : "pb-0")}>
             {children}
           </main>
           {showNav && <BottomNav />}

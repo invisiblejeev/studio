@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function DummyPage() {
   return (
-    <div className="relative flex h-screen flex-col bg-muted/40">
+    <div className="relative flex h-full flex-col bg-muted/40">
       {/* This <header> acts as the AppBar */}
       <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background px-4 shadow-sm">
         <div className="flex items-center gap-2">
@@ -27,11 +27,11 @@ export default function DummyPage() {
       </header>
 
       {/* This <main> area is like the RelativeLayout, holding the main content */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 no-scrollbar">
+      <div className="flex-1 p-4 md:p-6">
         <div className="mx-auto max-w-4xl space-y-4">
           <h2 className="text-2xl font-bold">Scrollable Content</h2>
           <p className="text-muted-foreground">
-            This area represents the main content of your screen, similar to what you&apos;d place inside a RelativeLayout in Android. It will scroll independently of the AppBar at the top.
+            This area represents the main content of your screen, similar to what you'd place inside a RelativeLayout in Android. It will scroll independently of the AppBar at the top.
           </p>
           {/* Adding a lot of placeholder cards to make the page scrollable */}
           {Array.from({ length: 15 }).map((_, i) => (
@@ -47,7 +47,7 @@ export default function DummyPage() {
             </Card>
           ))}
         </div>
-      </main>
+      </div>
     </div>
   );
 }
