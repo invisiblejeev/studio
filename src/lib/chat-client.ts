@@ -21,7 +21,7 @@ const getMillis = (timestamp: Timestamp | Date | undefined | null): number => {
 export function createMessagesStore(roomId: string, isPersonal: boolean, onInitialLoad?: (messages: Message[]) => void) {
     let messages: Message[] = [];
     let oldestDoc: QueryDocumentSnapshot | null = null;
-    let hasMore = true;
+    let hasMore = false; // Initialize to false
     let isLoading = false;
     
     let subscribers: ((messages: Message[]) => void)[] = [];
