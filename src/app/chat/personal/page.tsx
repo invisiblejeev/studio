@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { db } from "@/lib/firebase";
 import { collection, query, onSnapshot, doc, updateDoc, orderBy, Unsubscribe, where, getDocs } from "firebase/firestore";
@@ -33,11 +33,18 @@ export default function PersonalChatsListPage() {
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
-    const unsubscriberRef = useRef<Unsubscribe | null>(null);
+    const unsubscribers = useRef<Unsubscribe[]>([]);
     
+    const cleanupSubscriptions = useCallback(() => {
+        unsubscribers.current.forEach(unsub => unsub());
+        unsubscribers.current = [];
+    }, []);
+
     useEffect(() => {
         const fetchUserAndChats = async () => {
             setIsLoading(true);
+            cleanupSubscriptions();
+            
             const user = await getCurrentUser();
             if (!user) {
                 router.push('/');
@@ -48,10 +55,13 @@ export default function PersonalChatsListPage() {
             setCurrentUser(profile);
 
             if (profile) {
-                const personalChatsRef = collection(db, 'personalChats');
-                const q = query(personalChatsRef, where("members", "array-contains", profile.uid));
+                // Query for all chat rooms the user is a member of
+                const personalChatsQuery = query(
+                    collection(db, 'personalChats'), 
+                    where("members", "array-contains", profile.uid)
+                );
 
-                unsubscriberRef.current = onSnapshot(q, async (snapshot) => {
+                const chatsUnsub = onSnapshot(personalChatsQuery, async (snapshot) => {
                     const chatsDataPromises = snapshot.docs.map(async (docSnap) => {
                         const chatInfo = docSnap.data();
                         const lastMessageTimestamp = chatInfo.lastMessageTimestamp?.toDate() || null;
@@ -70,7 +80,7 @@ export default function PersonalChatsListPage() {
                             },
                             lastMessage: chatInfo.lastMessage || "No messages yet",
                             time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp, { addSuffix: true }) : '',
-                            unreadCount: 0,
+                            unreadCount: 0, // Will be updated by the next listener
                             timestamp: lastMessageTimestamp,
                             roomId: docSnap.id,
                         };
@@ -78,27 +88,31 @@ export default function PersonalChatsListPage() {
 
                     let resolvedChatsData = (await Promise.all(chatsDataPromises)).filter(Boolean) as ChatContact[];
                     
-                    const userChatsRef = collection(db, `users/${profile.uid}/personalChats`);
-                    onSnapshot(userChatsRef, (unreadSnapshot) => {
+                    // Listen to the user's specific subcollection for unread counts
+                    const userChatsUnreadRef = collection(db, `users/${profile.uid}/personalChats`);
+                    const unreadUnsub = onSnapshot(userChatsUnreadRef, (unreadSnapshot) => {
                          const unreadCounts = new Map<string, number>();
                          unreadSnapshot.forEach(doc => {
                              unreadCounts.set(doc.id, doc.data().unreadCount || 0);
                          });
 
+                         // Merge unread counts with chat data
                          const finalChats = resolvedChatsData.map(chat => ({
                              ...chat,
                              unreadCount: unreadCounts.get(chat.user.uid) || 0,
                          })).sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
 
                         setChats(finalChats);
+                        setIsLoading(false);
                     });
+                    unsubscribers.current.push(unreadUnsub);
 
-                    setIsLoading(false);
                 }, (error) => {
                     console.error("Error fetching personal chats:", error);
-                    toast({ title: "Error", description: "Could not fetch personal chats.", variant: "destructive" });
+                    toast({ title: "Error", description: "Could not fetch personal chats. Check permissions.", variant: "destructive" });
                     setIsLoading(false);
                 });
+                unsubscribers.current.push(chatsUnsub);
             } else {
                 setIsLoading(false);
             }
@@ -107,11 +121,9 @@ export default function PersonalChatsListPage() {
         fetchUserAndChats();
 
         return () => {
-            if (unsubscriberRef.current) {
-                unsubscriberRef.current();
-            }
+            cleanupSubscriptions();
         }
-    }, [router, toast]);
+    }, [router, toast, cleanupSubscriptions]);
 
 
     const handleChatClick = async (chat: ChatContact) => {
@@ -119,8 +131,11 @@ export default function PersonalChatsListPage() {
         if (chat.unreadCount > 0) {
             const chatRef = doc(db, `users/${currentUser.uid}/personalChats`, chat.user.uid);
             try {
-                await updateDoc(chatRef, { unreadCount: 0 });
+                // This is a "fire and forget" update. We don't need to await it to navigate.
+                updateDoc(chatRef, { unreadCount: 0 });
             } catch(e) {
+                // It's possible this doc doesn't exist if a chat was just created.
+                // We can safely ignore not-found errors here.
                 if ((e as any).code !== 'not-found') {
                     console.error("Could not reset unread count", e);
                 }
