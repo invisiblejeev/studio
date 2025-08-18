@@ -253,16 +253,16 @@ export default function ProfilePage() {
 
   if (!profile) {
       return (
-        <div className="flex min-h-screen items-center justify-center">
-            <p>Loading...</p>
+        <div className="flex h-full items-center justify-center">
+            <LoaderCircle className="animate-spin w-8 h-8" />
         </div>
       );
   }
 
   return (
-    <div className="bg-muted/20 min-h-screen pb-24">
+    <div className="bg-muted/40 h-full">
        <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
-        <div className="flex flex-col items-center text-center py-6 bg-background">
+        <div className="flex flex-col items-center text-center py-6 bg-background border-b">
             <DialogTrigger asChild>
                 <Avatar className="h-24 w-24 mb-4 bg-primary/10 cursor-pointer hover:opacity-80 transition-opacity">
                     <AvatarImage src={profile.avatar || "https://placehold.co/100x100.png"} data-ai-hint="person avatar" />

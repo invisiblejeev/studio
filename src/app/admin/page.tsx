@@ -67,7 +67,7 @@ export default function AdminDashboardPage() {
 
     if (isLoading) {
         return (
-            <div className="flex h-screen items-center justify-center">
+            <div className="flex h-full items-center justify-center">
                 <LoaderCircle className="w-8 h-8 animate-spin" />
                 <p className="ml-2">Loading Admin Dashboard...</p>
             </div>
@@ -75,7 +75,7 @@ export default function AdminDashboardPage() {
     }
 
     return (
-      <div className="space-y-8 p-4 md:p-6 lg:p-8 relative pb-24">
+      <div className="space-y-8 p-4 md:p-6 lg:p-8">
         <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
                 <ShieldCheck className="h-8 w-8 text-primary" />

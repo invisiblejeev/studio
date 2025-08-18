@@ -329,7 +329,7 @@ export default function OffersPage() {
 
 
   return (
-    <div className="space-y-8 p-4 md:p-6 pb-24">
+    <div className="space-y-8 p-4 md:p-6">
       <div className="flex items-center justify-between">
         <div>
             <h1 className="text-3xl font-bold tracking-tight">Coupons &amp; Offers</h1>
@@ -519,7 +519,7 @@ export default function OffersPage() {
           <p className="text-sm">{showAllStates ? "There are currently no offers posted." : "Check back later for new deals or check if your profile state is set."}</p>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 p-4 md:p-6">
           {filteredOffers.map(offer => (
             <div key={offer.id} className="perspective-1000">
               <div className={cn("relative h-full w-full transform-style-3d transition-transform duration-700", flippedOffers.has(offer.id) && "rotate-y-180")}>

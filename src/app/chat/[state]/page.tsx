@@ -206,7 +206,7 @@ export default function ChatPage() {
   const handleSaveEdit = async (messageId: string, newText: string) => {
     if (!currentUser) return;
     try {
-        await updateMessage(state, messageId, false);
+        await updateMessage(state, messageId, false, newText);
         toast({ title: "Message Updated" });
     } catch (error) {
         toast({ title: "Error", description: "Could not update message.", variant: "destructive"});

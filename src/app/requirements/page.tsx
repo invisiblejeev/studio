@@ -252,7 +252,7 @@ export default function RequirementsPage() {
     };
 
     return (
-        <div className="space-y-6 p-4 bg-gray-50 min-h-screen pb-24 relative">
+        <div className="space-y-6 p-4 md:p-6 bg-gray-50 min-h-full">
             <div className="flex items-start md:items-center justify-between flex-col md:flex-row gap-4">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight">Community Requirements</h1>
@@ -355,7 +355,7 @@ export default function RequirementsPage() {
                 </div>
             </div>
 
-            <div className="flex space-x-2 overflow-x-auto pb-2">
+            <div className="flex space-x-2 overflow-x-auto pb-2 no-scrollbar">
                 <Button
                     variant={activeFilter === 'All' ? 'default' : 'outline'}
                     className={`rounded-full px-4 py-1 h-auto text-sm ${activeFilter === 'All' ? '' : 'bg-white'}`}
@@ -548,5 +548,3 @@ export default function RequirementsPage() {
         </div>
     );
 }
-
-    
