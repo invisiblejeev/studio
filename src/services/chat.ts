@@ -53,7 +53,8 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   batch.set(chatDocRef, { 
       lastMessageTimestamp: serverTimestamp(),
       lastMessage: lastMessageContent,
-      lastMessageSenderId: message.user.id
+      lastMessageSenderId: message.user.id,
+      members: isPersonal ? [chatDocRef.id.split('_')[0], chatDocRef.id.split('_')[1]] : [], // Add members for personal chat
   }, { merge: true });
 
   await batch.commit();
