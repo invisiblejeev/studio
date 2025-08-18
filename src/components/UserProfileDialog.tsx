@@ -4,13 +4,11 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserProfile } from "@/services/users";
-import { Mail, MapPin, Globe, MessageSquare, ShieldBan, LoaderCircle } from "lucide-react";
+import { Mail, MapPin, Globe, MessageSquare, ShieldBan } from "lucide-react";
 import { allStates } from "@/lib/states";
 import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { getPersonalChatRoomId } from "@/services/chat";
-import { useState } from "react";
 
 interface UserProfileDialogProps {
   isOpen: boolean;
@@ -34,30 +32,16 @@ const ProfileInfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType
 export function UserProfileDialog({ isOpen, onOpenChange, user, currentUser }: UserProfileDialogProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const [isCreatingChat, setIsCreatingChat] = useState(false);
 
   if (!user || !currentUser) return null;
 
   const isOwnProfile = user.uid === currentUser?.uid;
 
-  const handleStartConversation = async () => {
-    if (isOwnProfile) return;
-    setIsCreatingChat(true);
-    try {
-        // This function ensures the chat room exists, creating it if it doesn't.
-        await getPersonalChatRoomId(currentUser.uid, user.uid);
-        onOpenChange(false); // Close the dialog
-        router.push(`/chat/user/${user.uid}`);
-    } catch (error) {
-        console.error("Failed to start conversation:", error);
-        toast({
-            title: "Error",
-            description: "Could not start a conversation. Please try again.",
-            variant: "destructive"
-        });
-    } finally {
-        setIsCreatingChat(false);
-    }
+  const handleStartConversation = () => {
+    // This is a placeholder for starting a conversation.
+    // In a real app, you would likely navigate to the chat page.
+    onOpenChange(false);
+    router.push(`/chat/user/${user.uid}`);
   }
 
   const handleBlockUser = () => {
@@ -88,12 +72,8 @@ export function UserProfileDialog({ isOpen, onOpenChange, user, currentUser }: U
         </div>
         {!isOwnProfile && (
             <DialogFooter className="grid grid-cols-2 gap-2">
-                <Button className="w-full" onClick={handleStartConversation} disabled={isCreatingChat}>
-                    {isCreatingChat ? (
-                        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                        <MessageSquare className="mr-2 h-4 w-4" />
-                    )}
+                <Button className="w-full" onClick={handleStartConversation}>
+                    <MessageSquare className="mr-2 h-4 w-4" />
                     Send Message
                 </Button>
                 <Button variant="destructive" className="w-full" onClick={handleBlockUser}>
