@@ -18,7 +18,7 @@ const db = getFirestore();
 
 // This trigger runs whenever a new message is created in a PERSONAL chat room.
 export const onPersonalMessageCreated = onDocumentCreated(
-  'chats/{roomId}/messages/{messageId}',
+  'personalChats/{roomId}/messages/{messageId}',
   async (event) => {
     const snap = event.data;
     if (!snap) {
@@ -28,14 +28,9 @@ export const onPersonalMessageCreated = onDocumentCreated(
     const message = snap.data();
     const roomId = event.params.roomId;
     const senderId = message.user.id;
-
-    // Only process messages from personal chats (which contain an underscore).
-    if (!roomId.includes('_')) {
-      return;
-    }
     
     try {
-      const chatDocRef = db.collection('chats').doc(roomId);
+      const chatDocRef = db.collection('personalChats').doc(roomId);
       const chatDoc = await chatDocRef.get();
       if (!chatDoc.exists) return;
 

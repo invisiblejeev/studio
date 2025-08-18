@@ -94,7 +94,7 @@ export default function ChatPage() {
     
     getUserCountByState(state).then(setMemberCount);
     
-    const store = createMessagesStore(state);
+    const store = createMessagesStore(state, false); // false for public chat
     messagesStoreRef.current = store;
 
     const unsubscribeMessages = store.subscribe(setMessages);
@@ -164,7 +164,7 @@ export default function ChatPage() {
           },
           text: newMessage,
           imageUrl: imageDataUri
-        });
+        }, false); // false for public chat
         
         setNewMessage("");
         setImageFile(null);
@@ -206,7 +206,7 @@ export default function ChatPage() {
   const handleSaveEdit = async (messageId: string, newText: string) => {
     if (!currentUser) return;
     try {
-        await updateMessage(state, messageId, newText);
+        await updateMessage(state, messageId, false);
         toast({ title: "Message Updated" });
     } catch (error) {
         toast({ title: "Error", description: "Could not update message.", variant: "destructive"});
@@ -219,7 +219,7 @@ export default function ChatPage() {
   const handleDeleteMessage = async (messageId: string) => {
     if (!currentUser) return;
     try {
-        await deleteMessage(state, messageId);
+        await deleteMessage(state, messageId, false);
         toast({ title: "Message Deleted" });
     } catch (error) {
         toast({ title: "Error", description: "Could not delete message.", variant: "destructive"});

@@ -18,7 +18,7 @@ const getMillis = (timestamp: Timestamp | Date | undefined | null): number => {
 }
 
 
-export function createMessagesStore(roomId: string, onInitialLoad?: (messages: Message[]) => void) {
+export function createMessagesStore(roomId: string, isPersonal: boolean, onInitialLoad?: (messages: Message[]) => void) {
     let messages: Message[] = [];
     let oldestDoc: QueryDocumentSnapshot | null = null;
     let hasMore = true;
@@ -32,7 +32,7 @@ export function createMessagesStore(roomId: string, onInitialLoad?: (messages: M
     const notifyLoading = () => loadingSubscribers.forEach(cb => cb(isLoading));
     const notifyHasMore = () => hasMoreSubscribers.forEach(cb => cb(hasMore));
     
-    const firebaseApi = createFirebaseMessageApi(roomId);
+    const firebaseApi = createFirebaseMessageApi(roomId, isPersonal);
 
     const handleUpdates = (newMessages: Message[], newOldestDoc: QueryDocumentSnapshot | null, newHasMore: boolean) => {
         const messageMap = new Map(messages.map(m => [m.id, m]));

@@ -19,7 +19,8 @@ export interface Message {
   isDeleted?: boolean;
 }
 
-export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>) => {
+export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 'timestamp' | 'time'>, isPersonal: boolean) => {
+  const collectionName = isPersonal ? 'personalChats' : 'chats';
   const messagePayload: any = {
     user: message.user,
     timestamp: serverTimestamp(),
@@ -39,9 +40,9 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
   }
 
   // Add the message to the subcollection
-  await addDoc(collection(db, 'chats', roomId, 'messages'), messagePayload);
+  await addDoc(collection(db, collectionName, roomId, 'messages'), messagePayload);
 
-  const chatDocRef = doc(db, 'chats', roomId);
+  const chatDocRef = doc(db, collectionName, roomId);
   const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
   
   // Update the main chat document's last message details for sorting and previews
@@ -55,7 +56,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
 
 export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise<string> => {
     const roomId = uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
-    const chatRef = doc(db, 'chats', roomId);
+    const chatRef = doc(db, 'personalChats', roomId);
     
     // Use a transaction to ensure atomic creation of chat and user-chat documents
     await runTransaction(db, async (transaction) => {
@@ -69,10 +70,9 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
                 throw new Error("Could not find user profiles to create personal chat.");
             }
             
-            // 1. Create the main chat room document
+            // 1. Create the main chat room document in 'personalChats'
             transaction.set(chatRef, { 
                 users: [uid1, uid2], 
-                isPersonal: true,
                 lastMessageTimestamp: serverTimestamp() 
             });
 
@@ -105,7 +105,6 @@ export const ensurePublicChatRoomExists = async (state: string) => {
 
     if (!chatSnap.exists()) {
         await setDoc(chatRef, {
-            isPersonal: false,
             users: [], // Public chats don't have a defined user list
         });
     }
@@ -124,15 +123,17 @@ export const markAsRead = async (userId: string, otherUserId: string) => {
     }
 };
 
-export const updateMessage = async (roomId: string, messageId: string, newText: string) => {
-    const messageRef = doc(db, 'chats', roomId, 'messages', messageId);
+export const updateMessage = async (roomId: string, messageId: string, isPersonal: boolean) => {
+    const collectionName = isPersonal ? 'personalChats' : 'chats';
+    const messageRef = doc(db, collectionName, roomId, 'messages', messageId);
     await updateDoc(messageRef, {
         text: newText,
     });
 };
 
-export const deleteMessage = async (roomId: string, messageId: string) => {
-    const messageRef = doc(db, 'chats', roomId, 'messages', messageId);
+export const deleteMessage = async (roomId: string, messageId: string, isPersonal: boolean) => {
+    const collectionName = isPersonal ? 'personalChats' : 'chats';
+    const messageRef = doc(db, collectionName, roomId, 'messages', messageId);
     // Soft delete: update the message to indicate it's deleted.
     await updateDoc(messageRef, {
         text: 'This message was deleted',
@@ -140,3 +141,4 @@ export const deleteMessage = async (roomId: string, messageId: string) => {
         imageUrl: null, // Remove image on delete
     });
 };
+

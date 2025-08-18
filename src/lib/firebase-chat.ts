@@ -26,11 +26,12 @@ function docToMessage(doc: QueryDocumentSnapshot<DocumentData>): Message {
 
 type MessageCallback = (messages: Message[], oldestDoc: QueryDocumentSnapshot | null, hasMore: boolean) => void;
 
-export function createFirebaseMessageApi(roomId: string) {
+export function createFirebaseMessageApi(roomId: string, isPersonal: boolean) {
     let liveUnsubscribe: Unsubscribe | null = null;
     let newestDoc: QueryDocumentSnapshot | null = null;
+    const collectionName = isPersonal ? 'personalChats' : 'chats';
 
-    const messagesCollection = collection(db, 'chats', roomId, 'messages');
+    const messagesCollection = collection(db, collectionName, roomId, 'messages');
 
     const listenForMessages = (
         callback: MessageCallback, 

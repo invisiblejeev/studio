@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { MessageActionsDialog } from "@/components/MessageActionsDialog";
-import { doc, getDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, Unsubscribe, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Separator } from "@/components/ui/separator";
 import { imageToDataUri } from "@/services/storage";
@@ -86,7 +86,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
             const personalChatSnap = await getDoc(personalChatRef);
             if (personalChatSnap.exists() && personalChatSnap.data().unreadCount > 0) {
                  if (unreadListener) unreadListener();
-                 unreadListener = onSnapshot(collection(db, 'chats', personalRoomId, 'messages'), (messageSnapshot) => {
+                 unreadListener = onSnapshot(collection(db, 'personalChats', personalRoomId, 'messages'), (messageSnapshot) => {
                      let unreadCount = personalChatSnap.data().unreadCount;
                      const unreadDocs = messageSnapshot.docs.slice(0, unreadCount);
                      if(unreadDocs.length > 0) {
@@ -128,7 +128,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
   useEffect(() => {
     if (!roomId || !currentUser) return;
 
-    const store = createMessagesStore(roomId, handleInitialLoad);
+    const store = createMessagesStore(roomId, true, handleInitialLoad); // true for personal chat
     messagesStoreRef.current = store;
 
     const unsubscribeMessages = store.subscribe(newMessages => {
@@ -171,7 +171,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
           },
           text: newMessage,
           imageUrl: imageDataUri,
-        });
+        }, true); // true for personal chat
 
         setNewMessage("");
         setImageFile(null);
@@ -227,7 +227,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
     if (!currentUser || !roomId) return;
     
     try {
-        await updateMessage(roomId, messageId, newText);
+        await updateMessage(roomId, messageId, true);
         toast({ title: "Message Updated" });
     } catch (error) {
         toast({ title: "Error", description: "Could not update message.", variant: "destructive"});
@@ -240,7 +240,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
   const handleDeleteMessage = async (messageId: string) => {
     if (!currentUser || !roomId) return;
     try {
-        await deleteMessage(roomId, messageId);
+        await deleteMessage(roomId, messageId, true);
         toast({ title: "Message Deleted" });
     } catch (error) {
         toast({ title: "Error", description: "Could not delete message.", variant: "destructive"});
