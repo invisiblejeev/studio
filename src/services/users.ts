@@ -19,6 +19,7 @@ export async function isIdentifierTaken(field: 'username' | 'email', value: stri
   if (!value) {
     return false;
   }
+  // Ensure the check is case-insensitive by converting the value to lowercase.
   const q = query(collection(db, 'users'), where(field, '==', value.toLowerCase()));
   const querySnapshot = await getDocs(q);
   return !querySnapshot.empty;
@@ -82,3 +83,4 @@ export async function getUserCountByState(state: string): Promise<number> {
         return 0;
     }
 }
+
