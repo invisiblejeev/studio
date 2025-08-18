@@ -3,71 +3,65 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check if a user is authenticated
+
+    // Helper functions to make rules more readable
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Rules for the 'users' collection
+    // Checks if the requesting user is a member of a specific personal chat
+    function isPersonalChatMember(roomId) {
+      return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/personalChats/$(roomId)).data.members;
+    }
+
+    // USER PROFILES
+    // - Anyone can check for username/email existence (list).
+    // - Any signed-in user can view a profile (get).
+    // - Users can only create, update, or delete their own profile.
     match /users/{userId} {
-      // Any signed-in user can read any profile (e.g., for viewing profiles in chat)
-      allow read: if isSignedIn();
-      
-      // A user can create their own profile document
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == userId;
-      
-      // A user can only update or delete their own profile
       allow update, delete: if isSignedIn() && request.auth.uid == userId;
     }
     
-    // Rules for public 'chats' (state-based chats)
-    match /chats/{stateId} {
-      // Any signed-in user can read/write to public chats
-      allow read, write: if isSignedIn();
-      
-      // Messages within public chats follow the same rule
-      match /messages/{messageId} {
-        allow read, write: if isSignedIn();
-      }
-    }
-    
-    // Rules for 'personalChats'
-    match /personalChats/{roomId} {
-    	// Allow read/write only if the requesting user's UID is in the 'members' array
-      allow read, write: if isSignedIn() && request.auth.uid in resource.data.members;
-      
-      // Messages within a personal chat inherit the parent's rule
-      match /messages/{messageId} {
-        allow read, write: if isSignedIn() && get(/databases/$(database)/documents/personalChats/$(roomId)).data.members.hasAny([request.auth.uid]);
-      }
-    }
-    
-    // Subcollections under users for their list of personal chats
     match /users/{userId}/personalChats/{otherUserId} {
-    	// A user can only manage their own list of personal chats
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read, update, create, delete: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Rules for the 'requirements' collection
-    match /requirements/{requirementId} {
-      // Any authenticated user can read requirements
-      allow read: if isSignedIn();
-      
-      // Any authenticated user can create a requirement
-      allow create: if isSignedIn();
-      
-      // Only the author or an admin can update/delete
-      allow update, delete: if isSignedIn() && (request.auth.uid == resource.data.user.id || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+    // PUBLIC CHAT ROOMS (e.g., /chats/california)
+    match /chats/{stateId} {
+      allow read, create, update: if isSignedIn();
+
+      // MESSAGES IN PUBLIC CHATS
+      match /messages/{messageId} {
+        allow read, create: if isSignedIn();
+        allow update, delete: if isSignedIn() && request.resource.data.user.id == request.auth.uid;
+      }
+    }
+
+    // PERSONAL CHAT ROOMS (e.g., /personalChats/uid1_uid2)
+    match /personalChats/{roomId} {
+        allow read, create, update: if isPersonalChatMember(roomId);
+
+        // MESSAGES IN PERSONAL CHATS
+        match /messages/{messageId} {
+            allow read, create: if isPersonalChatMember(roomId);
+            allow update, delete: if isPersonalChatMember(roomId) && request.resource.data.user.id == request.auth.uid;
+        }
     }
     
-    // Rules for the 'offers' collection
+    // REQUIREMENTS
+    match /requirements/{reqId} {
+        allow read, create: if isSignedIn();
+        // Allow update/delete only by the author or an admin
+        allow update, delete: if isSignedIn() && (request.resource.data.user.id == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+    }
+    
+    // OFFERS
     match /offers/{offerId} {
-      // Any authenticated user can read offers
-      allow read: if isSignedIn();
-      
-      // Only admins can create, update, or delete offers
-      allow write: if isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        allow read: if isSignedIn();
+        // Allow write operations only for admins
+        allow write: if isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
