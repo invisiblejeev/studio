@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, runTransaction, Timestamp, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -38,17 +38,17 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     console.log("Attempted to send an empty message. Aborting.");
     return;
   }
-
+  
+  // This is a more robust way to handle transactions for sending a message.
+  const batch = writeBatch(db);
   const chatDocRef = doc(db, collectionName, roomId);
   const messagesCollectionRef = collection(db, collectionName, roomId, 'messages');
+  const newMessageRef = doc(messagesCollectionRef); // Auto-generates an ID
   
-  const batch = writeBatch(db);
-
-  // 1. Add the new message
-  const newMessageRef = doc(messagesCollectionRef); // Create a ref with a new ID
+  // 1. Add the new message to the messages subcollection
   batch.set(newMessageRef, messagePayload);
 
-  // 2. Update the main chat document's last message details
+  // 2. Update the last message details on the parent chat document
   const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
   batch.set(chatDocRef, { 
       lastMessageTimestamp: serverTimestamp(),
@@ -77,26 +77,27 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
         const batch = writeBatch(db);
 
         // 1. Create the main chat room document in 'personalChats'
+        // This is the crucial document the security rules will check.
         batch.set(chatRef, { 
             members: [uid1, uid2],
             isPersonal: true,
             createdAt: serverTimestamp() 
         });
 
-        // 2. Create the chat entry for user 1 (under users/{uid1}/personalChats/{uid2})
+        // 2. Create the chat list entry for user 1 (under users/{uid1}/personalChats/{uid2})
         const user1ChatRef = doc(db, `users/${uid1}/personalChats`, uid2);
         batch.set(user1ChatRef, { 
-            withUser: { uid: user2Profile.uid, username: user2Profile.username, avatar: user2Profile.avatar || '' }, 
             roomId: roomId,
+            withUser: { uid: user2Profile.uid, username: user2Profile.username, avatar: user2Profile.avatar || '' }, 
             unreadCount: 0,
             lastMessageTimestamp: serverTimestamp(),
         });
         
-        // 3. Create the chat entry for user 2 (under users/{uid2}/personalChats/{uid1})
+        // 3. Create the chat list entry for user 2 (under users/{uid2}/personalChats/{uid1})
         const user2ChatRef = doc(db, `users/${uid2}/personalChats`, uid1);
         batch.set(user2ChatRef, { 
-            withUser: { uid: user1Profile.uid, username: user1Profile.username, avatar: user1Profile.avatar || '' }, 
             roomId: roomId,
+            withUser: { uid: user1Profile.uid, username: user1Profile.username, avatar: user1Profile.avatar || '' }, 
             unreadCount: 0,
             lastMessageTimestamp: serverTimestamp(),
         });
@@ -124,7 +125,6 @@ export const markAsRead = async (userId: string, otherUserId: string) => {
     try {
         await updateDoc(chatRef, { unreadCount: 0 });
     } catch(e) {
-        // Can happen if doc doesn't exist, which is fine
         if ((e as any).code !== 'not-found') {
             console.error("Could not mark chat as read:", e);
         }

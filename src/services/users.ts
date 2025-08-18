@@ -19,7 +19,8 @@ export async function isIdentifierTaken(field: 'username' | 'email', value: stri
   if (!value) {
     return false;
   }
-  // Ensure the check is case-insensitive by converting the value to lowercase.
+  // This query is case-sensitive by default. Firestore requires case-insensitive queries
+  // to be handled by storing a normalized, lowercase version of the field.
   const q = query(collection(db, 'users'), where(field, '==', value.toLowerCase()));
   const querySnapshot = await getDocs(q);
   return !querySnapshot.empty;
@@ -30,9 +31,10 @@ export async function createUserProfile(uid: string, data: Omit<UserProfile, 'ui
     const userProfileData = {
         uid,
         ...data,
+        // Always store normalized (lowercase) data for case-insensitive checks
         username: data.username.toLowerCase(),
         email: data.email.toLowerCase(),
-        // isAdmin field is no longer set by default.
+        // isAdmin should be handled server-side, not set on client creation.
     };
     
     await setDoc(doc(db, 'users', uid), userProfileData);
@@ -52,14 +54,15 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
   const userRef = doc(db, 'users', uid);
   const updatedData: { [key: string]: any } = { ...data };
   
+  // If username/email is updated, also update the normalized version
   if (data.username) {
     updatedData.username = data.username.toLowerCase();
   }
   if (data.email) {
     updatedData.email = data.email.toLowerCase();
   }
-  // Ensure isAdmin is not accidentally overwritten by a client-side update
-  // unless it's explicitly part of the update object (which it shouldn't be from the profile page)
+  
+  // Critical: Prevent clients from making themselves admins
   if ('isAdmin' in updatedData) {
       delete updatedData.isAdmin;
   }
@@ -83,4 +86,3 @@ export async function getUserCountByState(state: string): Promise<number> {
         return 0;
     }
 }
-

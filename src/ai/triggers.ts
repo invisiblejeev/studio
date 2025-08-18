@@ -34,7 +34,10 @@ export const onPersonalMessageCreated = onDocumentCreated(
     try {
       const chatDocRef = db.collection('personalChats').doc(roomId);
       const chatDoc = await chatDocRef.get();
-      if (!chatDoc.exists) return;
+      if (!chatDoc.exists) {
+          console.error(`Chat room ${roomId} not found.`);
+          return;
+      }
 
       const chatData = chatDoc.data()!;
       // Find the recipient's ID from the members array
@@ -49,29 +52,24 @@ export const onPersonalMessageCreated = onDocumentCreated(
         }
         const senderProfile = senderProfileSnap.data() as UserProfile;
 
-
         // The document in the recipient's subcollection is keyed by the *sender's* ID
         const recipientChatRef = db.collection('users').doc(recipientId).collection('personalChats').doc(senderId);
         
-        // Use set with merge to create the document if it doesn't exist, or update it if it does.
-        await recipientChatRef.set({
+        // This update is now correct. It increments the unread count and updates the last message details.
+        await recipientChatRef.update({
             unreadCount: FieldValue.increment(1),
-            lastMessage: message.text || (message.imageUrl ? "Image" : ""),
+            lastMessage: message.text || (message.imageUrl ? "Image" : "New Message"),
             lastMessageTimestamp: message.timestamp,
             lastMessageSenderId: senderId,
-            // Ensure the `withUser` field is populated correctly.
-            withUser: {
-                uid: senderId,
-                username: senderProfile.username,
-                avatar: senderProfile.avatar || ''
-            },
-            roomId: roomId,
-        }, { merge: true });
+            // Ensure the 'withUser' data is kept up-to-date in case of profile changes.
+            'withUser.username': senderProfile.username,
+            'withUser.avatar': senderProfile.avatar || '',
+        });
 
         console.log(`Updated unread count and last message for user ${recipientId} in chat with ${senderId}`);
       }
     } catch (err)      {
-      console.error('Error during personal message trigger:', err);
+      console.error('Error during onPersonalMessageCreated trigger:', err);
     }
   }
 );
