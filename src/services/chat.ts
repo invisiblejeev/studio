@@ -105,7 +105,7 @@ export const ensurePublicChatRoomExists = async (state: string) => {
 
     if (!chatSnap.exists()) {
         await setDoc(chatRef, {
-            users: [], // Public chats don't have a defined user list
+            isPersonal: false, // Explicitly mark as public
         });
     }
 };
