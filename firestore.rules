@@ -1,82 +1,68 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
+    
+    // Helper Functions
     function isAuth() {
       return request.auth != null;
     }
-
-    function getUserData(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data;
-    }
-
-    // A user must be a member of a personal chat to read/write to it.
-    // The roomId is composed of the two user uids, so we can check if the user's uid is in the room's path.
-    function isPersonalChatMemberByPath(roomId) {
-        return request.auth.uid in roomId.split('_');
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
     
-    // A user must be a member of a personal chat to read/write to it.
-    // We check the `members` array in the chat document.
-    function isPersonalChatMemberByDoc(roomId) {
+    function isChatMember(roomId) {
       return request.auth.uid in get(/databases/$(database)/documents/personalChats/$(roomId)).data.members;
     }
 
-
-    // USERS
+    // User Profiles
     match /users/{userId} {
       allow read: if isAuth();
-      allow write: if isAuth() && request.auth.uid == userId;
+      allow write: if isOwner(userId);
 
-      // User's private list of personal chats metadata
+      // User's personal chat list metadata
       match /personalChats/{otherUserId} {
-        allow read, write: if isAuth() && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
       }
     }
 
-    // PUBLIC CHATS
-    match /chats/{state} {
-      allow read, write: if isAuth();
-      
-      match /messages/{messageId} {
-        allow read: if isAuth();
-        allow create: if isAuth() && request.resource.data.user.id == request.auth.uid;
-        allow update, delete: if isAuth() && resource.data.user.id == request.auth.uid;
-      }
-    }
-    
-    // PERSONAL CHATS
-    match /personalChats/{roomId} {
-      // Allow a user to get a list of chats they are a member of.
-      // This is the key rule that fixes the permission error on the chat list page.
-      allow list: if isAuth() && request.query.filters[0].value == request.auth.uid;
-
-      // Allow a user to get a single chat document if they are a member.
-      allow get: if isAuth() && isPersonalChatMemberByDoc(roomId);
-      
-      // Allow a user to create a chat if they are one of the members in the new document.
-      allow create: if isAuth() && request.auth.uid in request.resource.data.members;
-      
-      // Allow a user to update a chat's metadata (e.g., last message) if they are a member.
-      allow update: if isAuth() && isPersonalChatMemberByDoc(roomId);
+    // Public State-Based Chats
+    match /chats/{stateId} {
+      allow read, create: if isAuth();
+      allow update, delete: if false; // Updates handled by subcollection
 
       match /messages/{messageId} {
-        // Allow read/write to messages subcollection only if user is a member of the parent chat room.
-        allow read, write: if isAuth() && isPersonalChatMemberByDoc(roomId);
-      }
-    }
-
-    // REQUIREMENTS & OFFERS
-    match /requirements/{reqId} {
         allow read, create: if isAuth();
-        allow update, delete: if isAuth() && (resource.data.user.id == request.auth.uid || getUserData(request.auth.uid).isAdmin == true);
+        allow update, delete: if isAuth() && isOwner(resource.data.user.id);
+      }
     }
     
+    // Personal One-on-One Chats
+    match /personalChats/{roomId} {
+      allow get: if isAuth() && request.auth.uid in resource.data.members;
+      // This rule is critical: it allows a user to query for all chats where they are a member.
+      allow list: if isAuth() && request.query.where.array_contains == request.auth.uid;
+      allow create: if isAuth() && request.auth.uid in request.resource.data.members;
+      allow update: if isAuth() && isChatMember(roomId);
+      
+      match /messages/{messageId} {
+         allow read, create: if isAuth() && isChatMember(roomId);
+         allow update, delete: if isAuth() && isChatMember(roomId) && isOwner(resource.data.user.id);
+      }
+    }
+
+    // Requirements
+    match /requirements/{requirementId} {
+      allow read, create: if isAuth();
+      allow update, delete: if isAuth() && (isOwner(resource.data.user.id) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+    }
+    
+    // Offers
     match /offers/{offerId} {
-        allow read: if isAuth();
-        allow write: if isAuth() && getUserData(request.auth.uid).isAdmin == true;
+      allow read: if isAuth();
+      allow write: if isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }

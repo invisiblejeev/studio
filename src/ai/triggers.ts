@@ -43,7 +43,6 @@ export const onPersonalMessageCreated = onDocumentCreated(
         const recipientChatRef = db.collection('users').doc(recipientId).collection('personalChats').doc(senderId);
         
         // Use set with merge to create the document if it doesn't exist, or update it if it does.
-        // This makes the unread count update more robust.
         await recipientChatRef.set({
             unreadCount: FieldValue.increment(1),
             lastMessage: message.text || (message.imageUrl ? "Image" : ""),

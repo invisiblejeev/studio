@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, orderBy, Unsubscribe, where, getDocs } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, where, Unsubscribe, Timestamp } from "firebase/firestore";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 
 interface ChatContact {
-    user: {
+    otherUser: {
         uid: string;
         username: string;
         avatar: string;
@@ -55,64 +55,36 @@ export default function PersonalChatsListPage() {
             setCurrentUser(profile);
 
             if (profile) {
-                // Query for all chat rooms the user is a member of
-                const personalChatsQuery = query(
-                    collection(db, 'personalChats'), 
-                    where("members", "array-contains", profile.uid)
-                );
-
-                const chatsUnsub = onSnapshot(personalChatsQuery, async (snapshot) => {
-                    const chatsDataPromises = snapshot.docs.map(async (docSnap) => {
-                        const chatInfo = docSnap.data();
-                        const lastMessageTimestamp = chatInfo.lastMessageTimestamp?.toDate() || null;
-                        
-                        const otherUserId = chatInfo.members.find((m: string) => m !== profile.uid);
-                        if (!otherUserId) return null;
-
-                        const otherUserProfile = await getUserProfile(otherUserId);
-                        if (!otherUserProfile) return null;
-
+                const userChatsMetadataRef = collection(db, `users/${profile.uid}/personalChats`);
+                const metadataUnsub = onSnapshot(userChatsMetadataRef, (snapshot) => {
+                    const contacts: ChatContact[] = snapshot.docs.map(docSnap => {
+                        const data = docSnap.data();
+                        const timestamp = (data.lastMessageTimestamp as Timestamp)?.toDate() || new Date();
                         return {
-                            user: {
-                                uid: otherUserProfile.uid,
-                                username: otherUserProfile.username,
-                                avatar: otherUserProfile.avatar || '',
+                            otherUser: {
+                                uid: data.withUser.uid,
+                                username: data.withUser.username,
+                                avatar: data.withUser.avatar || '',
                             },
-                            lastMessage: chatInfo.lastMessage || "No messages yet",
-                            time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp, { addSuffix: true }) : '',
-                            unreadCount: 0, // Will be updated by the next listener
-                            timestamp: lastMessageTimestamp,
-                            roomId: docSnap.id,
+                            lastMessage: data.lastMessage || 'No messages yet',
+                            time: formatDistanceToNowStrict(timestamp, { addSuffix: true }),
+                            unreadCount: data.unreadCount || 0,
+                            timestamp: timestamp,
+                            roomId: data.roomId,
                         };
                     });
 
-                    let resolvedChatsData = (await Promise.all(chatsDataPromises)).filter(Boolean) as ChatContact[];
-                    
-                    // Listen to the user's specific subcollection for unread counts
-                    const userChatsUnreadRef = collection(db, `users/${profile.uid}/personalChats`);
-                    const unreadUnsub = onSnapshot(userChatsUnreadRef, (unreadSnapshot) => {
-                         const unreadCounts = new Map<string, number>();
-                         unreadSnapshot.forEach(doc => {
-                             unreadCounts.set(doc.id, doc.data().unreadCount || 0);
-                         });
-
-                         // Merge unread counts with chat data
-                         const finalChats = resolvedChatsData.map(chat => ({
-                             ...chat,
-                             unreadCount: unreadCounts.get(chat.user.uid) || 0,
-                         })).sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
-
-                        setChats(finalChats);
-                        setIsLoading(false);
-                    });
-                    unsubscribers.current.push(unreadUnsub);
-
+                    contacts.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
+                    setChats(contacts);
+                    setIsLoading(false);
                 }, (error) => {
-                    console.error("Error fetching personal chats:", error);
-                    toast({ title: "Error", description: "Could not fetch personal chats. Check permissions.", variant: "destructive" });
+                    console.error("Error fetching personal chat metadata:", error);
+                    toast({ title: "Error", description: "Could not load your chats.", variant: "destructive" });
                     setIsLoading(false);
                 });
-                unsubscribers.current.push(chatsUnsub);
+
+                unsubscribers.current.push(metadataUnsub);
+
             } else {
                 setIsLoading(false);
             }
@@ -129,7 +101,7 @@ export default function PersonalChatsListPage() {
     const handleChatClick = async (chat: ChatContact) => {
         if (!currentUser) return;
         if (chat.unreadCount > 0) {
-            const chatRef = doc(db, `users/${currentUser.uid}/personalChats`, chat.user.uid);
+            const chatRef = doc(db, `users/${currentUser.uid}/personalChats`, chat.otherUser.uid);
             try {
                 // This is a "fire and forget" update. We don't need to await it to navigate.
                 updateDoc(chatRef, { unreadCount: 0 });
@@ -141,7 +113,7 @@ export default function PersonalChatsListPage() {
                 }
             }
         }
-        router.push(`/chat/user/${chat.user.uid}`);
+        router.push(`/chat/user/${chat.otherUser.uid}`);
     }
 
     return (
@@ -167,12 +139,12 @@ export default function PersonalChatsListPage() {
                     chats.map(chat => (
                         <div key={chat.roomId} onClick={() => handleChatClick(chat)} className="flex items-center gap-4 p-4 border-b hover:bg-muted/50 cursor-pointer">
                             <Avatar className="h-12 w-12">
-                                <AvatarImage src={chat.user.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
-                                <AvatarFallback>{chat.user.username.charAt(0)}</AvatarFallback>
+                                <AvatarImage src={chat.otherUser.avatar || 'https://placehold.co/40x40.png'} data-ai-hint="person avatar" />
+                                <AvatarFallback>{chat.otherUser.username.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1 flex justify-between items-start">
                                 <div className="flex-1">
-                                    <p className="font-semibold">{chat.user.username}</p>
+                                    <p className="font-semibold">{chat.otherUser.username}</p>
                                     <p className={cn("text-sm text-muted-foreground truncate mt-1 max-w-[200px] md:max-w-xs", chat.unreadCount > 0 && "font-bold text-foreground")}>
                                         {chat.lastMessage}
                                     </p>

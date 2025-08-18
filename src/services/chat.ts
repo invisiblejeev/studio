@@ -2,7 +2,7 @@
 'use client';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, runTransaction, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, runTransaction, Timestamp, writeBatch } from 'firebase/firestore';
 import { getUserProfile } from './users';
 
 export interface Message {
@@ -39,18 +39,24 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
     return;
   }
 
-  // Add the message to the subcollection
-  await addDoc(collection(db, collectionName, roomId, 'messages'), messagePayload);
-
   const chatDocRef = doc(db, collectionName, roomId);
-  const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
+  const messagesCollectionRef = collection(db, collectionName, roomId, 'messages');
   
-  // Update the main chat document's last message details for sorting and previews
-  await setDoc(chatDocRef, { 
+  const batch = writeBatch(db);
+
+  // 1. Add the new message
+  const newMessageRef = doc(messagesCollectionRef); // Create a ref with a new ID
+  batch.set(newMessageRef, messagePayload);
+
+  // 2. Update the main chat document's last message details
+  const lastMessageContent = messagePayload.text || (messagePayload.imageUrl ? "Image" : "");
+  batch.set(chatDocRef, { 
       lastMessageTimestamp: serverTimestamp(),
       lastMessage: lastMessageContent,
       lastMessageSenderId: message.user.id
   }, { merge: true });
+
+  await batch.commit();
 };
 
 
@@ -73,7 +79,8 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
             
             // 1. Create the main chat room document in 'personalChats'
             transaction.set(chatRef, { 
-                members: [uid1, uid2], // Add the members array
+                members: [uid1, uid2],
+                isPersonal: true,
                 lastMessageTimestamp: serverTimestamp() 
             });
 
