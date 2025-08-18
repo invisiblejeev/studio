@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { SendHorizonal, ArrowLeft, LoaderCircle, ArrowDownCircle, Paperclip, X } from "lucide-react"
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { getUserProfile, UserProfile } from "@/services/users";
@@ -24,10 +24,11 @@ import Image from "next/image";
 import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 
 
-export default function PersonalChatPage({ params }: { params: { userId: string } }) {
+export default function PersonalChatPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { userId } = params;
+  const params = useParams();
+  const userId = params.userId as string;
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -227,7 +228,7 @@ export default function PersonalChatPage({ params }: { params: { userId: string 
     if (!currentUser || !roomId) return;
     
     try {
-        await updateMessage(roomId, messageId, true);
+        await updateMessage(roomId, messageId, true, newText);
         toast({ title: "Message Updated" });
     } catch (error) {
         toast({ title: "Error", description: "Could not update message.", variant: "destructive"});
