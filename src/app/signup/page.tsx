@@ -29,7 +29,7 @@ const formatPhoneNumber = (value: string) => {
     return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
 };
 
-type Status = "idle" | "checking" | "available" | "taken";
+type Status = "idle" | "checking" | "available" | "taken" | "error";
 
 export default function SignupPage() {
   const { toast } = useToast();
@@ -62,30 +62,31 @@ export default function SignupPage() {
       setStatus("idle");
       return;
     }
+     if (field === 'email' && !/^\S+@\S+\.\S+$/.test(value)) {
+        setStatus("idle");
+        return;
+    }
     setStatus("checking");
     try {
       const isTaken = await isIdentifierTaken(field, value);
       setStatus(isTaken ? "taken" : "available");
     } catch (error) {
       console.error(`Error checking ${field}`, error);
-      setStatus("idle"); // Reset on error
+      setStatus("error"); 
+      toast({
+          title: "Validation Error",
+          description: `Could not check ${field} availability. Check permissions.`,
+          variant: "destructive"
+      });
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    if (debouncedUsername) {
-      checkIdentifier('username', debouncedUsername, setUsernameStatus);
-    } else {
-      setUsernameStatus("idle");
-    }
+    checkIdentifier('username', debouncedUsername, setUsernameStatus);
   }, [debouncedUsername, checkIdentifier]);
   
   useEffect(() => {
-    if (debouncedEmail && /^\S+@\S+\.\S+$/.test(debouncedEmail)) {
-        checkIdentifier('email', debouncedEmail, setEmailStatus);
-    } else {
-      setEmailStatus("idle");
-    }
+    checkIdentifier('email', debouncedEmail, setEmailStatus);
   }, [debouncedEmail, checkIdentifier]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -97,8 +98,10 @@ export default function SignupPage() {
         newFormData = {...newFormData, [id]: value};
     }
     setFormData(newFormData);
-    if (id === "username") setUsernameStatus(value ? "checking" : "idle");
-    if (id === "email") setEmailStatus(value ? "checking" : "idle");
+  }
+  
+  const handleSelectChange = (id: 'state') => (value: string) => {
+      setFormData(prev => ({...prev, [id]: value}));
   }
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -215,7 +218,7 @@ export default function SignupPage() {
                 </div>
                 <div className="grid gap-2">
                     <Label htmlFor="state">State</Label>
-                    <Select onValueChange={(value) => setFormData(prev => ({...prev, state: value}))} value={formData.state} disabled={isLoading}>
+                    <Select onValueChange={handleSelectChange('state')} value={formData.state} disabled={isLoading}>
                         <SelectTrigger id="state"><SelectValue placeholder="Select State" /></SelectTrigger>
                         <SelectContent>
                             {allStates.map(s => (<SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>))}

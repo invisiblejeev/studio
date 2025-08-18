@@ -34,7 +34,7 @@ export async function createUserProfile(uid: string, data: Omit<UserProfile, 'ui
         // Always store normalized (lowercase) data for case-insensitive checks
         username: data.username.toLowerCase(),
         email: data.email.toLowerCase(),
-        // isAdmin should be handled server-side, not set on client creation.
+        isAdmin: false,
     };
     
     await setDoc(doc(db, 'users', uid), userProfileData);
