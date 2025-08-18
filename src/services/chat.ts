@@ -65,44 +65,48 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
     const roomId = uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
     const chatRef = doc(db, 'personalChats', roomId);
     
-    // Use a transaction to ensure atomic creation of chat and user-chat documents
-    await runTransaction(db, async (transaction) => {
-        const chatSnap = await transaction.get(chatRef);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const chatSnap = await transaction.get(chatRef);
 
-        if (!chatSnap.exists()) {
-            const user1Profile = await getUserProfile(uid1);
-            const user2Profile = await getUserProfile(uid2);
+            if (!chatSnap.exists()) {
+                const user1Profile = await getUserProfile(uid1);
+                const user2Profile = await getUserProfile(uid2);
 
-            if (!user1Profile || !user2Profile) {
-                throw new Error("Could not find user profiles to create personal chat.");
+                if (!user1Profile || !user2Profile) {
+                    throw new Error("Could not find user profiles to create personal chat.");
+                }
+                
+                // 1. Create the main chat room document in 'personalChats'
+                transaction.set(chatRef, { 
+                    members: [uid1, uid2],
+                    isPersonal: true,
+                    lastMessageTimestamp: serverTimestamp() 
+                });
+
+                // 2. Create the chat entry for user 1 (under users/{uid1}/personalChats/{uid2})
+                const user1ChatRef = doc(db, `users/${uid1}/personalChats`, uid2);
+                transaction.set(user1ChatRef, { 
+                    withUser: { uid: user2Profile.uid, username: user2Profile.username, avatar: user2Profile.avatar || '' }, 
+                    roomId: roomId,
+                    unreadCount: 0,
+                    lastMessageTimestamp: serverTimestamp(),
+                });
+                
+                // 3. Create the chat entry for user 2 (under users/{uid2}/personalChats/{uid1})
+                const user2ChatRef = doc(db, `users/${uid2}/personalChats`, uid1);
+                transaction.set(user2ChatRef, { 
+                    withUser: { uid: user1Profile.uid, username: user1Profile.username, avatar: user1Profile.avatar || '' }, 
+                    roomId: roomId,
+                    unreadCount: 0,
+                    lastMessageTimestamp: serverTimestamp(),
+                });
             }
-            
-            // 1. Create the main chat room document in 'personalChats'
-            transaction.set(chatRef, { 
-                members: [uid1, uid2],
-                isPersonal: true,
-                lastMessageTimestamp: serverTimestamp() 
-            });
-
-            // 2. Create the chat entry for user 1 (under users/{uid1}/personalChats/{uid2})
-            const user1ChatRef = doc(db, `users/${uid1}/personalChats`, uid2);
-            transaction.set(user1ChatRef, { 
-                withUser: { uid: user2Profile.uid, username: user2Profile.username, avatar: user2Profile.avatar || '' }, 
-                roomId: roomId,
-                unreadCount: 0,
-                lastMessageTimestamp: serverTimestamp(),
-            });
-            
-            // 3. Create the chat entry for user 2 (under users/{uid2}/personalChats/{uid1})
-            const user2ChatRef = doc(db, `users/${uid2}/personalChats`, uid1);
-            transaction.set(user2ChatRef, { 
-                withUser: { uid: user1Profile.uid, username: user1Profile.username, avatar: user1Profile.avatar || '' }, 
-                roomId: roomId,
-                unreadCount: 0,
-                lastMessageTimestamp: serverTimestamp(),
-            });
-        }
-    });
+        });
+    } catch (error) {
+        console.error("Transaction failed: ", error);
+        throw error; // Re-throw the error to be handled by the caller
+    }
 
     return roomId;
 }
