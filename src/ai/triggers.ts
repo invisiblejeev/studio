@@ -8,6 +8,8 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import type { UserProfile } from '@/services/users';
+
 
 // Initialize the Admin SDK if it hasn't been already.
 if (!getApps().length) {
@@ -39,7 +41,16 @@ export const onPersonalMessageCreated = onDocumentCreated(
       const recipientId = chatData.members.find((uid: string) => uid !== senderId);
 
       if (recipientId) {
-        // The document in the user's subcollection is keyed by the *other* user's ID
+        // We need the sender's profile to update the recipient's chat list item correctly.
+        const senderProfileSnap = await db.collection('users').doc(senderId).get();
+        if (!senderProfileSnap.exists) {
+            console.error(`Sender profile not found for ID: ${senderId}`);
+            return;
+        }
+        const senderProfile = senderProfileSnap.data() as UserProfile;
+
+
+        // The document in the recipient's subcollection is keyed by the *sender's* ID
         const recipientChatRef = db.collection('users').doc(recipientId).collection('personalChats').doc(senderId);
         
         // Use set with merge to create the document if it doesn't exist, or update it if it does.
@@ -47,7 +58,14 @@ export const onPersonalMessageCreated = onDocumentCreated(
             unreadCount: FieldValue.increment(1),
             lastMessage: message.text || (message.imageUrl ? "Image" : ""),
             lastMessageTimestamp: message.timestamp,
-            lastMessageSenderId: senderId
+            lastMessageSenderId: senderId,
+            // Ensure the `withUser` field is populated correctly.
+            withUser: {
+                uid: senderId,
+                username: senderProfile.username,
+                avatar: senderProfile.avatar || ''
+            },
+            roomId: roomId,
         }, { merge: true });
 
         console.log(`Updated unread count and last message for user ${recipientId} in chat with ${senderId}`);
