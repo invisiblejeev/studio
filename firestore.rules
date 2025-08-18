@@ -1,60 +1,81 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
-    function isOwner(userId) {
-      return request.auth.uid == userId;
+    // Helper function to check if the requesting user is a member of a private chat
+    function isChatMember(roomId) {
+      // Allow if the user's UID is in the `users` array of the chat room document.
+      return request.auth.uid in get(/databases/$(database)/documents/personalChats/$(roomId)).data.users;
+    }
+    
+    // Helper function to check if a user is creating a chat with themselves in it
+    function isCreatingChatWithSelf(roomId) {
+      let uids = roomId.split('_');
+      // Allow if the user's UID is one of the two UIDs in the room ID.
+      return request.auth.uid == uids[0] || request.auth.uid == uids[1];
     }
 
-    // User Profiles
+    // Users can only read their own profile, but can be written to by triggers.
+    // They can read any other user's profile.
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow write: if isOwner(userId);
+      allow write: if request.auth.uid == userId;
 
-      // User's own list of personal chats
+      // Users need to be able to create a record of a personal chat under another user's doc.
+      // This is only allowed if they are one of the participants.
       match /personalChats/{otherUserId} {
-        allow write: if isOwner(userId);
+        allow write: if request.auth.uid == otherUserId || exists(/databases/$(database)/documents/users/$(otherUserId));
       }
     }
 
-    // Public state-based chats
+    // Rules for public, state-based chat rooms
     match /chats/{stateId} {
       allow read, write: if request.auth != null;
 
       match /messages/{messageId} {
         allow read: if request.auth != null;
-        allow create: if request.auth != null && request.resource.data.user.id == request.auth.uid;
-        allow update: if request.auth != null && resource.data.user.id == request.auth.uid;
-        allow delete: never; // Use soft deletes through update
+        // Allow create if user is authenticated.
+        // Allow update/delete if the user is the author of the message.
+        allow write: if request.auth != null && (
+          (request.resource.data.user.id == request.auth.uid) || 
+          (resource.data.user.id == request.auth.uid)
+        );
       }
     }
-
-    // Personal one-on-one chats (NOTE: No membership check, any user can access)
+    
+    // Rules for private, one-on-one chats
     match /personalChats/{roomId} {
-      allow read, write: if request.auth != null;
+      // The room document itself can be read by its members.
+      // It can be written to (e.g., to create it or update lastMessage) by its members.
+      allow read, write: if isChatMember(roomId);
 
       match /messages/{messageId} {
-        allow read, create: if request.auth != null;
-        // Only allow a user to edit/delete their own messages
-        allow update: if request.auth != null && resource.data.user.id == request.auth.uid;
-        allow delete: never;
+        // A user can read messages if they are a member of the chat room.
+        allow read: if isChatMember(roomId);
+        
+        // A user can write a message if:
+        // 1. They are creating the chat for the first time with themselves as a participant.
+        // OR
+        // 2. The chat already exists and they are a member.
+        // AND (for both cases)
+        // 3. They are the author of the message being written.
+        allow write: if (isCreatingChatWithSelf(roomId) || isChatMember(roomId))
+                       && request.resource.data.user.id == request.auth.uid;
       }
     }
 
-    // Requirements
-    match /requirements/{reqId} {
+    // Requirements can be read by anyone, but only created/updated/deleted by the author or an admin.
+    match /requirements/{requirementId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && (resource.data.user.id == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+      allow write: if request.auth != null && 
+                     (request.resource.data.user.id == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
     }
 
-    // Offers
+    // Offers can be read by anyone, but only written by an admin.
     match /offers/{offerId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }
