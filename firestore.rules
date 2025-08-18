@@ -3,67 +3,58 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Helper function to check if a user is an admin
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
 
-    // Helper functions
+    // Helper function to check if user is authenticated
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isUser(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Users Collection
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isUser(userId);
-      
-      // Personal chat metadata subcollection
-      match /personalChats/{otherUserId} {
-        allow read, write: if isUser(userId);
-      }
+      // Users can only write to their own profile.
+      allow write: if request.auth.uid == userId;
     }
     
-    // Public Chat Rooms (keyed by state)
-    match /chats/{state} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn(); // For creating last message, etc.
-
-      match /messages/{messageId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.user.id == request.auth.uid;
-        allow update, delete: if isSignedIn() && resource.data.user.id == request.auth.uid;
-      }
-    }
-    
-    // Personal Chat Rooms (keyed by user1Id_user2Id)
     match /personalChats/{roomId} {
-      // Room metadata can be read/written by members only
-      allow read, write: if isSignedIn() && request.auth.uid in resource.data.members;
-
-      match /messages/{messageId} {
-        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/personalChats/$(roomId)).data.members;
-        allow create: if isSignedIn() && request.resource.data.user.id == request.auth.uid && request.auth.uid in get(/databases/$(database)/documents/personalChats/$(roomId)).data.members;
-        allow update, delete: if isSignedIn() && resource.data.user.id == request.auth.uid;
-      }
-    }
-
-    // Requirements Collection
-    match /requirements/{reqId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && (resource.data.user.id == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+      // Users can only access chat rooms they are a member of.
+      allow read, write: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/personalChats/$(roomId)).data.members;
     }
     
-    // Offers Collection
+    match /personalChats/{roomId}/messages/{messageId} {
+      // Users can only read messages in chats they are a member of.
+      allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/personalChats/$(roomId)).data.members;
+      // Users can only create messages as themselves.
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.user.id;
+      // Users can only update/delete their own messages.
+      allow update: if isSignedIn() && resource.data.user.id == request.auth.uid;
+    }
+
+    match /chats/{stateId} {
+      // Anyone authenticated can read/write to public state chats.
+      allow read, write: if isSignedIn();
+    }
+    
+    match /chats/{stateId}/messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.user.id;
+      allow update: if isSignedIn() && resource.data.user.id == request.auth.uid;
+    }
+
+    match /requirements/{reqId} {
+        allow read, create: if isSignedIn();
+        // User can update/delete if they are the author OR an admin.
+        allow update, delete: if isSignedIn() && (resource.data.user.id == request.auth.uid || isAdmin());
+    }
+
     match /offers/{offerId} {
         allow read: if isSignedIn();
-        allow write: if isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-    
-    // Fallback security rule
-    match /{document=**} {
-      allow read, write: if false;
+        // Only admins can create, update, or delete offers.
+        allow write: if isSignedIn() && isAdmin();
     }
   }
 }
