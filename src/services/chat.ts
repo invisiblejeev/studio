@@ -123,7 +123,7 @@ export const markAsRead = async (userId: string, otherUserId: string) => {
     }
 };
 
-export const updateMessage = async (roomId: string, messageId: string, isPersonal: boolean) => {
+export const updateMessage = async (roomId: string, messageId: string, isPersonal: boolean, newText: string) => {
     const collectionName = isPersonal ? 'personalChats' : 'chats';
     const messageRef = doc(db, collectionName, roomId, 'messages', messageId);
     await updateDoc(messageRef, {
@@ -141,4 +141,3 @@ export const deleteMessage = async (roomId: string, messageId: string, isPersona
         imageUrl: null, // Remove image on delete
     });
 };
-

@@ -322,7 +322,7 @@ export default function ChatPage() {
                           >
                             {msg.imageUrl && (
                                 <div className="relative aspect-square w-48 h-48 cursor-pointer" onClick={(e) => { e.stopPropagation(); setDialogImageUrl(msg.imageUrl || null)}}>
-                                    <Image src={msg.imageUrl} alt="sent image" layout="fill" className="object-cover rounded-md" />
+                                    <Image src={msg.imageUrl} alt="sent image" fill className="object-cover rounded-md" />
                                 </div>
                             )}
                             {msg.text && <p className={cn("text-sm whitespace-pre-wrap p-1", msg.isDeleted && "italic text-muted-foreground")}>{msg.text}</p>}
@@ -375,7 +375,7 @@ export default function ChatPage() {
       <div className="p-4 border-t bg-background shrink-0">
           {imagePreview && (
               <div className="relative w-24 h-24 mb-2">
-                  <Image src={imagePreview} alt="Image preview" layout="fill" className="object-cover rounded-md"/>
+                  <Image src={imagePreview} alt="Image preview" fill className="object-cover rounded-md"/>
                   <Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={removeImagePreview}>
                       <X className="h-4 w-4" />
                   </Button>
