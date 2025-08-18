@@ -55,6 +55,7 @@ export const sendMessage = async (roomId: string, message: Omit<Message, 'id' | 
 
 
 export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise<string> => {
+    // This creates a consistent, canonical room ID for any two users.
     const roomId = uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
     const chatRef = doc(db, 'personalChats', roomId);
     
@@ -72,11 +73,11 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
             
             // 1. Create the main chat room document in 'personalChats'
             transaction.set(chatRef, { 
-                users: [uid1, uid2], 
+                members: [uid1, uid2], // Add the members array
                 lastMessageTimestamp: serverTimestamp() 
             });
 
-            // 2. Create the chat entry for user 1
+            // 2. Create the chat entry for user 1 (under users/{uid1}/personalChats/{uid2})
             const user1ChatRef = doc(db, `users/${uid1}/personalChats`, uid2);
             transaction.set(user1ChatRef, { 
                 withUser: { uid: user2Profile.uid, username: user2Profile.username, avatar: user2Profile.avatar || '' }, 
@@ -85,7 +86,7 @@ export const getPersonalChatRoomId = async (uid1: string, uid2: string): Promise
                 lastMessageTimestamp: serverTimestamp(),
             });
             
-            // 3. Create the chat entry for user 2
+            // 3. Create the chat entry for user 2 (under users/{uid2}/personalChats/{uid1})
             const user2ChatRef = doc(db, `users/${uid2}/personalChats`, uid1);
             transaction.set(user2ChatRef, { 
                 withUser: { uid: user1Profile.uid, username: user1Profile.username, avatar: user1Profile.avatar || '' }, 

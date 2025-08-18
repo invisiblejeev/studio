@@ -35,9 +35,11 @@ export const onPersonalMessageCreated = onDocumentCreated(
       if (!chatDoc.exists) return;
 
       const chatData = chatDoc.data()!;
-      const recipientId = chatData.users.find((uid: string) => uid !== senderId);
+      // Find the recipient's ID from the members array
+      const recipientId = chatData.members.find((uid: string) => uid !== senderId);
 
       if (recipientId) {
+        // The document in the user's subcollection is keyed by the *other* user's ID
         const recipientChatRef = db.collection('users').doc(recipientId).collection('personalChats').doc(senderId);
         
         // Use set with merge to create the document if it doesn't exist, or update it if it does.

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, orderBy, Unsubscribe } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, orderBy, Unsubscribe, where } from "firebase/firestore";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from 'date-fns';
@@ -48,26 +48,59 @@ export default function PersonalChatsListPage() {
             setCurrentUser(profile);
 
             if (profile) {
-                const personalChatsRef = collection(db, `users/${profile.uid}/personalChats`);
-                // Query chats ordered by the last message timestamp directly from Firestore
-                const q = query(personalChatsRef, orderBy("lastMessageTimestamp", "desc"));
+                // Correct Query: Fetch chat rooms where the current user is a member.
+                const personalChatsRef = collection(db, 'personalChats');
+                const q = query(
+                    personalChatsRef, 
+                    where("members", "array-contains", profile.uid),
+                    orderBy("lastMessageTimestamp", "desc")
+                );
 
-                const unsubscribe = onSnapshot(q, (snapshot) => {
-                    const chatsData = snapshot.docs.map(docSnap => {
+                const unsubscribe = onSnapshot(q, async (snapshot) => {
+                    const chatsDataPromises = snapshot.docs.map(async (docSnap) => {
                         const chatInfo = docSnap.data();
                         const lastMessageTimestamp = chatInfo.lastMessageTimestamp?.toDate() || null;
                         
+                        // Find the other user's ID to fetch their profile
+                        const otherUserId = chatInfo.members.find((m: string) => m !== profile.uid);
+                        if (!otherUserId) return null;
+
+                        const otherUserProfile = await getUserProfile(otherUserId);
+                        if (!otherUserProfile) return null;
+
                         return {
-                            user: chatInfo.withUser,
+                            user: {
+                                uid: otherUserProfile.uid,
+                                username: otherUserProfile.username,
+                                avatar: otherUserProfile.avatar || '',
+                            },
                             lastMessage: chatInfo.lastMessage || "No messages yet",
                             time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp) : '',
-                            unreadCount: chatInfo.unreadCount || 0,
+                            unreadCount: 0, // Unread count is now managed in a different trigger/subcollection
                             timestamp: lastMessageTimestamp,
-                            roomId: chatInfo.roomId,
+                            roomId: docSnap.id,
                         };
                     });
 
-                    setChats(chatsData);
+                    const resolvedChatsData = (await Promise.all(chatsDataPromises)).filter(Boolean) as ChatContact[];
+                    
+                    // We need a separate listener for unread counts from the user's private subcollection
+                    const userChatsRef = collection(db, `users/${profile.uid}/personalChats`);
+                    onSnapshot(userChatsRef, (unreadSnapshot) => {
+                         const unreadCounts = new Map<string, number>();
+                         unreadSnapshot.forEach(doc => {
+                             unreadCounts.set(doc.id, doc.data().unreadCount || 0);
+                         });
+
+                         const finalChats = resolvedChatsData.map(chat => ({
+                             ...chat,
+                             unreadCount: unreadCounts.get(chat.user.uid) || 0,
+                         }));
+
+                        setChats(finalChats);
+                    });
+
+
                     setIsLoading(false);
                 }, (error) => {
                     console.error("Error fetching personal chats:", error);
