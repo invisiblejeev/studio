@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast";
-import { IndianRupee, CheckCircle2, XCircle, LoaderCircle, Eye, EyeOff, Camera } from "lucide-react"
+import { CheckCircle2, XCircle, LoaderCircle, Eye, EyeOff, Camera } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useCallback, useRef } from "react";
