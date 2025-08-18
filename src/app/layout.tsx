@@ -3,6 +3,7 @@
 
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
+import AppLayout from '@/components/AppLayout';
 
 export default function RootLayout({
   children,
@@ -19,8 +20,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-body antialiased bg-background">
-          {children}
+      <body className="font-body antialiased bg-background no-scrollbar">
+          <AppLayout>
+            {children}
+          </AppLayout>
           <Toaster />
       </body>
     </html>
