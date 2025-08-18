@@ -242,6 +242,8 @@ export default function PersonalChatPage() {
     if (!currentUser || !roomId) return;
     try {
         await deleteMessage(roomId, messageId, true);
+        toast({ title: "Message Deleted" });
+    } catch (error) {
         toast({ title: "Error", description: "Could not delete message.", variant: "destructive"});
         console.error(error);
     } finally {

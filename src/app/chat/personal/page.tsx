@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState, useRef } from "react";
 import { getCurrentUser } from "@/services/auth";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, orderBy, Unsubscribe, where } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, orderBy, Unsubscribe, where, getDocs } from "firebase/firestore";
 import { getUserProfile, UserProfile } from "@/services/users";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from 'date-fns';
@@ -48,20 +48,14 @@ export default function PersonalChatsListPage() {
             setCurrentUser(profile);
 
             if (profile) {
-                // Correct Query: Fetch chat rooms where the current user is a member.
                 const personalChatsRef = collection(db, 'personalChats');
-                const q = query(
-                    personalChatsRef, 
-                    where("members", "array-contains", profile.uid),
-                    orderBy("lastMessageTimestamp", "desc")
-                );
+                const q = query(personalChatsRef, where("members", "array-contains", profile.uid));
 
-                const unsubscribe = onSnapshot(q, async (snapshot) => {
+                unsubscriberRef.current = onSnapshot(q, async (snapshot) => {
                     const chatsDataPromises = snapshot.docs.map(async (docSnap) => {
                         const chatInfo = docSnap.data();
                         const lastMessageTimestamp = chatInfo.lastMessageTimestamp?.toDate() || null;
                         
-                        // Find the other user's ID to fetch their profile
                         const otherUserId = chatInfo.members.find((m: string) => m !== profile.uid);
                         if (!otherUserId) return null;
 
@@ -75,16 +69,15 @@ export default function PersonalChatsListPage() {
                                 avatar: otherUserProfile.avatar || '',
                             },
                             lastMessage: chatInfo.lastMessage || "No messages yet",
-                            time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp) : '',
-                            unreadCount: 0, // Unread count is now managed in a different trigger/subcollection
+                            time: lastMessageTimestamp ? formatDistanceToNowStrict(lastMessageTimestamp, { addSuffix: true }) : '',
+                            unreadCount: 0,
                             timestamp: lastMessageTimestamp,
                             roomId: docSnap.id,
                         };
                     });
 
-                    const resolvedChatsData = (await Promise.all(chatsDataPromises)).filter(Boolean) as ChatContact[];
+                    let resolvedChatsData = (await Promise.all(chatsDataPromises)).filter(Boolean) as ChatContact[];
                     
-                    // We need a separate listener for unread counts from the user's private subcollection
                     const userChatsRef = collection(db, `users/${profile.uid}/personalChats`);
                     onSnapshot(userChatsRef, (unreadSnapshot) => {
                          const unreadCounts = new Map<string, number>();
@@ -95,11 +88,10 @@ export default function PersonalChatsListPage() {
                          const finalChats = resolvedChatsData.map(chat => ({
                              ...chat,
                              unreadCount: unreadCounts.get(chat.user.uid) || 0,
-                         }));
+                         })).sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
 
                         setChats(finalChats);
                     });
-
 
                     setIsLoading(false);
                 }, (error) => {
@@ -107,8 +99,6 @@ export default function PersonalChatsListPage() {
                     toast({ title: "Error", description: "Could not fetch personal chats.", variant: "destructive" });
                     setIsLoading(false);
                 });
-                
-                unsubscriberRef.current = unsubscribe;
             } else {
                 setIsLoading(false);
             }
@@ -121,19 +111,19 @@ export default function PersonalChatsListPage() {
                 unsubscriberRef.current();
             }
         }
-
     }, [router, toast]);
 
 
     const handleChatClick = async (chat: ChatContact) => {
         if (!currentUser) return;
-        // Reset unread count when user clicks on the chat
         if (chat.unreadCount > 0) {
             const chatRef = doc(db, `users/${currentUser.uid}/personalChats`, chat.user.uid);
             try {
                 await updateDoc(chatRef, { unreadCount: 0 });
             } catch(e) {
-                console.error("Could not reset unread count", e);
+                if ((e as any).code !== 'not-found') {
+                    console.error("Could not reset unread count", e);
+                }
             }
         }
         router.push(`/chat/user/${chat.user.uid}`);
