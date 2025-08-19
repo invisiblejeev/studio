@@ -54,15 +54,26 @@ export function createFirebaseMessageApi(roomId: string, isPersonal: boolean) {
                 return;
             }
             
-            const newMessages = snapshot.docs.map(docToMessage);
+            const newMessages = snapshot.docs
+                .filter(doc => doc.data().timestamp !== null) // Filter out docs with uncommitted timestamps
+                .map(docToMessage);
+
+            if (snapshot.docs.length === 0) {
+                 callback([], null, false);
+                 return;
+            }
+
             if (!newestDoc && snapshot.docs.length > 0) {
               newestDoc = snapshot.docs[0];
             }
             
             const oldestDocInBatch = snapshot.docs[snapshot.docs.length - 1];
+            // Don't use the oldestDoc if its timestamp is still pending.
+            const validOldestDoc = oldestDocInBatch.data().timestamp ? oldestDocInBatch : null;
+
             const hasMore = snapshot.docs.length === PAGE_SIZE;
 
-            callback(newMessages.reverse(), oldestDocInBatch, hasMore);
+            callback(newMessages.reverse(), validOldestDoc, hasMore);
 
         }, (error) => {
             console.error(`[FirebaseChat] Error listening for messages in room ${roomId}:`, error);
