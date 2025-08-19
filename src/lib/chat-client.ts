@@ -35,9 +35,12 @@ export function createMessagesStore(roomId: string, isPersonal: boolean, onIniti
     const firebaseApi = createFirebaseMessageApi(roomId, isPersonal);
 
     const handleUpdates = (newMessages: Message[], newOldestDoc: QueryDocumentSnapshot | null, newHasMore: boolean) => {
+        // Filter out messages with uncommitted timestamps to prevent query errors.
+        const validNewMessages = newMessages.filter(msg => msg.timestamp !== null);
+
         const messageMap = new Map(messages.map(m => [m.id, m]));
         
-        newMessages.forEach(msg => {
+        validNewMessages.forEach(msg => {
             messageMap.set(msg.id, msg);
         });
 
